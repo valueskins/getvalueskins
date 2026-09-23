@@ -1,1 +1,37 @@
 export const APP_NAME = 'ValueSkins';
+
+export * from './config.js';
+export * from './money.js';
+export * from './dealStateMachine.js';
+export * from './copy.js';
+export * from './schemas/index.js';
+
+// enums.ts re-exports DealStatus/DEAL_STATUSES from dealStateMachine.js (already
+// exported above via `export *`) — re-list the rest explicitly here to avoid a
+// duplicate-export ambiguity at this barrel.
+export {
+  USER_ROLES,
+  type UserRole,
+  PAYOUT_ACCOUNT_STATUSES,
+  type PayoutAccountStatus,
+  CANCELLED_BY_ROLES,
+  type CancelledByRole,
+  APPLICATION_STATUSES,
+  type ApplicationStatus,
+  PAYMENT_TYPES,
+  type PaymentType,
+  PAYMENT_STATUSES,
+  type PaymentStatus,
+  TRANSFER_TYPES,
+  type TransferType,
+  TRANSFER_STATUSES,
+  type TransferStatus,
+  INVOICE_KINDS,
+  type InvoiceKind,
+  DEAL_EVENT_ACTOR_TYPES,
+  type DealEventActorType,
+  EMAIL_LOG_STATUSES,
+  type EmailLogStatus,
+  DISPUTE_STATUSES,
+  type DisputeStatus,
+} from './enums.js';
