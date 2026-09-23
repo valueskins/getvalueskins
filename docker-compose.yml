@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: valueskins
+      POSTGRES_PASSWORD: valueskins
+      POSTGRES_DB: valueskins_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - valueskins_postgres_data:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U valueskins -d valueskins_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  valueskins_postgres_data:
