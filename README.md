@@ -30,6 +30,10 @@ cp apps/web/.env.example apps/web/.env
 # install workspace dependencies
 pnpm install
 
+# apply database migrations, then load fixture data (refuses to run in production)
+pnpm db:migrate
+pnpm db:seed
+
 # run api (http://localhost:4000) and web (http://localhost:3000) together
 pnpm dev
 ```

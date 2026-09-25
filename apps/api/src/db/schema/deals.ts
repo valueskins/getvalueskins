@@ -1,0 +1,141 @@
+import {
+  bigint,
+  date,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { v7 as uuidv7 } from 'uuid';
+import { users } from './users.js';
+import {
+  applicationStatusEnum,
+  cancelledByRoleEnum,
+  dealEventActorTypeEnum,
+  dealStatusEnum,
+} from './enums.js';
+
+const timestamps = {
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+};
+
+export const deals = pgTable(
+  'deals',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    shortId: varchar('short_id', { length: 8 }).notNull().unique(),
+    brandId: uuid('brand_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    creatorId: uuid('creator_id').references(() => users.id, { onDelete: 'restrict' }),
+    title: varchar('title', { length: 255 }).notNull(),
+    description: text('description').notNull(),
+    budgetPaise: bigint('budget_paise', { mode: 'number' }),
+    commissionBasePaise: bigint('commission_base_paise', { mode: 'number' }),
+    commissionGstPaise: bigint('commission_gst_paise', { mode: 'number' }),
+    commissionTotalPaise: bigint('commission_total_paise', { mode: 'number' }),
+    creatorAmountPaise: bigint('creator_amount_paise', { mode: 'number' }),
+    advancePaise: bigint('advance_paise', { mode: 'number' }),
+    finalPaise: bigint('final_paise', { mode: 'number' }),
+    applicationDeadline: date('application_deadline').notNull(),
+    contentUploadDeadline: date('content_upload_deadline').notNull(),
+    dealDeadline: date('deal_deadline').notNull(),
+    status: dealStatusEnum('status').notNull().default('DRAFT'),
+    contentLink: text('content_link'),
+    contentUploadedAt: timestamp('content_uploaded_at', { withTimezone: true, mode: 'date' }),
+    uploadCount: integer('upload_count').notNull().default(0),
+    feedback: text('feedback'),
+    revisionCount: integer('revision_count').notNull().default(0),
+    publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date' }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'date' }),
+    commissionPaidAt: timestamp('commission_paid_at', { withTimezone: true, mode: 'date' }),
+    advancePaidAt: timestamp('advance_paid_at', { withTimezone: true, mode: 'date' }),
+    approvedAt: timestamp('approved_at', { withTimezone: true, mode: 'date' }),
+    completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+    cancelledById: uuid('cancelled_by_id').references(() => users.id, { onDelete: 'set null' }),
+    cancelledByRole: cancelledByRoleEnum('cancelled_by_role'),
+    cancellationReason: text('cancellation_reason'),
+    ...timestamps,
+  },
+  (t) => [
+    index('deals_brand_id_idx').on(t.brandId),
+    index('deals_creator_id_idx').on(t.creatorId),
+    index('deals_cancelled_by_id_idx').on(t.cancelledById),
+    index('deals_status_idx').on(t.status),
+    index('deals_application_deadline_idx').on(t.applicationDeadline),
+    index('deals_content_upload_deadline_idx').on(t.contentUploadDeadline),
+    index('deals_deal_deadline_idx').on(t.dealDeadline),
+  ],
+);
+
+export const contentUploads = pgTable(
+  'content_uploads',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deals.id, { onDelete: 'cascade' }),
+    link: text('link').notNull(),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true, mode: 'date' }).notNull(),
+  },
+  (t) => [index('content_uploads_deal_id_idx').on(t.dealId)],
+);
+
+export const applications = pgTable(
+  'applications',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deals.id, { onDelete: 'cascade' }),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: applicationStatusEnum('status').notNull().default('APPLIED'),
+    ...timestamps,
+  },
+  (t) => [
+    unique('applications_deal_id_creator_id_unique').on(t.dealId, t.creatorId),
+    index('applications_creator_id_idx').on(t.creatorId),
+    index('applications_status_idx').on(t.status),
+  ],
+);
+
+export const dealEvents = pgTable(
+  'deal_events',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deals.id, { onDelete: 'cascade' }),
+    fromStatus: dealStatusEnum('from_status').notNull(),
+    toStatus: dealStatusEnum('to_status').notNull(),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    actorType: dealEventActorTypeEnum('actor_type').notNull(),
+    note: text('note'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('deal_events_deal_id_idx').on(t.dealId),
+    index('deal_events_actor_id_idx').on(t.actorId),
+  ],
+);
