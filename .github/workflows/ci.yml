@@ -26,6 +26,7 @@ jobs:
 
     env:
       DATABASE_URL: postgres://valueskins:valueskins@localhost:5432/valueskins_test
+      TEST_DATABASE_URL: postgres://valueskins:valueskins@localhost:5432/valueskins_test
 
     steps:
       - uses: actions/checkout@v4
