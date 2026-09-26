@@ -1,0 +1,51 @@
+import { z } from 'zod';
+
+const requiredString = z.string().min(1);
+
+/** 'true'/'false' string env var -> boolean. Never z.coerce.boolean() — it does
+ * Boolean(str), so the literal string 'false' would coerce to true. */
+const booleanFlag = z.enum(['true', 'false']).transform((v) => v === 'true');
+
+export const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
+  PORT: z.coerce.number().int().positive(),
+  DATABASE_URL: requiredString,
+  // Test-only tooling (never required in production); db/client.ts already
+  // throws its own clear error if this is missing when actually needed.
+  TEST_DATABASE_URL: z.string(),
+  WEB_ORIGIN: z.string().url(),
+  // Empty on localhost (SPEC 19: "cookie without Domain").
+  COOKIE_DOMAIN: z.string(),
+  SESSION_COOKIE_NAME: requiredString,
+  SESSION_SECRET: requiredString,
+  TOKEN_ENCRYPTION_KEY: requiredString,
+  INSTAGRAM_APP_ID: requiredString,
+  INSTAGRAM_APP_SECRET: requiredString,
+  INSTAGRAM_REDIRECT_URI: z.string().url(),
+  META_APP_SECRET: requiredString,
+  RAZORPAY_KEY_ID: requiredString,
+  RAZORPAY_KEY_SECRET: requiredString,
+  RAZORPAY_WEBHOOK_SECRET: requiredString,
+  RESEND_API_KEY: requiredString,
+  EMAIL_FROM: requiredString,
+  EMAIL_TRANSPORT: z.enum(['console', 'resend']),
+  // Comma-separated, can be empty if no admins are configured yet.
+  ADMIN_INSTAGRAM_USER_IDS: z.string().transform((s) =>
+    s
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean),
+  ),
+  DISPUTE_EMAIL: z.string().email(),
+  ENABLE_DEV_LOGIN: booleanFlag,
+  COMPANY_LEGAL_NAME: requiredString,
+  COMPANY_ADDRESS: requiredString,
+  COMPANY_STATE: requiredString,
+  // Empty until GST-registered; the GST_RATE_BPS>0 startup guard depends on this.
+  COMPANY_GSTIN: z.string(),
+  COMMISSION_SAC_CODE: requiredString,
+  AUTH_EMAIL_ENABLED: booleanFlag,
+  GST_RATE_BPS: z.coerce.number().int().min(0).max(10_000),
+});
+
+export type Env = z.infer<typeof envSchema>;
