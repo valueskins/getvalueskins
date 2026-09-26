@@ -9,6 +9,7 @@ const EXPECTED_TABLES = [
   'creator_payout_accounts',
   'sessions',
   'email_verification_tokens',
+  'email_login_codes',
   'deals',
   'content_uploads',
   'applications',
@@ -21,6 +22,7 @@ const EXPECTED_TABLES = [
   'disputes',
   'webhook_events',
   'meta_deletion_requests',
+  'rate_limiter_points',
 ];
 
 describe('migrations', () => {

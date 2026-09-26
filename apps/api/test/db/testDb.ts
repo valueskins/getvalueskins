@@ -17,10 +17,12 @@ const TABLES_IN_DELETE_ORDER = [
   'deals',
   'sessions',
   'email_verification_tokens',
+  'email_login_codes',
   'creator_payout_accounts',
   'brand_billing',
   'meta_deletion_requests',
   'webhook_events',
+  'rate_limiter_points',
   'users',
 ];
 

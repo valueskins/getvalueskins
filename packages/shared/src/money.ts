@@ -52,7 +52,14 @@ export function roundHalfUp(numerator: number, denominator: number): number {
   return Number(remainder * 2n >= d ? quotient + 1n : quotient);
 }
 
-export function computeBreakdown(budgetPaise: number): MoneyBreakdown {
+/**
+ * `gstRateBps` defaults to the standard config rate but can be overridden —
+ * V0 launches at 0% until ValueSkins is GST-registered (see docs/V0_LAUNCH.md 2.6).
+ */
+export function computeBreakdown(
+  budgetPaise: number,
+  gstRateBps: number = GST_RATE_BPS,
+): MoneyBreakdown {
   if (!Number.isSafeInteger(budgetPaise)) {
     throw new MoneyError(
       'NOT_SAFE_INTEGER',
@@ -70,7 +77,7 @@ export function computeBreakdown(budgetPaise: number): MoneyBreakdown {
     COMMISSION_FLAT_PAISE,
     roundHalfUp(budgetPaise * COMMISSION_PERCENT_BPS, 10_000),
   );
-  const commissionGstPaise = roundHalfUp(commissionBasePaise * GST_RATE_BPS, 10_000);
+  const commissionGstPaise = roundHalfUp(commissionBasePaise * gstRateBps, 10_000);
   const commissionTotalPaise = commissionBasePaise + commissionGstPaise;
   const creatorAmountPaise = budgetPaise - commissionTotalPaise;
   const advancePaise = roundHalfUp(creatorAmountPaise * ADVANCE_PERCENT, 100);

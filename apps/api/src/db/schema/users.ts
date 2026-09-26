@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -7,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -27,8 +29,9 @@ export const users = pgTable(
     id: uuid('id')
       .primaryKey()
       .$defaultFn(() => uuidv7()),
-    instagramUserId: varchar('instagram_user_id', { length: 64 }).notNull().unique(),
-    username: varchar('username', { length: 255 }).notNull().unique(),
+    // Nullable: V0 allows email-only accounts before Instagram login (V0_LAUNCH 2.1).
+    instagramUserId: varchar('instagram_user_id', { length: 64 }).unique(),
+    username: varchar('username', { length: 255 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
     igAccountType: varchar('ig_account_type', { length: 32 }).notNull(),
     role: userRoleEnum('role'),
@@ -56,7 +59,15 @@ export const users = pgTable(
     ...timestamps,
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
-  (t) => [index('users_role_idx').on(t.role), index('users_deleted_at_idx').on(t.deletedAt)],
+  (t) => [
+    index('users_role_idx').on(t.role),
+    index('users_deleted_at_idx').on(t.deletedAt),
+    // username is only guaranteed unique among Instagram-linked accounts; a future
+    // email-only login may auto-derive usernames that collide (V0_LAUNCH 2.1).
+    uniqueIndex('users_username_unique_idx')
+      .on(t.username)
+      .where(sql`${t.instagramUserId} is not null`),
+  ],
 );
 
 export const brandBilling = pgTable('brand_billing', {
@@ -129,4 +140,24 @@ export const emailVerificationTokens = pgTable(
     index('email_verification_tokens_user_id_idx').on(t.userId),
     index('email_verification_tokens_expires_at_idx').on(t.expiresAt),
   ],
+);
+
+/**
+ * Backs a future email-code login path (V0_LAUNCH 2.1, gated by AUTH_EMAIL_ENABLED).
+ * No user_id FK: a code can be requested before any user row exists.
+ */
+export const emailLoginCodes = pgTable(
+  'email_login_codes',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    email: varchar('email', { length: 320 }).notNull(),
+    codeHash: varchar('code_hash', { length: 128 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    usedAt: timestamp('used_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [index('email_login_codes_email_idx').on(t.email)],
 );

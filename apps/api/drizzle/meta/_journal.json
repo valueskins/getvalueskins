@@ -8,6 +8,13 @@
       "when": 1790311410005,
       "tag": "0000_chubby_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790424065568,
+      "tag": "0001_pale_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }
