@@ -5,6 +5,7 @@ How we work
 * Work only on the task in the current prompt. Do not build ahead, and do not add features, screens, fields or dependencies the spec does not call for.
 * If the spec is unclear, contradicts itself, or seems wrong, stop and ask. Do not guess. If a decision changes the spec, update `docs/SPEC.md` in the same change.
 * When a task needs an external API detail (Instagram, Razorpay, Resend), check the current official docs rather than relying on memory, and note in your summary what you verified.
+* Until launch, docs/V0_LAUNCH.md section 2 overrides docs/SPEC.md wherever they differ. When a prompt implements something from section 2, also update docs/SPEC.md so it stays the source of truth.
 * End every task with: what you built, how to run and verify it, tests added, anything left open or needing a human (keys, dashboard settings).
 
 Repo layout
@@ -41,8 +42,9 @@ Code standards
 * Tests with Vitest. Required for: money math, state machine, payment and webhook handling, authorization on every route, and each bug fix. API integration tests run against real Postgres, never mocks of the DB.
 * Before finishing any task: `pnpm typecheck && pnpm lint && pnpm test` must pass.
 
-Git
+## Git
 
-* Author all commits as Melove Gupta <melovegupta0406@gmail.com>.
-* Small commits with clear messages (`feat(deals): publish endpoint with frozen breakdown`). One task per branch, merged by PR.
-* Never commit `.env` files or secrets.
+- Author all commits as Melove Gupta <melovegupta0406@gmail.com>. Commits are under this name only.
+- Never add Co-Authored-By or any other trailer, and never mention an AI tool or assistant in commit messages, PR titles or bodies, code comments, or docs.
+- Small commits with clear messages (feat(deals): publish endpoint with frozen breakdown). One task per branch, merged by PR.
+- Never commit .env files or secrets.
