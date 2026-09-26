@@ -79,6 +79,10 @@ export const transfers = pgTable(
     status: transferStatusEnum('status').notNull().default('PENDING'),
     failureReason: text('failure_reason'),
     processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
+    // Manual completion, e.g. a bank transfer done outside Razorpay Route (V0_LAUNCH 2.1-adjacent).
+    manualReference: text('manual_reference'),
+    manualById: uuid('manual_by_id').references(() => users.id, { onDelete: 'set null' }),
+    manualAt: timestamp('manual_at', { withTimezone: true, mode: 'date' }),
     ...timestamps,
   },
   (t) => [
@@ -86,6 +90,7 @@ export const transfers = pgTable(
     index('transfers_payment_id_idx').on(t.paymentId),
     index('transfers_creator_id_idx').on(t.creatorId),
     index('transfers_status_idx').on(t.status),
+    index('transfers_manual_by_id_idx').on(t.manualById),
   ],
 );
 

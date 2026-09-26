@@ -1,9 +1,21 @@
 import { createApp } from './app.js';
+import { closeDb } from './db/client.js';
+import { getEnv } from './env/index.js';
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+const env = getEnv();
+const app = createApp(env);
 
-const app = createApp();
+const server = app.listen(env.PORT, () => {
+  console.log(`api listening on port ${env.PORT}`);
+});
 
-app.listen(PORT, () => {
-  console.log(`api listening on port ${PORT}`);
+process.on('SIGTERM', () => {
+  server.close(() => {
+    closeDb()
+      .then(() => process.exit(0))
+      .catch((err: unknown) => {
+        console.error(err);
+        process.exit(1);
+      });
+  });
 });

@@ -113,3 +113,49 @@ describe('payments partial unique index: one CAPTURED per (deal_id, type)', () =
     ).resolves.toBeDefined();
   });
 });
+
+describe('users partial unique index on username (WHERE instagram_user_id IS NOT NULL)', () => {
+  it('rejects a second Instagram-linked user with the same username', async () => {
+    await db.insert(users).values({
+      instagramUserId: 'ig_dup_1',
+      username: 'duplicate_handle',
+      name: 'First',
+      igAccountType: 'BUSINESS',
+      igTokenEncrypted: 'x',
+      igTokenExpiresAt: new Date('2027-01-01'),
+    });
+
+    await expect(
+      db.insert(users).values({
+        instagramUserId: 'ig_dup_2',
+        username: 'duplicate_handle',
+        name: 'Second',
+        igAccountType: 'BUSINESS',
+        igTokenEncrypted: 'x',
+        igTokenExpiresAt: new Date('2027-01-01'),
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23505' } });
+  });
+
+  it('allows the same username across two email-only users (the index is partial)', async () => {
+    await db.insert(users).values({
+      instagramUserId: null,
+      username: 'shared_email_handle',
+      name: 'Email User One',
+      igAccountType: 'BUSINESS',
+      igTokenEncrypted: 'x',
+      igTokenExpiresAt: new Date('2027-01-01'),
+    });
+
+    await expect(
+      db.insert(users).values({
+        instagramUserId: null,
+        username: 'shared_email_handle',
+        name: 'Email User Two',
+        igAccountType: 'BUSINESS',
+        igTokenEncrypted: 'x',
+        igTokenExpiresAt: new Date('2027-01-01'),
+      }),
+    ).resolves.toBeDefined();
+  });
+});

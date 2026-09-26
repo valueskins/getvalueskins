@@ -132,6 +132,10 @@ Worked example, budget ₹10,000 (1,000,000 paise):
 
 Worked example, budget ₹50,000: commission base ₹2,500, GST ₹450, total ₹2,950, creator ₹47,050, advance ₹14,115, final ₹32,935.
 
+`computeBreakdown` takes the GST rate as an optional parameter (basis points), defaulting to `GST_RATE_BPS` above. The API's `GST_RATE_BPS` env var controls the live rate; it is `0` until ValueSkins is GST-registered (V0_LAUNCH 2.6), so commission_gst is 0 and commission_total equals commission_base.
+
+Worked example at GST 0, budget ₹10,000: commission base ₹750, GST ₹0, total ₹750, creator ₹9,250, advance ₹2,775, final ₹6,475.
+
 ### 4.3 Razorpay fees
 
 ValueSkins absorbs Razorpay's fees. They are never shown to or charged to users, except as an informational line in the ADP.
@@ -238,6 +242,10 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
    - Creator: **Payout setup** (section 7.2). Creators may browse deals before finishing, but cannot apply until the payout account is ACTIVE.
    - Brand: **Billing details**: billing name, billing state (for GST place of supply), billing address, GSTIN (optional, validated format). Required before publishing a deal.
 5. **Marketplace.**
+
+### 6.5 Email login (V0 launch)
+
+Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code login path alongside Instagram login (V0_LAUNCH 2.1). Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id` null until they later link Instagram. Endpoint and code-delivery/verification behavior are defined in a later prompt.
 
 ---
 
@@ -410,7 +418,7 @@ All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped i
 Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` default now, money columns `_paise BIGINT`, enums as Postgres enums. Foreign keys everywhere, with indexes on every foreign key and every column used in a filter.
 
 **users**
-`id, instagram_user_id (unique), username (unique), name, ig_account_type, role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted, ig_token_expires_at, instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
+`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), name, ig_account_type, role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted, ig_token_expires_at, instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
 
 **brand_billing** (1:1 users)
 `user_id (pk), billing_name, billing_address, billing_state, gstin (nullable), created_at, updated_at`
@@ -423,6 +431,9 @@ Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` defau
 
 **email_verification_tokens**
 `id, user_id, email, token_hash (unique), expires_at, used_at, created_at`
+
+**email_login_codes** (V0 launch, section 6.5 — no user_id: a code can be requested before any user row exists)
+`id, email, code_hash, expires_at, attempts, used_at, created_at`, index on `email`
 
 **deals**
 `id, short_id (unique, 8 chars, for receipts), brand_id, creator_id (nullable), title, description, budget_paise, commission_base_paise, commission_gst_paise, commission_total_paise, creator_amount_paise, advance_paise, final_paise, application_deadline date, content_upload_deadline date, deal_deadline date, status, content_link, content_uploaded_at, upload_count, feedback, revision_count, published_at, confirmed_at, commission_paid_at, advance_paid_at, approved_at, completed_at, cancelled_at, cancelled_by_id, cancelled_by_role (BRAND | ADMIN), cancellation_reason, created_at, updated_at`
@@ -439,7 +450,7 @@ Money columns are null while DRAFT and set at publish.
 Partial unique index: one CAPTURED payment per `(deal_id, type)`.
 
 **transfers**
-`id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, created_at, updated_at`
+`id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, manual_reference (nullable), manual_by_id (nullable), manual_at (nullable), created_at, updated_at`
 
 **invoices**
 `id, deal_id, payment_id, kind (COMMISSION_TAX_INVOICE | ADVANCE_RECEIPT | FINAL_RECEIPT), number (unique), financial_year, sequence, snapshot jsonb, issued_at`
@@ -466,7 +477,7 @@ User deletion: soft delete (`deleted_at`), anonymize username, email and Instagr
 
 ## 16. API
 
-All under `https://api.valueskins.com/api`. JSON. Errors are `{ error: { code, message } }` with correct HTTP status. Every request body and query is validated with the Zod schemas from `packages/shared`. Lists use cursor pagination (`?cursor=&limit=`, max 50).
+All under `https://api.valueskins.com/api`. JSON. Errors are `{ error: { code, message } }` with correct HTTP status; validation errors additionally carry a `details` array of `{ path, message }` field errors. Every request body and query is validated with the Zod schemas from `packages/shared`. Lists use cursor pagination (`?cursor=&limit=`, max 50).
 
 Auth and account
 - `GET /auth/instagram/start`

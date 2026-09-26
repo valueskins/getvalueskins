@@ -1,4 +1,5 @@
 export * from './common.js';
+export * from './auth.js';
 export * from './deal.js';
 export * from './application.js';
 export * from './content.js';

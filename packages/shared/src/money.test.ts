@@ -109,6 +109,41 @@ describe('computeBreakdown', () => {
     });
   });
 
+  describe('configurable GST rate (V0_LAUNCH 2.6)', () => {
+    it('charges no GST at all when gstRateBps is 0', () => {
+      const breakdown = computeBreakdown(1_000_000, 0);
+
+      expect(breakdown).toEqual({
+        budgetPaise: 1_000_000,
+        commissionBasePaise: 75_000,
+        commissionGstPaise: 0,
+        commissionTotalPaise: 75_000,
+        creatorAmountPaise: 925_000,
+        advancePaise: 277_500,
+        finalPaise: 647_500,
+      });
+    });
+
+    it('still satisfies the invariant at GST 0 for many random budgets', () => {
+      fc.assert(
+        fc.property(fc.integer({ min: MIN_BUDGET_PAISE, max: 100_000_000_00 }), (budgetPaise) => {
+          const breakdown = computeBreakdown(budgetPaise, 0);
+
+          expect(breakdown.commissionGstPaise).toBe(0);
+          expect(
+            breakdown.commissionTotalPaise + breakdown.advancePaise + breakdown.finalPaise,
+          ).toBe(budgetPaise);
+        }),
+      );
+    });
+
+    it('defaults to the standard config rate when no rate is given', () => {
+      expect(computeBreakdown(1_000_000).commissionGstPaise).toBe(
+        computeBreakdown(1_000_000, 1800).commissionGstPaise,
+      );
+    });
+  });
+
   it('throws NOT_SAFE_INTEGER for non-integer paise', () => {
     expect(() => computeBreakdown(1.5)).toThrow(MoneyError);
     try {
