@@ -34,4 +34,6 @@ export {
   type EmailLogStatus,
   DISPUTE_STATUSES,
   type DisputeStatus,
+  EMAIL_TEMPLATES,
+  type EmailTemplate,
 } from './enums.js';

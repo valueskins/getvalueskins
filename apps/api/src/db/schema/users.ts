@@ -33,7 +33,9 @@ export const users = pgTable(
     instagramUserId: varchar('instagram_user_id', { length: 64 }).unique(),
     username: varchar('username', { length: 255 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
-    igAccountType: varchar('ig_account_type', { length: 32 }).notNull(),
+    // Nullable: an email-only account (created via email-code login) has no
+    // Instagram data at all until it links an Instagram account (V0_LAUNCH 2.1).
+    igAccountType: varchar('ig_account_type', { length: 32 }),
     role: userRoleEnum('role'),
     roleLockedAt: timestamp('role_locked_at', { withTimezone: true, mode: 'date' }),
     followersCount: integer('followers_count'),
@@ -42,11 +44,11 @@ export const users = pgTable(
     engagementRate: numeric('engagement_rate', { precision: 5, scale: 2 }),
     bio: text('bio'),
     profilePictureUrl: text('profile_picture_url'),
-    igTokenEncrypted: text('ig_token_encrypted').notNull(),
+    igTokenEncrypted: text('ig_token_encrypted'),
     igTokenExpiresAt: timestamp('ig_token_expires_at', {
       withTimezone: true,
       mode: 'date',
-    }).notNull(),
+    }),
     instagramSyncedAt: timestamp('instagram_synced_at', { withTimezone: true, mode: 'date' }),
     email: varchar('email', { length: 320 }).unique(),
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true, mode: 'date' }),

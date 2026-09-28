@@ -10,3 +10,22 @@ export const devLoginSchema = z
   .strict();
 
 export type DevLoginInput = z.infer<typeof devLoginSchema>;
+
+/** POST /api/auth/email/start (SPEC 6.5, V0_LAUNCH 2.1) */
+export const emailLoginStartSchema = z
+  .object({
+    email: z.string().email(),
+  })
+  .strict();
+
+export type EmailLoginStartInput = z.infer<typeof emailLoginStartSchema>;
+
+/** POST /api/auth/email/verify (SPEC 6.5, V0_LAUNCH 2.1) */
+export const emailLoginVerifySchema = z
+  .object({
+    email: z.string().email(),
+    code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+  })
+  .strict();
+
+export type EmailLoginVerifyInput = z.infer<typeof emailLoginVerifySchema>;
