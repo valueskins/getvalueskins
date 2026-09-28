@@ -4,19 +4,25 @@ import { devLoginRoutes } from './auth/devLogin.routes.js';
 import { logoutRoutes } from './auth/logout.routes.js';
 import { meRoutes } from './auth/me.routes.js';
 import { sessionMiddleware } from './auth/sessionMiddleware.js';
+import { emailAuthRoutes } from './emailAuth/emailAuth.routes.js';
 import { errorMiddleware, notFoundHandler } from './errors/errorMiddleware.js';
 import type { Env } from './env/index.js';
 import { healthRoutes } from './health/health.routes.js';
+import { instagramAuthRoutes } from './instagram/oauth.routes.js';
 import { httpLogger } from './logging/httpLogger.js';
+import { metaRoutes } from './meta/meta.routes.js';
 import { globalUserLimiter } from './rateLimit/limiters.js';
 import {
   RAZORPAY_WEBHOOK_PATH,
   corsMiddleware,
   helmetMiddleware,
   jsonBodyMiddleware,
+  metaUrlencodedBodyMiddleware,
   originCheck,
   webhookRawBodyMiddleware,
 } from './security/index.js';
+
+const META_CALLBACK_PATHS = ['/api/meta/deauthorize', '/api/meta/data-deletion'];
 
 export function createApp(env: Env): Express {
   const app = express();
@@ -31,6 +37,8 @@ export function createApp(env: Env): Express {
   // Reserves raw-body access for signature verification (a future prompt) —
   // must come before the global JSON parser below.
   app.use(RAZORPAY_WEBHOOK_PATH, webhookRawBodyMiddleware);
+  // Meta posts signed_request as form-urlencoded, not JSON — same reasoning.
+  app.use(META_CALLBACK_PATHS, metaUrlencodedBodyMiddleware);
   app.use(jsonBodyMiddleware);
 
   app.use(originCheck(env));
@@ -38,9 +46,14 @@ export function createApp(env: Env): Express {
   app.use('/api', globalUserLimiter);
 
   app.use(healthRoutes());
-  app.use(meRoutes());
+  app.use(meRoutes(env));
+  app.use(instagramAuthRoutes(env));
+  app.use(metaRoutes(env));
   if (env.NODE_ENV !== 'production' && env.ENABLE_DEV_LOGIN) {
     app.use(devLoginRoutes(env));
+  }
+  if (env.AUTH_EMAIL_ENABLED) {
+    app.use(emailAuthRoutes(env));
   }
   app.use(logoutRoutes(env));
 

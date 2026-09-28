@@ -1,0 +1,51 @@
+import type { EmailTemplate } from '@valueskins/shared';
+import type { EmailContent, EmailTemplateDataMap } from '../types.js';
+import { adminAlertTemplate } from './adminAlert.js';
+import { advancePaidTemplate } from './advancePaid.js';
+import { applicationNotSelectedTemplate } from './applicationNotSelected.js';
+import { changesRequestedTemplate } from './changesRequested.js';
+import { commissionPaidBrandTemplate } from './commissionPaidBrand.js';
+import { commissionPaidCreatorTemplate } from './commissionPaidCreator.js';
+import { commissionPaymentReminderTemplate } from './commissionPaymentReminder.js';
+import { contentApprovedTemplate } from './contentApproved.js';
+import { contentOverdueTemplate } from './contentOverdue.js';
+import { contentUploadedTemplate } from './contentUploaded.js';
+import { dealCancelledTemplate } from './dealCancelled.js';
+import { dealPublishedTemplate } from './dealPublished.js';
+import { dealReportReadyTemplate } from './dealReportReady.js';
+import { disputeRaisedTemplate } from './disputeRaised.js';
+import { finalPaymentDoneTemplate } from './finalPaymentDone.js';
+import { newApplicationTemplate } from './newApplication.js';
+import { payoutAccountStatusTemplate } from './payoutAccountStatus.js';
+import { reviewReminderTemplate } from './reviewReminder.js';
+import { signInCodeTemplate } from './signInCode.js';
+import { verifyEmailTemplate } from './verifyEmail.js';
+import { youWereSelectedTemplate } from './youWereSelected.js';
+
+type TemplateRegistry = {
+  [T in EmailTemplate]: (data: EmailTemplateDataMap[T]) => EmailContent;
+};
+
+export const templateRegistry: TemplateRegistry = {
+  VERIFY_EMAIL: verifyEmailTemplate,
+  DEAL_PUBLISHED: dealPublishedTemplate,
+  NEW_APPLICATION: newApplicationTemplate,
+  YOU_WERE_SELECTED: youWereSelectedTemplate,
+  APPLICATION_NOT_SELECTED: applicationNotSelectedTemplate,
+  COMMISSION_PAID_BRAND: commissionPaidBrandTemplate,
+  COMMISSION_PAID_CREATOR: commissionPaidCreatorTemplate,
+  ADVANCE_PAID: advancePaidTemplate,
+  CONTENT_UPLOADED: contentUploadedTemplate,
+  CHANGES_REQUESTED: changesRequestedTemplate,
+  CONTENT_APPROVED: contentApprovedTemplate,
+  FINAL_PAYMENT_DONE: finalPaymentDoneTemplate,
+  DEAL_REPORT_READY: dealReportReadyTemplate,
+  DEAL_CANCELLED: dealCancelledTemplate,
+  COMMISSION_PAYMENT_REMINDER: commissionPaymentReminderTemplate,
+  CONTENT_OVERDUE: contentOverdueTemplate,
+  REVIEW_REMINDER: reviewReminderTemplate,
+  DISPUTE_RAISED: disputeRaisedTemplate,
+  PAYOUT_ACCOUNT_STATUS: payoutAccountStatusTemplate,
+  ADMIN_ALERT: adminAlertTemplate,
+  SIGN_IN_CODE: signInCodeTemplate,
+};

@@ -50,4 +50,32 @@ describe('getStartupGuardViolations', () => {
 
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
+
+  it('flags EMAIL_TRANSPORT=console in production', () => {
+    const env = buildTestEnv({
+      NODE_ENV: 'production',
+      ENABLE_DEV_LOGIN: 'false',
+      RAZORPAY_KEY_ID: 'rzp_live_x',
+      EMAIL_TRANSPORT: 'console',
+    });
+
+    expect(getStartupGuardViolations(env).some((v) => v.includes('EMAIL_TRANSPORT'))).toBe(true);
+  });
+
+  it('allows EMAIL_TRANSPORT=console outside production', () => {
+    const env = buildTestEnv({ EMAIL_TRANSPORT: 'console' });
+
+    expect(getStartupGuardViolations(env)).toEqual([]);
+  });
+
+  it('allows EMAIL_TRANSPORT=resend in production', () => {
+    const env = buildTestEnv({
+      NODE_ENV: 'production',
+      ENABLE_DEV_LOGIN: 'false',
+      RAZORPAY_KEY_ID: 'rzp_live_x',
+      EMAIL_TRANSPORT: 'resend',
+    });
+
+    expect(getStartupGuardViolations(env)).toEqual([]);
+  });
 });
