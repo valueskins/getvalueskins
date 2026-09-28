@@ -34,5 +34,11 @@ export function getStartupGuardViolations(env: Env): string[] {
     violations.push('COMPANY_GSTIN is required when GST_RATE_BPS is above 0');
   }
 
+  // The console transport logs full email bodies (including sign-in codes and
+  // verification links) at debug level — never acceptable in production (SPEC 20).
+  if (env.NODE_ENV === 'production' && env.EMAIL_TRANSPORT === 'console') {
+    violations.push('EMAIL_TRANSPORT must not be "console" when NODE_ENV=production');
+  }
+
   return violations;
 }

@@ -21,4 +21,10 @@ export const webhookRawBodyMiddleware: RequestHandler = express.raw({
 
 export const jsonBodyMiddleware: RequestHandler = express.json({ limit: '1mb' });
 
+/** Meta POSTs signed_request as application/x-www-form-urlencoded, not JSON —
+ * mounted on the two Meta callback paths before the global JSON parser. */
+export const metaUrlencodedBodyMiddleware: RequestHandler = express.urlencoded({
+  extended: false,
+});
+
 export { originCheck, ORIGIN_CHECK_EXEMPT_PATH_PREFIXES } from './originCheck.js';

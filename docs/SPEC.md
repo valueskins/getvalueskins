@@ -216,11 +216,12 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
   1. Web "Continue with Instagram" goes to `GET https://api.valueskins.com/api/auth/instagram/start`. The API sets a signed `state` cookie and redirects to Instagram's authorize URL.
   2. Instagram redirects to `GET /api/auth/instagram/callback?code&state`. The API verifies state, exchanges the code for a short-lived token, exchanges that for a long-lived token (about 60 days), and fetches the profile.
   3. Upsert the user by Instagram user id. Create a session. Redirect to `https://valueskins.com/onboarding` if onboarding is incomplete, else `/home`.
+- **Link mode**: `GET /api/auth/instagram/start?link=1` (must already be logged in) attaches the fetched Instagram account to the current user instead of creating a session, and redirects to `/home` on success. If that Instagram account already belongs to a different user, nothing is mutated and the browser is redirected with an error instead.
 - Profile fields fetched from `/me`: `user_id, username, name, account_type, profile_picture_url, followers_count, follows_count, media_count, biography`. Verify the exact field list against Meta's docs at build time. If `biography` is not available on `/me`, drop it.
 - Engagement rate = average of (likes + comments) over the latest 12 media, divided by followers, as a percentage with 2 decimals. Null if fewer than 3 posts or 0 followers.
 - The long-lived token is stored **encrypted** (AES-256-GCM, key from env `TOKEN_ENCRYPTION_KEY`). It is refreshed when it has less than 10 days left.
-- Profile is refreshed on every login and by the daily cron.
-- Meta app requirements, built into the product: `/privacy` and `/terms` pages on the web app, a **data deletion callback** (`POST /api/meta/data-deletion`, returns a confirmation code and status URL) and a **deauthorize callback** (`POST /api/meta/deauthorize`). Both verify Meta's `signed_request`.
+- Profile is refreshed on every login and by the daily cron. `is_admin` is recomputed from `ADMIN_INSTAGRAM_USER_IDS` on every login/upsert, in both directions.
+- Meta app requirements, built into the product: `/privacy` and `/terms` pages on the web app, a **data deletion callback** (`POST /api/meta/data-deletion`, returns a confirmation code and status URL, `GET /api/meta/deletion-status/:code` to check it) and a **deauthorize callback** (`POST /api/meta/deauthorize`). Both verify Meta's `signed_request` with `META_APP_SECRET`. Deauthorize only clears the now-invalid stored token (`ig_token_encrypted`, `ig_token_expires_at`) for that Instagram user id — it does not delete the account; full soft-delete and anonymization (section 15) is exclusive to data-deletion and `DELETE /me`.
 
 ### 6.2 Dev login (non-production only)
 
@@ -245,7 +246,11 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
 
 ### 6.5 Email login (V0 launch)
 
-Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code login path alongside Instagram login (V0_LAUNCH 2.1). Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id` null until they later link Instagram. Endpoint and code-delivery/verification behavior are defined in a later prompt.
+Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code login path alongside Instagram login (V0_LAUNCH 2.1). Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id`, `ig_account_type`, `ig_token_encrypted` and `ig_token_expires_at` all null until they later link Instagram.
+
+- `POST /auth/email/start { email }`: always responds `200 { ok: true }`, regardless of whether an account exists for that email — this is the whole non-enumeration mechanism, not a special case on top of it. Generates a 6-digit numeric code, invalidates any prior unused code for that email, and sends it with the "Your sign-in code" template. Valid for 10 minutes. Rate limited as a login attempt (section 13).
+- `POST /auth/email/verify { email, code }`: on a correct, unexpired, unused code with fewer than 5 prior wrong attempts on it, marks the code used, finds the user by email or creates one (`email_verified_at` set immediately), and creates a session. Every failure (no code, wrong code, expired, 5 attempts already used) returns the identical `400 INVALID_CODE` — never distinguished. Also rate limited as a login attempt.
+- A brand-new email-only user has no Instagram handle to derive a username from; `username` and `name` default to the email's local-part.
 
 ---
 
@@ -292,11 +297,12 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 
 Sent through Resend from `ValueSkins <notifications@valueskins.com>`, reply-to `valueskinsfounder@gmail.com`. Every email is plain text plus minimal HTML (black text on white for email-client readability), no images except the wordmark, and no emojis. Every send is logged in `email_log`. Every deal-related email is visible to both parties in the deal's Communication history.
 
-In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of sending.
+In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of sending. A startup guard crashes the process if `EMAIL_TRANSPORT=console` with `NODE_ENV=production` — printed emails include verification links and sign-in codes, which must never reach production logs (section 20).
 
 | # | Template | To | When |
 |---|---|---|---|
 | E0 | Verify your email | User | Email entered or changed |
+| E1 | Your sign-in code | User | Email-code login started (V0_LAUNCH 2.1, section 6.5) |
 | 1 | Deal published | Brand | Deal goes OPEN |
 | 2 | New application | Brand | Creator applies |
 | 3 | You were selected | Creator | Brand confirms |
@@ -418,7 +424,7 @@ All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped i
 Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` default now, money columns `_paise BIGINT`, enums as Postgres enums. Foreign keys everywhere, with indexes on every foreign key and every column used in a filter.
 
 **users**
-`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), name, ig_account_type, role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted, ig_token_expires_at, instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
+`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
 
 **brand_billing** (1:1 users)
 `user_id (pk), billing_name, billing_address, billing_state, gstin (nullable), created_at, updated_at`
@@ -480,8 +486,9 @@ User deletion: soft delete (`deleted_at`), anonymize username, email and Instagr
 All under `https://api.valueskins.com/api`. JSON. Errors are `{ error: { code, message } }` with correct HTTP status; validation errors additionally carry a `details` array of `{ path, message }` field errors. Every request body and query is validated with the Zod schemas from `packages/shared`. Lists use cursor pagination (`?cursor=&limit=`, max 50).
 
 Auth and account
-- `GET /auth/instagram/start`
+- `GET /auth/instagram/start` (`?link=1` to attach to the current user instead of logging in)
 - `GET /auth/instagram/callback`
+- `POST /auth/email/start` and `POST /auth/email/verify` (V0 launch, only when `AUTH_EMAIL_ENABLED`)
 - `POST /auth/logout`
 - `POST /dev/login` (non-production only)
 - `GET /me`
@@ -577,7 +584,7 @@ Generated on demand with PDFKit, same document for both parties.
 Local cookies: API and web both on `localhost` (cookie without Domain). Local webhooks: expose the API with a tunnel (cloudflared or ngrok) and register the tunnel URL in Razorpay test mode.
 
 API env (validated with Zod at startup, the process exits on any missing value):
-`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE`
+`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE, AUTH_EMAIL_ENABLED, GST_RATE_BPS` (the last two are V0 launch additions, V0_LAUNCH 2.1 and 2.6)
 
 Web env: `NEXT_PUBLIC_API_URL, NEXT_PUBLIC_RAZORPAY_KEY_ID`
 

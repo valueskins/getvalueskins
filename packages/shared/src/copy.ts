@@ -24,6 +24,10 @@ export const INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED =
 export const PAYOUT_CONSENT_TEXT =
   'I agree that Razorpay will store my bank and KYC details to pay me.';
 
+// Settlement timing (SPEC 8) — reused across advance/final/payout-status emails.
+export const SETTLEMENT_TIMING_NOTE =
+  'Razorpay will send this to your bank account on its settlement schedule.';
+
 // Payment CTAs (SPEC 5.5) — the amount varies per deal, so these are functions, not fixed strings.
 export function payCommissionLabel(commissionTotalPaise: number): string {
   return `Pay commission: ${formatInr(commissionTotalPaise)}`;
