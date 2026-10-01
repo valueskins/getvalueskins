@@ -7,7 +7,7 @@ import { metaDeletionRequests, users } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { clearInstagramToken } from './deauthorize.service.js';
 import { softDeleteAndAnonymizeUser } from './deletion.service.js';
-import { verifySignedRequest } from './signedRequest.js';
+import { verifySignedRequestWithAnySecret } from './signedRequest.js';
 
 function invalidSignedRequest(res: Response): void {
   res
@@ -22,6 +22,7 @@ function invalidSignedRequest(res: Response): void {
  */
 export function metaRoutes(env: Env): Router {
   const router = Router();
+  const signingSecrets = [env.META_APP_SECRET, env.INSTAGRAM_APP_SECRET];
 
   router.post('/api/meta/deauthorize', async (req, res, next) => {
     try {
@@ -30,7 +31,7 @@ export function metaRoutes(env: Env): Router {
         invalidSignedRequest(res);
         return;
       }
-      const payload = verifySignedRequest(signedRequest, env.META_APP_SECRET);
+      const payload = verifySignedRequestWithAnySecret(signedRequest, signingSecrets);
       if (!payload) {
         invalidSignedRequest(res);
         return;
@@ -50,7 +51,7 @@ export function metaRoutes(env: Env): Router {
         invalidSignedRequest(res);
         return;
       }
-      const payload = verifySignedRequest(signedRequest, env.META_APP_SECRET);
+      const payload = verifySignedRequestWithAnySecret(signedRequest, signingSecrets);
       if (!payload) {
         invalidSignedRequest(res);
         return;

@@ -38,3 +38,19 @@ export function verifySignedRequest(
     return null;
   }
 }
+
+/**
+ * Meta's docs do not say whether Instagram Login callbacks are signed with the
+ * Instagram app secret or the Meta app secret, so accept either. Both are
+ * secrets only Meta and this server know, so this does not weaken verification.
+ */
+export function verifySignedRequestWithAnySecret(
+  signedRequest: string,
+  appSecrets: string[],
+): SignedRequestPayload | null {
+  for (const secret of appSecrets) {
+    const payload = verifySignedRequest(signedRequest, secret);
+    if (payload) return payload;
+  }
+  return null;
+}

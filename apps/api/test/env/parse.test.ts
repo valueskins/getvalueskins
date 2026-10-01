@@ -48,6 +48,26 @@ describe('parseEnv', () => {
     expect(env.TEST_DATABASE_URL).toBe('');
   });
 
+  it('defaults TEST_DATABASE_URL, ADMIN_INSTAGRAM_USER_IDS, COMPANY_GSTIN when omitted (hosts that cannot define empty vars)', () => {
+    const raw = buildRawTestEnv();
+    delete raw.TEST_DATABASE_URL;
+    delete raw.ADMIN_INSTAGRAM_USER_IDS;
+    delete raw.COMPANY_GSTIN;
+
+    const env = parseEnv(raw);
+
+    expect(env.TEST_DATABASE_URL).toBe('');
+    expect(env.ADMIN_INSTAGRAM_USER_IDS).toEqual([]);
+    expect(env.COMPANY_GSTIN).toBe('');
+  });
+
+  it('still requires COOKIE_DOMAIN to be present (only the three optional vars default)', () => {
+    const raw = buildRawTestEnv();
+    delete raw.COOKIE_DOMAIN;
+
+    expect(() => parseEnv(raw)).toThrow(EnvValidationError);
+  });
+
   it('rejects an empty WEB_ORIGIN (must be a valid URL)', () => {
     expect(() => parseEnv(buildRawTestEnv({ WEB_ORIGIN: '' }))).toThrow(EnvValidationError);
   });
