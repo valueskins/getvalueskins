@@ -17,3 +17,14 @@ Instagram app review can take weeks, and building cannot wait. V0 allows account
 ### 2.6 Configurable GST
 
 ValueSkins isn't GST-registered yet, so GST isn't charged at launch. `computeBreakdown` takes an optional GST-rate-in-basis-points parameter, defaulting to `packages/shared`'s config constant. The API's `GST_RATE_BPS` env var controls the live rate (currently `0`), and a startup guard prevents enabling GST (`GST_RATE_BPS > 0`) without `COMPANY_GSTIN` set.
+
+### 2.7 Staging deployment
+
+Staging runs at `https://staging.valueskins.com` (web, Vercel) and `https://api-staging.valueskins.com` (API, Render), both tracking `main`. The setup is in `render.yaml`, `apps/web/vercel.json` and `docs/DEPLOYMENT.md`; no resource is created from code.
+
+- API: paid, always-on Render web service (a free service sleeps, which breaks OAuth and Meta callbacks), Singapore region, health check `/api/health`, migrations in the pre-deploy command. Postgres is on Render's free plan for staging (expires after 30 days, no backups); production uses a paid plan with backups (SPEC 2).
+- Staging env: `NODE_ENV=staging`, `SESSION_COOKIE_NAME=vs_session_staging`, `COOKIE_DOMAIN=.valueskins.com`, Razorpay test keys, `ENABLE_DEV_LOGIN=true`, `AUTH_EMAIL_ENABLED=true`, `EMAIL_TRANSPORT=resend`.
+- `TEST_DATABASE_URL`, `COMPANY_GSTIN` and `ADMIN_INSTAGRAM_USER_IDS` default to empty so the Blueprint does not need empty variables.
+- Meta signs the deauthorize and data-deletion callbacks with an app secret; the docs do not say which of the two, so the API accepts a `signed_request` signed with either `META_APP_SECRET` or `INSTAGRAM_APP_SECRET`.
+- Temporary web pages (home, email code screens, `/privacy`, `/terms`, `/auth/error`, `/me`, `/dev/login`) live in `apps/web/app/(temporary)` and `apps/web/lib/temporary`, so they can be deleted as one unit when the design handoff arrives. `next.config.ts` maps the paths the API redirects to (`/onboarding`, `/home`, `/login`, `/settings`) onto them. `/privacy` and `/terms` render placeholder markdown marked DRAFT from `apps/web/content`.
+- `GET /api/me` also returns the fetched Instagram profile (`profile`, null for an email-only account), so Meta's screencast can show the data being used.

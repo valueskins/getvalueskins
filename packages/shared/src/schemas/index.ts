@@ -9,3 +9,4 @@ export * from './dispute.js';
 export * from './email.js';
 export * from './billing.js';
 export * from './payoutAccount.js';
+export * from './me.js';

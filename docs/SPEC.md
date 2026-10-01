@@ -491,7 +491,7 @@ Auth and account
 - `POST /auth/email/start` and `POST /auth/email/verify` (V0 launch, only when `AUTH_EMAIL_ENABLED`)
 - `POST /auth/logout`
 - `POST /dev/login` (non-production only)
-- `GET /me`
+- `GET /me` (returns `{ user, profile }`: `profile` is the fetched Instagram profile - username, name, picture, followers, follows, media count, engagement rate, last sync - or `null` when no Instagram account is linked)
 - `POST /me/role` (once)
 - `POST /me/email` and `POST /me/email/verify` (token) and `POST /me/email/resend`
 - `PUT /me/billing` (brand)
@@ -584,9 +584,11 @@ Generated on demand with PDFKit, same document for both parties.
 Local cookies: API and web both on `localhost` (cookie without Domain). Local webhooks: expose the API with a tunnel (cloudflared or ngrok) and register the tunnel URL in Razorpay test mode.
 
 API env (validated with Zod at startup, the process exits on any missing value):
-`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE, AUTH_EMAIL_ENABLED, GST_RATE_BPS` (the last two are V0 launch additions, V0_LAUNCH 2.1 and 2.6)
+`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE, AUTH_EMAIL_ENABLED, GST_RATE_BPS` (the last two are V0 launch additions, V0_LAUNCH 2.1 and 2.6). `TEST_DATABASE_URL`, `COMPANY_GSTIN` and `ADMIN_INSTAGRAM_USER_IDS` default to empty when omitted, so a host that cannot define empty variables can leave them out. `PORT` is injected by Render.
 
-Web env: `NEXT_PUBLIC_API_URL, NEXT_PUBLIC_RAZORPAY_KEY_ID`
+Web env: `NEXT_PUBLIC_API_URL, NEXT_PUBLIC_RAZORPAY_KEY_ID`, plus `NEXT_PUBLIC_ENABLE_DEV_LOGIN` and `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` (V0 launch, V0_LAUNCH 2.7). `next build` always runs with `NODE_ENV=production`, so the web dev login page is gated by `NEXT_PUBLIC_ENABLE_DEV_LOGIN=true` instead, and a build with that flag true and `NEXT_PUBLIC_API_URL` set to `https://api.valueskins.com` fails.
+
+Staging (V0_LAUNCH 2.7) runs on Render's free Postgres plan: it expires 30 days after creation and has no backups. Production must use a paid plan with backups (section 2). Setup steps are in `docs/DEPLOYMENT.md`.
 
 ---
 

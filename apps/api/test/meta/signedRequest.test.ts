@@ -1,6 +1,9 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { verifySignedRequest } from '../../src/meta/signedRequest.js';
+import {
+  verifySignedRequest,
+  verifySignedRequestWithAnySecret,
+} from '../../src/meta/signedRequest.js';
 
 const APP_SECRET = 'test-meta-app-secret';
 
@@ -60,5 +63,29 @@ describe('verifySignedRequest', () => {
   it('rejects a payload missing user_id', () => {
     const signed = buildSignedRequest({ algorithm: 'HMAC-SHA256', issued_at: 1 });
     expect(verifySignedRequest(signed, APP_SECRET)).toBeNull();
+  });
+});
+
+describe('verifySignedRequestWithAnySecret', () => {
+  const payload = { algorithm: 'HMAC-SHA256', issued_at: 1, user_id: 'ig-user-123' };
+
+  it('accepts a request signed with either configured secret', () => {
+    const secrets = ['meta-secret', 'instagram-secret'];
+
+    expect(
+      verifySignedRequestWithAnySecret(buildSignedRequest(payload, 'meta-secret'), secrets)
+        ?.user_id,
+    ).toBe('ig-user-123');
+    expect(
+      verifySignedRequestWithAnySecret(buildSignedRequest(payload, 'instagram-secret'), secrets)
+        ?.user_id,
+    ).toBe('ig-user-123');
+  });
+
+  it('rejects a request signed with any other secret', () => {
+    const signed = buildSignedRequest(payload, 'some-other-secret');
+    expect(
+      verifySignedRequestWithAnySecret(signed, ['meta-secret', 'instagram-secret']),
+    ).toBeNull();
   });
 });

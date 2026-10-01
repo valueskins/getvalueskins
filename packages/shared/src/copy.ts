@@ -5,6 +5,7 @@ export const HOMEPAGE_TAGLINE = 'ValueSkins - Where creators and brands connect 
 export const HOMEPAGE_BRAND_PITCH = 'Brands: Post a deal. Select a creator. Pay. Done.';
 export const HOMEPAGE_CREATOR_PITCH = 'Creators: Browse deals. Apply. Deliver. Get paid.';
 export const CONTINUE_WITH_INSTAGRAM = 'Continue with Instagram';
+export const SIGN_IN_WITH_EMAIL = 'Sign in with email';
 
 // Disabled-button reasons (SPEC 18)
 export const APPLICATIONS_CLOSED = 'Applications closed';

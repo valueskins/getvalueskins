@@ -12,7 +12,8 @@ export const envSchema = z.object({
   DATABASE_URL: requiredString,
   // Test-only tooling (never required in production); db/client.ts already
   // throws its own clear error if this is missing when actually needed.
-  TEST_DATABASE_URL: z.string(),
+  // Defaults to '' so a host that cannot define empty env vars (Render) can omit it.
+  TEST_DATABASE_URL: z.string().default(''),
   WEB_ORIGIN: z.string().url(),
   // Empty on localhost (SPEC 19: "cookie without Domain").
   COOKIE_DOMAIN: z.string(),
@@ -29,20 +30,23 @@ export const envSchema = z.object({
   RESEND_API_KEY: requiredString,
   EMAIL_FROM: requiredString,
   EMAIL_TRANSPORT: z.enum(['console', 'resend']),
-  // Comma-separated, can be empty if no admins are configured yet.
-  ADMIN_INSTAGRAM_USER_IDS: z.string().transform((s) =>
-    s
-      .split(',')
-      .map((v) => v.trim())
-      .filter(Boolean),
-  ),
+  // Comma-separated, can be empty (or omitted) if no admins are configured yet.
+  ADMIN_INSTAGRAM_USER_IDS: z
+    .string()
+    .default('')
+    .transform((s) =>
+      s
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
   DISPUTE_EMAIL: z.string().email(),
   ENABLE_DEV_LOGIN: booleanFlag,
   COMPANY_LEGAL_NAME: requiredString,
   COMPANY_ADDRESS: requiredString,
   COMPANY_STATE: requiredString,
-  // Empty until GST-registered; the GST_RATE_BPS>0 startup guard depends on this.
-  COMPANY_GSTIN: z.string(),
+  // Empty (or omitted) until GST-registered; the GST_RATE_BPS>0 startup guard depends on this.
+  COMPANY_GSTIN: z.string().default(''),
   COMMISSION_SAC_CODE: requiredString,
   AUTH_EMAIL_ENABLED: booleanFlag,
   GST_RATE_BPS: z.coerce.number().int().min(0).max(10_000),

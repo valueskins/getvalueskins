@@ -12,9 +12,9 @@ import { buildTestEnv } from '../testEnv.js';
 const env = buildTestEnv();
 const app = createApp(env);
 
-function buildSignedRequest(payload: object): string {
+function buildSignedRequest(payload: object, secret: string = env.META_APP_SECRET): string {
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = createHmac('sha256', env.META_APP_SECRET).update(encodedPayload).digest('base64url');
+  const sig = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
   return `${sig}.${encodedPayload}`;
 }
 
@@ -79,6 +79,28 @@ describe('Meta callbacks', () => {
         .from(sessions)
         .where(eq(sessions.userId, user!.id));
       expect(remainingSessions).toHaveLength(1);
+    });
+  });
+
+  describe('signing secret', () => {
+    const payload = { algorithm: 'HMAC-SHA256', issued_at: 1, user_id: 'ig-secret-test' };
+
+    it('accepts a request signed with the Instagram app secret', async () => {
+      const response = await request(app)
+        .post('/api/meta/deauthorize')
+        .type('form')
+        .send({ signed_request: buildSignedRequest(payload, env.INSTAGRAM_APP_SECRET) });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('rejects a request signed with any other secret', async () => {
+      const response = await request(app)
+        .post('/api/meta/deauthorize')
+        .type('form')
+        .send({ signed_request: buildSignedRequest(payload, 'not-a-configured-secret') });
+
+      expect(response.status).toBe(403);
     });
   });
 
