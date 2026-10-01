@@ -48,9 +48,13 @@ Instagram login (SPEC 6.1) needs a real Meta app and a real Instagram tester acc
 2. Under the app's Instagram product settings, add your own Instagram account as an **Instagram Tester**, then accept the invite from inside the Instagram app (Settings → Apps and websites → Tester invites) — Instagram testers must accept before they can log in, and only Professional (Business or Creator) accounts can complete the flow.
 3. Fill `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, and `META_APP_SECRET` in `apps/api/.env` from that app's dashboard.
 4. Set `INSTAGRAM_REDIRECT_URI` to `http://localhost:4000/api/auth/instagram/callback` and register that exact URL in the app's Valid OAuth Redirect URIs list. `TOKEN_ENCRYPTION_KEY` and `SESSION_SECRET` can be any local string — the encryption key is derived by hashing, not required to already be 32 bytes.
-5. Start the API (`pnpm dev`) and open `http://localhost:4000/api/auth/instagram/start` directly in a browser signed into the tester's Instagram account (there is no "Continue with Instagram" button in the web app yet).
-6. A successful login redirects to `http://localhost:3000/onboarding` with a session cookie set. A misconfiguration redirects to `http://localhost:3000/login?error=<code>` — check the API's terminal output for the underlying Meta error.
+5. Copy `apps/web/.env.example` to `apps/web/.env.local` (set `NEXT_PUBLIC_API_URL=http://localhost:4000`), start everything with `pnpm dev`, open `http://localhost:3000` and click **Continue with Instagram** in a browser signed into the tester's Instagram account.
+6. A successful login redirects to `http://localhost:3000/onboarding`, which shows your fetched profile on `/me`. A misconfiguration lands on `/auth/error?error=<code>` — check the API's terminal output for the underlying Meta error.
 7. `EMAIL_TRANSPORT=console` (the local default) needs no real Resend account — it prints every email, including email-code login's sign-in codes, straight to the API's terminal output.
+
+## Deploying
+
+Staging setup (Render, Vercel, DNS, Meta, Razorpay, Resend) is described step by step in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The Render Blueprint is [render.yaml](render.yaml) and the Vercel config is [apps/web/vercel.json](apps/web/vercel.json).
 
 ## Checks
 
