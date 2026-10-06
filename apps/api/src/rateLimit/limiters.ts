@@ -29,3 +29,11 @@ export const loginIpLimiter = createRateLimiter({
   keyPrefix: 'login',
   keyFn: (req: Request) => req.ip ?? 'unknown',
 });
+
+/** SPEC 13: email verification resend, 5 per hour per user. */
+export const emailVerificationLimiter = createRateLimiter({
+  points: 5,
+  duration: 60 * 60,
+  keyPrefix: 'email-verification',
+  keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});

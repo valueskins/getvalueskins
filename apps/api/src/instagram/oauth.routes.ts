@@ -12,6 +12,7 @@ import {
   isProfessionalAccount,
 } from './client.js';
 import { AppError } from '../errors/AppError.js';
+import { completeOnboardingIfReady } from '../onboarding/onboarding.service.js';
 import { encryptInstagramToken } from './tokenEncryption.js';
 import { clearOAuthStateCookie, setOAuthStateCookie, verifyOAuthState } from './state.js';
 import { attachInstagramToUser, upsertInstagramLogin } from './upsertUser.js';
@@ -94,6 +95,8 @@ export function instagramAuthRoutes(env: Env): Router {
           engagementRate,
           env,
         });
+        // Linking Instagram removes the email-only account's username step.
+        await completeOnboardingIfReady(state.linkUserId);
         res.redirect(`${env.WEB_ORIGIN}/home`);
         return;
       }

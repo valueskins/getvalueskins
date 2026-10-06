@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { users } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { softDeleteAndAnonymizeUser } from '../meta/deletion.service.js';
+import { loadOnboardingState } from '../onboarding/onboarding.service.js';
 import { clearSessionCookie } from './cookies.js';
 import { requireUser } from './guards.js';
 import { toMeProfile } from './profile.js';
@@ -14,7 +15,11 @@ export function meRoutes(env: Env): Router {
   router.get('/api/me', requireUser, async (req, res, next) => {
     try {
       const [row] = await db.select().from(users).where(eq(users.id, req.user!.id)).limit(1);
-      res.json({ user: req.user, profile: row ? toMeProfile(row) : null });
+      res.json({
+        user: req.user,
+        profile: row ? toMeProfile(row) : null,
+        onboarding: await loadOnboardingState(req.user!.id),
+      });
     } catch (error) {
       next(error);
     }

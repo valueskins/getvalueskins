@@ -1,4 +1,4 @@
-import pino from 'pino';
+import pino, { type DestinationStream } from 'pino';
 
 const SENSITIVE_KEY_PATTERN = /(secret|token|pan|account|code)/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,13 +34,21 @@ export function deepRedact(value: unknown, seen: WeakSet<object> = new WeakSet()
   return value;
 }
 
-export const logger = pino({
-  level: process.env.LOG_LEVEL ?? 'info',
-  redact: {
-    paths: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'],
-    censor: '[REDACTED]',
-  },
-  formatters: {
-    log: (obj) => deepRedact(obj) as Record<string, unknown>,
-  },
-});
+/** `destination` is only passed by tests, to capture log output in memory. */
+export function buildLogger(destination?: DestinationStream) {
+  return pino(
+    {
+      level: process.env.LOG_LEVEL ?? 'info',
+      redact: {
+        paths: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'],
+        censor: '[REDACTED]',
+      },
+      formatters: {
+        log: (obj) => deepRedact(obj) as Record<string, unknown>,
+      },
+    },
+    destination,
+  );
+}
+
+export const logger = buildLogger();
