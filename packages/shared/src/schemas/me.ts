@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { USER_ROLES } from '../enums.js';
+import { ONBOARDING_STEPS } from '../onboarding.js';
 
 /** The curated user returned by GET /api/me (dates are ISO strings on the wire). */
 export const meUserSchema = z.object({
@@ -25,12 +26,27 @@ export const meProfileSchema = z.object({
   instagramSyncedAt: z.string().nullable(),
 });
 
+/** Which onboarding steps apply, which are done, and which is next (SPEC 6.4, V0_LAUNCH 2.2). */
+export const meOnboardingSchema = z.object({
+  completed: z.boolean(),
+  nextStep: z.enum(ONBOARDING_STEPS).nullable(),
+  steps: z.array(
+    z.object({
+      id: z.enum(ONBOARDING_STEPS),
+      done: z.boolean(),
+      required: z.boolean(),
+    }),
+  ),
+});
+
 /** GET /api/me (SPEC 16). */
 export const meResponseSchema = z.object({
   user: meUserSchema,
   profile: meProfileSchema.nullable(),
+  onboarding: meOnboardingSchema,
 });
 
 export type MeUser = z.infer<typeof meUserSchema>;
 export type MeProfile = z.infer<typeof meProfileSchema>;
+export type MeOnboarding = z.infer<typeof meOnboardingSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;

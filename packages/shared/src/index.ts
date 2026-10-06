@@ -4,6 +4,7 @@ export * from './config.js';
 export * from './money.js';
 export * from './dealStateMachine.js';
 export * from './copy.js';
+export * from './onboarding.js';
 export * from './schemas/index.js';
 
 // enums.ts re-exports DealStatus/DEAL_STATUSES from dealStateMachine.js (already
