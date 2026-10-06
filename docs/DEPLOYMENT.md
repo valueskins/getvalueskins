@@ -86,14 +86,15 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
    - Key id (starts with `rzp_test_`) is `RAZORPAY_KEY_ID` (and `NEXT_PUBLIC_RAZORPAY_KEY_ID` on Vercel).
    - Key secret (shown once) is `RAZORPAY_KEY_SECRET`.
 3. Make up a webhook secret: run `openssl rand -hex 32` and keep the result. It is `RAZORPAY_WEBHOOK_SECRET`.
-4. The webhook itself: **do this after the payments feature ships.** The API does not have the `/api/webhooks/razorpay` handler yet (only the raw-body parser), and Razorpay disables a webhook after 24 hours of failed deliveries. When it ships:
+4. The webhook: the API now has `POST /api/webhooks/razorpay`, so register it once the API is deployed (section 8):
    - **Accounts & Settings > Webhooks > + Add New Webhook** (make sure Test Mode is on).
    - **Webhook URL:** `https://api-staging.valueskins.com/api/webhooks/razorpay`
    - **Secret:** the value from step 3. Same value as the Render variable.
    - **Alert email:** `valueskinsfounder@gmail.com`
-   - **Active events** to tick: `payment.captured`, `payment.failed`, `order.paid`, `transfer.processed`, `transfer.failed`, `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated`.
+   - **Active events** to tick now: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated`. These are the only linked-account status events Razorpay documents for Route (there are no `account.*` events for Route, and none for a suspended account: use **Refresh status** for that).
+   - Later, when the payments work ships, also tick `payment.captured`, `payment.failed`, `order.paid`, `transfer.processed` and `transfer.failed`. Until then the API stores any other event and ignores it, so ticking them early is harmless.
    - In test mode Razorpay may ask for an OTP; its docs give `754081` for test mode.
-   - SPEC 7.3 also names a "reversed" transfer event. Razorpay's Route event list does not include `transfer.reversed`; check the event list in the dashboard and tick any reversal event it offers.
+   - SPEC 7.3 also names a "reversed" transfer event. Razorpay's Route event list does not include `transfer.reversed`; check the event list in the dashboard and tick any reversal event it offers when the payments work ships.
 5. Route must be enabled on the account in test mode (SPEC 7.1). If it is not, ask Razorpay support to enable it.
 
 The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on staging. Never put a live key on staging.
@@ -210,7 +211,9 @@ Expected: `{"ok":true}`. A bad signature gives `403 INVALID_SIGNED_REQUEST`.
 
 ## 12. Razorpay webhook
 
-Do section 6 step 4 once the payments feature has shipped.
+Register it in section 6 step 4. To check it end to end, create a creator's linked account (section 13 step 9) and watch its status move from the webhook, or press **Refresh status**.
+
+Razorpay's dashboard shows each delivery and its response code. A healthy delivery answers `200`. A `400` means the signature did not match: the `RAZORPAY_WEBHOOK_SECRET` on Render and the secret in the webhook form differ. A processing problem does not change the `200`: it is recorded on the event row and emailed to `DISPUTE_EMAIL` as an "Admin alert".
 
 ## 13. Verification run-through
 
@@ -224,6 +227,14 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 6. **Instagram sign-in:** **Continue with Instagram** with the tester account. Approve the permission. You land on `/me` showing username, name, picture, followers, posts and engagement rate.
 7. A personal (non-professional) Instagram account shows the "needs an Instagram Professional account" message on `/auth/error`.
 8. In Render, **Logs** shows requests and no errors.
+9. **Creator payout account (the Route linked account, test mode).** Sign in as a creator with a verified email (the email sign-in or an Instagram sign-in plus `/onboarding`). Open `https://staging.valueskins.com/onboarding`:
+   1. **Choose your account type:** Creator. Save. (This cannot be undone: use a fresh test account, or a different one for each role.)
+   2. **Instagram sign-in only:** enter an email, **Send verification link**, open the emailed link in the same browser, then click **Continue**. (Email sign-in accounts skip this: their email is already verified. They are asked for their Instagram username first.)
+   3. The page now shows **Payout setup**. Fill in the form with test details: any legal name of 4 or more characters, a PAN shaped like `ABCPE1234F` (the 4th letter must be `P`), your 10 digit mobile number (sent to Razorpay, never stored), a bank account number, IFSC `HDFC0001234` or another valid test IFSC, the account holder name. Tick the consent box and click **Submit payout details**.
+   4. Expected: a **Status** appears (usually `PENDING`, Razorpay verifies the bank account for about 10 to 15 minutes). If it shows an error, the message names the problem (see "Razorpay rejects the setup" in section 20).
+   5. When the status changes, either wait for the webhook (the status and an "Your payout account is active" or "needs attention" email arrive by themselves) or click **Refresh status**. `ACTIVE` is the goal.
+   6. In Razorpay's dashboard (test mode) the linked account `acc_...` appears under **Route**; Render's database has a `creator_payout_accounts` row with the bank account's last 4 digits only.
+10. **Brand billing** (optional check): sign in with a second account, choose **Brand**, add an email if needed, fill in **Billing details**. A GSTIN, if entered, must be valid.
 
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
@@ -348,7 +359,10 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 ## 19. Known limitations
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.
-- **Razorpay webhook** has no handler yet (section 6 step 4).
+- **Razorpay payment and transfer events** have no handlers yet: only the three `product.route.*` status events do. Other events are stored and ignored.
+- **Razorpay category and address.** Linked accounts are created with `profile.category` `services`, `profile.subcategory` `ad_and_marketing` and a registered address of only `{ country: "IN" }`. Razorpay's allowed category lists could not be retrieved when this was written. If staging shows Razorpay rejecting them, change the constants in `apps/api/src/payout/razorpayProfile.ts`; if it rejects the address, add street, city, state and PIN to the payout form.
+- **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Press **Refresh status** to catch up.
+- **Deleting an account** does not yet remove brand billing or payout rows.
 - **Privacy policy and terms** are placeholder drafts.
 - **Free database** has no backups and expires (section 17).
 - **OAuth state cookie** `vs_ig_oauth_state` has the same name in every environment, and staging and production will share the cookie domain `.valueskins.com`. Complete one sign-in at a time when testing both.
@@ -357,18 +371,21 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 ## 20. Troubleshooting
 
-| Symptom                                                       | Likely cause and fix                                                                                                                           |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Instagram says "Invalid redirect_uri"                         | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                        |
-| After Instagram you land on `/auth/error?error=state_invalid` | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.               |
-| `/auth/error?error=professional_account_required`             | The Instagram account is a personal account. Switch it to Professional in Instagram settings.                                                  |
-| Sign-in works but `/me` says you are signed out               | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.     |
-| API returns `403 ORIGIN_MISMATCH`                             | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                       |
-| "Sign in with email" button missing                           | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` is not `true` on Vercel, or you did not redeploy after setting it.                                            |
-| Email routes return 404                                       | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                  |
-| Emails do not arrive                                          | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14). |
-| Render deploy fails with `Invalid environment`                | A required variable is missing or wrong; the log names it.                                                                                     |
-| Render build fails on `--frozen-lockfile`                     | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                           |
-| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`  | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                            |
-| Everyone gets `429`                                           | See the client IP limitation in section 19.                                                                                                    |
-| `/dev/login` is a 404                                         | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                              |
+| Symptom                                                                       | Likely cause and fix                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instagram says "Invalid redirect_uri"                                         | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                                                       |
+| After Instagram you land on `/auth/error?error=state_invalid`                 | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                                                              |
+| `/auth/error?error=professional_account_required`                             | The Instagram account is a personal account. Switch it to Professional in Instagram settings.                                                                                                                                                                 |
+| Sign-in works but `/me` says you are signed out                               | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                                                    |
+| API returns `403 ORIGIN_MISMATCH`                                             | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                                                      |
+| "Sign in with email" button missing                                           | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` is not `true` on Vercel, or you did not redeploy after setting it.                                                                                                                                                           |
+| Email routes return 404                                                       | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                                                 |
+| Emails do not arrive                                                          | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                                                |
+| Render deploy fails with `Invalid environment`                                | A required variable is missing or wrong; the log names it.                                                                                                                                                                                                    |
+| Render build fails on `--frozen-lockfile`                                     | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                                                                                                                                          |
+| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`                  | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                                                                                                                                           |
+| Everyone gets `429`                                                           | See the client IP limitation in section 19.                                                                                                                                                                                                                   |
+| Razorpay rejects the setup (`422`, "Razorpay could not accept these details") | The message names the field when Razorpay says which one. Typical causes: the email is already used by another Razorpay linked account, the PAN is not an individual's, the category or address constants (section 19), or Route is not enabled in test mode. |
+| The payout status never changes                                               | Check the webhook delivery in Razorpay's dashboard (section 12), and press **Refresh status**. Bank verification takes about 10 to 15 minutes.                                                                                                                |
+| Webhook deliveries show `400`                                                 | `RAZORPAY_WEBHOOK_SECRET` on Render differs from the secret in the Razorpay webhook form.                                                                                                                                                                     |
+| `/dev/login` is a 404                                                         | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                                                             |

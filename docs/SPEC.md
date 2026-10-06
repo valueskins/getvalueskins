@@ -244,6 +244,14 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
    - Brand: **Billing details**: billing name, billing state (for GST place of supply), billing address, GSTIN (optional, validated format). Required before publishing a deal.
 5. **Marketplace.**
 
+Which steps apply, which are done and which is next is returned by `GET /me` as `onboarding` (`{ completed, nextStep, steps: [{ id, done, required }] }`, step ids `instagram_username`, `role`, `email`, `billing`, `payout`), computed by `computeOnboarding` in `packages/shared`. Confirm profile and Marketplace are UI-only and not tracked.
+
+- **Completion.** `onboarding_completed_at` is set, once and never unset, when the role is chosen and the email is verified, plus billing details for a brand, plus the Instagram username for an email-only account (V0_LAUNCH 2.2). Payout setup is a step but not required to complete: creators may browse before finishing it.
+- **Role** (`POST /me/role`): once only. A second call answers `409 ROLE_ALREADY_SET` and never overwrites.
+- **Email for Instagram accounts** (`POST /me/email`, `/me/email/verify`, `/me/email/resend`). `users.email` changes only when the new address is verified, so a changed address leaves the old verified one in place until then. The link is `WEB_ORIGIN/verify-email?token=...`, valid 24 hours, single use, only the hash stored, bound to the signed-in user; every bad token is the same `400 INVALID_TOKEN`. `POST /me/email` always answers 200 whether or not another account uses the address; a clash is reported at verify time as `409 EMAIL_TAKEN`. Email-only accounts cannot use these routes (`409 EMAIL_IS_SIGN_IN`): their email is their sign-in. Resend is rate limited (section 13).
+- **Brand billing** (`PUT /me/billing`): brands only, GSTIN format-validated.
+- **Email-only accounts** (V0_LAUNCH 2.2): they sign in with a verified email, so they type their Instagram username instead of confirming a fetched profile (`POST /me/instagram-username`). It is unverified, stored in `users.username`, not unique, editable until Instagram is connected (`409 INSTAGRAM_ALREADY_CONNECTED` afterwards), and replaced by the real handle when they connect.
+
 ### 6.5 Email login (V0 launch)
 
 Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code login path alongside Instagram login (V0_LAUNCH 2.1). Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id`, `ig_account_type`, `ig_token_encrypted` and `ig_token_expires_at` all null until they later link Instagram.
@@ -264,10 +272,12 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 
 ### 7.2 Creator payout setup (Route linked account)
 
-- Form fields: legal name, PAN, bank account number, IFSC, account holder name, and a phone number **only if Razorpay's linked-account API requires it** (verify at build time). If a phone is required, it is sent to Razorpay and not stored by us, and is never shown or used anywhere else.
-- Server calls: create linked account (`POST /v2/accounts`, type `route`, `reference_id` = our user id), create stakeholder, request Route product configuration, update it with settlement bank details.
+- Form fields: legal name, PAN, phone, bank account number, IFSC, account holder name. Razorpay's create-linked-account API requires a phone number (checked against Razorpay's docs, October 2026), so it is on the form; it is sent to Razorpay and never stored by us, never shown or used anywhere else. The PAN must be an individual's (4th character `P`, Razorpay's stakeholder rule), the legal name at least 4 characters, the account number 5 to 20 digits, the phone a 10 digit Indian mobile number.
+- Server calls, in order: create linked account (`POST /v2/accounts`: `type` `route`, `business_type` `individual`, `profile.category`/`subcategory` from one constant in the code, `profile.addresses.registered` = `{ country: "IN" }` because the form collects no address, `notes.user_id` = our user id), create stakeholder (name, email, phone, `kyc.pan`), request the Route product (`product_name` `route`), update it with the settlement bank details and `tnc_accepted`. `reference_id` is not used: Razorpay allows 3 to 20 characters and gates it behind a feature flag, so our user id cannot be sent there. Razorpay's category lists could not be retrieved when this was written: confirm them in test mode.
+- Progress is saved after every step (a row exists as soon as the linked account does), so a retry after a partial failure resumes instead of creating duplicates. If creating the account succeeded but the response was lost, Razorpay's "Merchant email already exists for account" answer is adopted only after the account's `notes.user_id` proves it is ours. One setup runs at a time per user (`409 PAYOUT_SETUP_IN_PROGRESS`). After `NEEDS_CLARIFICATION`, submitting again re-sends the settlement details.
 - We store only: `razorpay_account_id`, `razorpay_stakeholder_id`, `razorpay_product_id`, `status`, `bank_last4`, `ifsc`, `requirements` (JSON from Razorpay), timestamps. **Never PAN, never the full account number.**
-- Status: `PENDING` -> `ACTIVE`, or `NEEDS_CLARIFICATION` (show Razorpay's requirement reasons and let the creator fix them), or `SUSPENDED`. Updated from webhooks, plus a "Refresh status" button that fetches it from Razorpay.
+- Status: `PENDING` -> `ACTIVE`, or `NEEDS_CLARIFICATION` (show Razorpay's requirement reasons and let the creator fix them), or `SUSPENDED`. Razorpay's `activated` is `ACTIVE`, `needs_clarification` is `NEEDS_CLARIFICATION`, `suspended` is `SUSPENDED`, anything else (`requested`, `under_review`) is `PENDING`. Updated from the `product.route.under_review`, `.needs_clarification` and `.activated` webhooks (Razorpay documents no `account.*` events for Route, and none for `suspended`), plus a "Refresh status" button that fetches the product configuration from Razorpay. An update older than the last one applied is ignored (webhooks can arrive out of order), and email #16 is sent once, when the status changes to `ACTIVE` or `NEEDS_CLARIFICATION`.
+- Razorpay's responses contain the full bank account number and PAN, so they are never stored or logged: only the status and the requirement reasons are kept.
 - Creator must confirm: "I agree that Razorpay will store my bank and KYC details to pay me."
 
 ### 7.3 Payments
@@ -281,8 +291,8 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 - Webhook endpoint `POST /api/webhooks/razorpay`:
   - Uses the raw body for HMAC-SHA256 signature verification with the webhook secret. Invalid signature returns 400.
   - Deduplicates on the `x-razorpay-event-id` header, stored in `webhook_events`. Duplicates return 200 immediately.
-  - Handles: `payment.captured`, `order.paid`, `payment.failed`, Route transfer events (processed, failed, reversed), linked-account and product activation events. Verify exact event names in the Razorpay dashboard at build time.
-  - Always returns 200 quickly after storing the event. Processing errors are recorded on the event row and alerted to the admin by email, never retried in a loop.
+  - Handles, by a registry keyed by event type: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (section 7.2). `payment.captured`, `order.paid`, `payment.failed` and the Route `transfer.processed` and `transfer.failed` events are registered by the payments work; Razorpay's documented Route events do not include a reversal event, so check the dashboard's event list for one. An event with no handler is stored and marked processed.
+  - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
 - A failed transfer (after payment was captured) sets the transfer row to FAILED, emails the admin, and shows the admin a "Retry transfer" button. The deal still advances, because the brand did pay.
 
 ### 7.4 Invoices
@@ -424,13 +434,13 @@ All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped i
 Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` default now, money columns `_paise BIGINT`, enums as Postgres enums. Foreign keys everywhere, with indexes on every foreign key and every column used in a filter.
 
 **users**
-`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
+`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), instagram_username_set_at (when an email-only account typed its Instagram username, V0_LAUNCH 2.2), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
 
 **brand_billing** (1:1 users)
 `user_id (pk), billing_name, billing_address, billing_state, gstin (nullable), created_at, updated_at`
 
 **creator_payout_accounts** (1:1 users)
-`user_id (pk), razorpay_account_id (unique), razorpay_stakeholder_id, razorpay_product_id, status (PENDING | ACTIVE | NEEDS_CLARIFICATION | SUSPENDED), bank_last4, ifsc, requirements jsonb, consent_at, created_at, updated_at`
+`user_id (pk), razorpay_account_id (unique), razorpay_stakeholder_id (nullable until created), razorpay_product_id (nullable until created), status (PENDING | ACTIVE | NEEDS_CLARIFICATION | SUSPENDED), bank_last4, ifsc, requirements jsonb, consent_at, status_synced_at, created_at, updated_at`
 
 **sessions**
 `id, user_id, token_hash (unique), expires_at, ip, user_agent, created_at`
@@ -491,8 +501,9 @@ Auth and account
 - `POST /auth/email/start` and `POST /auth/email/verify` (V0 launch, only when `AUTH_EMAIL_ENABLED`)
 - `POST /auth/logout`
 - `POST /dev/login` (non-production only)
-- `GET /me` (returns `{ user, profile }`: `profile` is the fetched Instagram profile - username, name, picture, followers, follows, media count, engagement rate, last sync - or `null` when no Instagram account is linked)
+- `GET /me` (returns `{ user, profile, onboarding }`: `profile` is the fetched Instagram profile - username, name, picture, followers, follows, media count, engagement rate, last sync - or `null` when no Instagram account is linked; `onboarding` is described in section 6.4)
 - `POST /me/role` (once)
+- `POST /me/instagram-username` (email-only accounts, before Instagram is connected)
 - `POST /me/email` and `POST /me/email/verify` (token) and `POST /me/email/resend`
 - `PUT /me/billing` (brand)
 - `POST /me/payout-account`, `GET /me/payout-account`, `POST /me/payout-account/refresh` (creator)
