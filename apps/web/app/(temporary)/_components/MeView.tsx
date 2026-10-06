@@ -91,7 +91,7 @@ export function MeView() {
     return <p className={errorClass}>Could not load your account. Reload the page to try again.</p>;
   }
 
-  const { user, profile } = state.me;
+  const { user, profile, onboarding } = state.me;
 
   return (
     <div className="space-y-8">
@@ -149,6 +149,10 @@ export function MeView() {
       )}
 
       {user.email ? <p className={hintClass}>Email: {user.email}</p> : null}
+
+      <Link href="/onboarding" className={secondaryButton}>
+        {onboarding.completed ? 'Account setup' : 'Continue account setup'}
+      </Link>
 
       <div className="flex flex-col gap-3">
         <button type="button" onClick={logOut} className={secondaryButton}>

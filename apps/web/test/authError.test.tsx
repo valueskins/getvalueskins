@@ -35,6 +35,6 @@ describe('/auth/error', () => {
 
   it('has redirects for every path the API sends the browser to', () => {
     const sources = temporaryRedirects.map((r) => r.source);
-    expect(sources).toEqual(['/onboarding', '/home', '/login', '/settings']);
+    expect(sources).toEqual(['/home', '/login', '/settings']);
   });
 });

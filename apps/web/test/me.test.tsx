@@ -20,6 +20,12 @@ const user = {
   emailVerifiedAt: null,
 };
 
+const onboarding = {
+  completed: true,
+  nextStep: null,
+  steps: [{ id: 'role', done: true, required: true }],
+};
+
 const profile = {
   username: 'creator_handle',
   name: 'Creator Name',
@@ -42,7 +48,7 @@ beforeEach(() => {
 
 describe('/me', () => {
   it('shows the fetched Instagram profile data', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ user, profile }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ user, profile, onboarding }));
     vi.stubGlobal('fetch', fetchMock);
     render(<MePage />);
 
@@ -66,7 +72,9 @@ describe('/me', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValue(jsonResponse({ user, profile: { ...profile, engagementRate: null } })),
+        .mockResolvedValue(
+          jsonResponse({ user, profile: { ...profile, engagementRate: null }, onboarding }),
+        ),
     );
     render(<MePage />);
 
@@ -80,6 +88,7 @@ describe('/me', () => {
         jsonResponse({
           user: { ...user, instagramUserId: null, role: null, email: 'a@example.com' },
           profile: null,
+          onboarding,
         }),
       ),
     );
@@ -113,7 +122,7 @@ describe('/me', () => {
   it('logs out and returns to the home page', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ user, profile }))
+      .mockResolvedValueOnce(jsonResponse({ user, profile, onboarding }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     render(<MePage />);
@@ -129,7 +138,7 @@ describe('/me', () => {
   it('deletes the account only after the confirm dialog is accepted', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ user, profile }))
+      .mockResolvedValueOnce(jsonResponse({ user, profile, onboarding }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     const confirmMock = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
@@ -145,5 +154,26 @@ describe('/me', () => {
     const [url, init] = fetchMock.mock.calls[1]!;
     expect(url).toBe('https://api-staging.valueskins.com/api/me');
     expect(init.method).toBe('DELETE');
+  });
+});
+
+describe('/me setup link', () => {
+  it('links to /onboarding, and says Continue when setup is not finished', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          user,
+          profile,
+          onboarding: { completed: false, nextStep: 'email', steps: [] },
+        }),
+      ),
+    );
+    render(<MePage />);
+
+    expect(await screen.findByRole('link', { name: 'Continue account setup' })).toHaveAttribute(
+      'href',
+      '/onboarding',
+    );
   });
 });
