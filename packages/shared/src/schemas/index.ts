@@ -10,3 +10,4 @@ export * from './email.js';
 export * from './billing.js';
 export * from './payoutAccount.js';
 export * from './me.js';
+export * from './onboarding.js';

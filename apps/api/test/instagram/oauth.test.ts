@@ -7,6 +7,7 @@ import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
 import { users } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
+import { emailUser } from '../helpers/auth.js';
 import { buildTestEnv } from '../testEnv.js';
 
 const server = setupServer();
@@ -193,6 +194,34 @@ describe('Instagram OAuth', () => {
 
     const allUsers = await db.select().from(users);
     expect(allUsers).toHaveLength(1);
+  });
+
+  it('link mode completes onboarding for an email-only account (the username step no longer applies)', async () => {
+    mockInstagramHandlers();
+    const env = buildTestEnv();
+    const app = createApp(env);
+    const { user, cookie: sessionCookie } = await emailUser({
+      role: 'CREATOR',
+      roleLockedAt: new Date(),
+    });
+    expect(
+      (await db.select().from(users).where(eq(users.id, user.id)))[0]?.onboardingCompletedAt,
+    ).toBeNull();
+
+    const startResponse = await request(app)
+      .get('/api/auth/instagram/start?link=1')
+      .set('Cookie', sessionCookie);
+    const stateCookie = (startResponse.headers['set-cookie'] as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const state = new URL(startResponse.headers.location).searchParams.get('state')!;
+    await request(app)
+      .get(`/api/auth/instagram/callback?code=abc&state=${state}`)
+      .set('Cookie', `${sessionCookie}; ${stateCookie}`);
+
+    const [after] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(after?.instagramUserId).toBe(DEFAULT_PROFILE.user_id);
+    expect(after?.onboardingCompletedAt).not.toBeNull();
   });
 
   it('link conflict: redirects without mutating either account', async () => {

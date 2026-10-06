@@ -14,6 +14,15 @@ Per CLAUDE.md, this section overrides docs/SPEC.md wherever they differ, until l
 
 Instagram app review can take weeks, and building cannot wait. V0 allows accounts to exist without a linked Instagram account. `users.instagram_user_id` is nullable; `users.username`'s uniqueness is a partial unique index scoped to `instagram_user_id IS NOT NULL` (so email-only usernames, not yet derived from anything, don't collide with the real-handle uniqueness rule). A new `email_login_codes` table backs a future email-code login endpoint, gated by `AUTH_EMAIL_ENABLED` (not yet built — this prompt only adds the flag and the table).
 
+### 2.2 Onboarding for email-only accounts
+
+An email-only account (V0_LAUNCH 2.1) has no fetched Instagram profile, so onboarding differs from SPEC 6.4 in these ways:
+
+- It types its Instagram username (`POST /api/me/instagram-username`): 1 to 30 letters, digits, dots or underscores, a leading `@` stripped, lowercased. The handle is unverified, stored in `users.username`, not unique, editable until Instagram is connected, and replaced by the real handle when it connects. `users.instagram_username_set_at` marks the step done.
+- Its email is already verified by the sign-in code, so the email step is done and `POST /api/me/email` is for Instagram accounts only.
+- Step order: `instagram_username`, `role`, `email`, then `billing` (brands) or `payout` (creators, not required to complete onboarding).
+- `onboarding_completed_at` is set once, never unset, when role and verified email are done, plus billing for brands, plus the Instagram username for email-only accounts. Connecting Instagram later removes the username step.
+
 ### 2.6 Configurable GST
 
 ValueSkins isn't GST-registered yet, so GST isn't charged at launch. `computeBreakdown` takes an optional GST-rate-in-basis-points parameter, defaulting to `packages/shared`'s config constant. The API's `GST_RATE_BPS` env var controls the live rate (currently `0`), and a startup guard prevents enabling GST (`GST_RATE_BPS > 0`) without `COMPANY_GSTIN` set.

@@ -11,6 +11,9 @@ import { healthRoutes } from './health/health.routes.js';
 import { instagramAuthRoutes } from './instagram/oauth.routes.js';
 import { httpLogger } from './logging/httpLogger.js';
 import { metaRoutes } from './meta/meta.routes.js';
+import { onboardingRoutes } from './onboarding/onboarding.routes.js';
+import { payoutRoutes } from './payout/payout.routes.js';
+import { type RazorpayClientOptions, createRazorpayClient } from './razorpay/client.js';
 import { globalUserLimiter } from './rateLimit/limiters.js';
 import {
   RAZORPAY_WEBHOOK_PATH,
@@ -21,10 +24,16 @@ import {
   originCheck,
   webhookRawBodyMiddleware,
 } from './security/index.js';
+import { razorpayWebhookRoutes } from './webhooks/razorpay.routes.js';
 
 const META_CALLBACK_PATHS = ['/api/meta/deauthorize', '/api/meta/data-deletion'];
 
-export function createApp(env: Env): Express {
+export interface AppOptions {
+  /** Tests shorten the Razorpay retry delay; production uses the defaults. */
+  razorpayClientOptions?: RazorpayClientOptions;
+}
+
+export function createApp(env: Env, options: AppOptions = {}): Express {
   const app = express();
 
   // Needed so IP-scoped rate limiters see the real client IP behind Render's proxy.
@@ -47,6 +56,9 @@ export function createApp(env: Env): Express {
 
   app.use(healthRoutes());
   app.use(meRoutes(env));
+  app.use(onboardingRoutes(env));
+  app.use(payoutRoutes(env, createRazorpayClient(env, options.razorpayClientOptions)));
+  app.use(razorpayWebhookRoutes(env));
   app.use(instagramAuthRoutes(env));
   app.use(metaRoutes(env));
   if (env.NODE_ENV !== 'production' && env.ENABLE_DEV_LOGIN) {

@@ -32,6 +32,12 @@ export const users = pgTable(
     // Nullable: V0 allows email-only accounts before Instagram login (V0_LAUNCH 2.1).
     instagramUserId: varchar('instagram_user_id', { length: 64 }).unique(),
     username: varchar('username', { length: 255 }).notNull(),
+    // Set when an email-only account types its (unverified) Instagram username
+    // during onboarding (V0_LAUNCH 2.2).
+    instagramUsernameSetAt: timestamp('instagram_username_set_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
     name: varchar('name', { length: 255 }).notNull(),
     // Nullable: an email-only account (created via email-code login) has no
     // Instagram data at all until it links an Instagram account (V0_LAUNCH 2.1).
@@ -90,13 +96,18 @@ export const creatorPayoutAccounts = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: 'cascade' }),
     razorpayAccountId: varchar('razorpay_account_id', { length: 255 }).notNull().unique(),
-    razorpayStakeholderId: varchar('razorpay_stakeholder_id', { length: 255 }).notNull(),
-    razorpayProductId: varchar('razorpay_product_id', { length: 255 }).notNull(),
+    // Nullable: the row is written as soon as the linked account exists, so an
+    // interrupted setup resumes instead of creating duplicates (SPEC 7.2).
+    razorpayStakeholderId: varchar('razorpay_stakeholder_id', { length: 255 }),
+    razorpayProductId: varchar('razorpay_product_id', { length: 255 }),
     status: payoutAccountStatusEnum('status').notNull(),
     bankLast4: varchar('bank_last4', { length: 4 }),
     ifsc: varchar('ifsc', { length: 11 }),
     requirements: jsonb('requirements').$type<Record<string, unknown>>(),
     consentAt: timestamp('consent_at', { withTimezone: true, mode: 'date' }),
+    // When `status` was last confirmed by Razorpay (a webhook's created_at, or
+    // a refresh). A webhook older than this is stale and ignored.
+    statusSyncedAt: timestamp('status_synced_at', { withTimezone: true, mode: 'date' }),
     ...timestamps,
   },
   (t) => [index('creator_payout_accounts_status_idx').on(t.status)],

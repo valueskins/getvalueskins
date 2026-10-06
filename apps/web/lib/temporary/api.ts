@@ -13,3 +13,14 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
   }
   return fetch(apiUrl(path), { ...init, headers, credentials: 'include' });
 }
+
+/** The plain-English message the API puts in { error: { message } }, or a fallback. */
+export async function apiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    const message = (body as { error?: { message?: unknown } } | null)?.error?.message;
+    return typeof message === 'string' && message.length > 0 ? message : fallback;
+  } catch {
+    return fallback;
+  }
+}

@@ -21,6 +21,9 @@ export const FIVE_REVISIONS_WARNING =
 export const INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED =
   'ValueSkins needs an Instagram Professional account. You can switch for free in Instagram settings: Account type and tools, Switch to professional account.';
 
+// Onboarding (SPEC 6.4)
+export const ROLE_CANNOT_CHANGE_WARNING = 'You cannot change this later.';
+
 // Payout consent (SPEC 7.2)
 export const PAYOUT_CONSENT_TEXT =
   'I agree that Razorpay will store my bank and KYC details to pay me.';
