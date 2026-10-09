@@ -180,15 +180,16 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
 
 ### 5.3 How transitions are implemented
 
-- One function, `transitionDeal(dealId, from, to, actor, patch)`, in `apps/api/src/deals/stateMachine.ts`.
-- It runs in a single DB transaction: `UPDATE deals SET status = :to, ... WHERE id = :id AND status = :from RETURNING *`. Zero rows means someone else changed it first, so it returns 409.
+- One function, `transitionDeal({ dealId, from, to, actor, patch, note, metadata, prepare, within, afterCommit })`, in `apps/api/src/deals/stateMachine.ts`. Nothing else writes `deals.status`; a test fails if another file updates the deals table.
+- It first checks the pair and the actor role against the table in `packages/shared` (`409 INVALID_TRANSITION`), then runs a single DB transaction: `UPDATE deals SET status = :to, ... WHERE id = :id AND status = :from RETURNING *`. Zero rows means someone else changed it first, so it returns `409 INVALID_TRANSITION`.
 - The same transaction inserts a `deal_events` row (from, to, actor, note).
-- After commit, it emits the WebSocket event and queues the emails. Side effects never run inside the transaction.
+- `prepare(tx, deal)` runs first, on the row locked with `SELECT ... FOR UPDATE`, and returns more columns to set (publish validates the draft again and computes the money breakdown there, so an edit racing the publish cannot slip past). `within(tx, deal)` runs after the status update in the same transaction; if it throws, the whole transition rolls back (confirm uses it to confirm the application, reject the others and set `creator_id`).
+- After commit, it runs the `afterCommit` list in order: emails now, WebSocket events when Socket.io exists (section 10). Side effects never run inside the transaction, and a failing task is logged and never fails the request or stops the next task.
 - The allowed-transition table lives in `packages/shared` and is covered by exhaustive tests.
 
 ### 5.4 Deadlines
 
-- Three dates: `application_deadline < content_upload_deadline <= deal_deadline`. All must be in the future at publish time.
+- Three dates: `application_deadline < content_upload_deadline <= deal_deadline`. All must be in the future at publish time: the end of that day in IST must be after now, so today's date is allowed until 23:59:59 IST.
 - Dates are calendar dates interpreted in IST. A deadline means 23:59:59 IST on that date.
 - After the application deadline, Apply is disabled with the message "Applications closed". The brand can still confirm an existing applicant.
 
@@ -377,7 +378,7 @@ Drafts: the form auto-saves to browser localStorage every 30 seconds and on blur
 
 ## 11. Virtual resume (hover card)
 
-On hover (desktop) or tap (touch) over any username or avatar: Instagram username, name, profile picture, followers, engagement rate, account type, and the last 10 **completed** deals (counterparty username, amount, deliverables summary = deal title, date completed). Endpoint `GET /api/users/:username/resume`, cached for 5 minutes. **[CONFIRM that showing deal amounts publicly is intended.]**
+On hover (desktop) or tap (touch) over any username or avatar: Instagram username, name, profile picture, followers, engagement rate, account type, and the last 10 **completed** deals (counterparty username, amount, deliverables summary = deal title, date completed). Endpoint `GET /api/users/:id/resume` (by user id, not username: email-only usernames are not unique, V0_LAUNCH 2.2), for signed-in users, cached in the API process for 5 minutes (`Cache-Control: private, max-age=300`). It returns `{ user, completedDeals }`. For an account without a linked Instagram profile (V0_LAUNCH 2.1, 2.2) `user.instagramVerified` is `false`, the username is the one the user typed, and the picture, followers, engagement rate and account type are `null`. Each completed deal is `{ counterparty: { id, username }, budgetPaise, title, completedAt }`, the 10 most recent first; a deleted counterparty shows as "Deleted user". Unknown, deleted and role-less users are a 404. **[CONFIRM that showing deal amounts publicly is intended.]**
 
 ---
 
@@ -410,6 +411,8 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 | Login attempts | 20 per hour, then 15-minute lockout | IP |
 | Email verification resend | 5 per hour | User |
 | Dispute | 3 per deal per 24h | User |
+
+Publish and apply are counted only once the request has passed validation (and, for apply, the payout and deadline checks), so a form full of errors does not use up the day's allowance.
 
 Response: `429` with `Retry-After`. Razorpay API calls from our server retry up to 3 times with exponential backoff, only for network errors and 5xx.
 
@@ -453,7 +456,7 @@ Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` defau
 
 **deals**
 `id, short_id (unique, 8 chars, for receipts), brand_id, creator_id (nullable), title, description, budget_paise, commission_base_paise, commission_gst_paise, commission_total_paise, creator_amount_paise, advance_paise, final_paise, application_deadline date, content_upload_deadline date, deal_deadline date, status, content_link, content_uploaded_at, upload_count, feedback, revision_count, published_at, confirmed_at, commission_paid_at, advance_paid_at, approved_at, completed_at, cancelled_at, cancelled_by_id, cancelled_by_role (BRAND | ADMIN), cancellation_reason, created_at, updated_at`
-Money columns are null while DRAFT and set at publish.
+A draft is saved as typed: `title`, `description` and the three deadlines are nullable, and `budget_paise` holds the budget in paise. The six breakdown columns (`commission_base_paise`, `commission_gst_paise`, `commission_total_paise`, `creator_amount_paise`, `advance_paise`, `final_paise`) are null while DRAFT and set at publish. A CHECK constraint (`deals_published_fields_check`) requires all of them to be set once the status is anything but DRAFT.
 
 **content_uploads** (history, so an edited or deleted Drive link stays on record)
 `id, deal_id, link, uploaded_at`
@@ -511,15 +514,18 @@ Auth and account
 - `POST /meta/data-deletion`, `POST /meta/deauthorize`, `GET /meta/deletion-status/:code`
 
 Users
-- `GET /users/:username/resume`
+- `GET /users/:id/resume` (section 11)
+
+Config
+- `GET /config` (public: `{ gstRateBps, minBudgetPaise, advancePercent, authEmailEnabled, razorpayKeyId }`, used by the web app for the live breakdown preview and the sign-in options)
 
 Deals
-- `GET /deals/feed` (creator: OPEN deals with applications open, newest first)
-- `GET /deals/mine` (brand: my deals by status; creator: deals I'm confirmed on)
-- `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only), `DELETE /deals/:id` (draft only)
-- `POST /deals/:id/publish`
-- `GET /deals/:id` (visibility: OPEN deals to any logged-in user; otherwise only its brand, confirmed creator, admin)
-- `POST /deals/:id/cancel` (brand, allowed statuses only, body `{ reason }`)
+- `GET /deals/feed` (creator: OPEN deals with applications open, newest first, cursor pagination)
+- `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
+- `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
+- `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
+- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`; the actions of later phases are added with their endpoints.
+- `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
 - `POST /deals/:id/content` (creator, body `{ link }`)
 - `POST /deals/:id/feedback` (brand, body `{ feedback }`)
 - `POST /deals/:id/approve` (brand)
@@ -528,10 +534,10 @@ Deals
 - `POST /deals/:id/disputes`
 
 Applications
-- `POST /deals/:id/applications` (creator)
-- `GET /deals/:id/applications` (brand)
-- `GET /applications/mine` (creator)
-- `POST /applications/:id/confirm` (brand)
+- `POST /deals/:id/applications` (creator; needs an ACTIVE payout account, `403 PAYOUT_NOT_ACTIVE`; `409 APPLICATIONS_CLOSED`, `409 ALREADY_APPLIED`; sends email 2)
+- `GET /deals/:id/applications` (brand that owns the deal)
+- `GET /applications/mine` (creator: each application with a small summary of its deal)
+- `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator's payout account must be ACTIVE, `409 CREATOR_PAYOUT_NOT_ACTIVE`; sends emails 3 and 3b)
 
 Payments
 - `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`)

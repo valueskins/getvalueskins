@@ -7,6 +7,7 @@ import {
   canTransition,
   contentOverdue,
   endOfDayIST,
+  todayIST,
   type ActorRole,
   type DealStatus,
 } from './dealStateMachine.js';
@@ -134,5 +135,26 @@ describe('contentOverdue', () => {
   it('is always false for a status not eligible for overdue, regardless of time', () => {
     const now = new Date('2026-01-15T18:30:00.000Z');
     expect(contentOverdue({ status: 'COMMISSION_PAID', contentUploadDeadline }, now)).toBe(false);
+  });
+});
+
+describe('todayIST', () => {
+  it('is the IST calendar date at the given instant', () => {
+    expect(todayIST(new Date('2026-10-09T00:00:00Z'))).toBe('2026-10-09');
+    // 18:29:59 UTC is still the same day in IST (23:59:59), 18:30:00 UTC is the next day
+    expect(todayIST(new Date('2026-10-09T18:29:59Z'))).toBe('2026-10-09');
+    expect(todayIST(new Date('2026-10-09T18:30:00Z'))).toBe('2026-10-10');
+  });
+
+  it('agrees with applicationsOpen at the deadline boundary', () => {
+    const deadline = '2026-10-09';
+    const lastOpen = new Date('2026-10-09T18:29:58Z');
+    const closed = new Date('2026-10-09T18:30:00Z');
+    expect(applicationsOpen({ status: 'OPEN', applicationDeadline: deadline }, lastOpen)).toBe(
+      true,
+    );
+    expect(todayIST(lastOpen) <= deadline).toBe(true);
+    expect(applicationsOpen({ status: 'OPEN', applicationDeadline: deadline }, closed)).toBe(false);
+    expect(todayIST(closed) <= deadline).toBe(false);
   });
 });

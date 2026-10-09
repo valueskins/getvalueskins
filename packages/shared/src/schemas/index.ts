@@ -11,3 +11,6 @@ export * from './billing.js';
 export * from './payoutAccount.js';
 export * from './me.js';
 export * from './onboarding.js';
+export * from './pagination.js';
+export * from './resume.js';
+export * from './config.js';

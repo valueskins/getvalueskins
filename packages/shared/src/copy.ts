@@ -13,6 +13,10 @@ export const SET_UP_PAYOUTS_TO_APPLY = 'Set up payouts to apply';
 export const CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE =
   'Cancellation is not possible after the advance is paid';
 
+export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
+export const NO_APPLICATIONS_YET = 'No applications yet';
+export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
+
 // Revision limit notice (SPEC 5.5)
 export const FIVE_REVISIONS_WARNING =
   'This deal has had 5 revisions. If you cannot agree, raise a dispute.';
