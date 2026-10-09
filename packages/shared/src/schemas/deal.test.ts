@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { dealCreateSchema, dealPublishSchema, dealUpdateSchema } from './deal.js';
+import {
+  MAX_BUDGET_RUPEES,
+  dealCreateSchema,
+  dealMineQuerySchema,
+  dealPublishSchema,
+  dealUpdateSchema,
+} from './deal.js';
 
 describe('dealCreateSchema / dealUpdateSchema', () => {
   it('accepts an empty draft (all fields optional)', () => {
@@ -29,6 +35,42 @@ describe('dealCreateSchema / dealUpdateSchema', () => {
 
   it('rejects unknown fields', () => {
     expect(dealCreateSchema.safeParse({ notAField: true }).success).toBe(false);
+  });
+
+  it('trims the title and caps it at the column width', () => {
+    expect(dealCreateSchema.parse({ title: '  Reels  ' }).title).toBe('Reels');
+    expect(dealCreateSchema.safeParse({ title: 'a'.repeat(256) }).success).toBe(false);
+    expect(dealCreateSchema.safeParse({ title: 'a'.repeat(255) }).success).toBe(true);
+    expect(dealCreateSchema.safeParse({ title: '   ' }).success).toBe(false);
+  });
+
+  it('has no description length limit', () => {
+    expect(dealCreateSchema.safeParse({ description: 'x'.repeat(500_000) }).success).toBe(true);
+  });
+
+  it('accepts null to clear a field', () => {
+    const cleared = {
+      title: null,
+      description: null,
+      budgetRupees: null,
+      applicationDeadline: null,
+      contentUploadDeadline: null,
+      dealDeadline: null,
+    };
+    expect(dealUpdateSchema.parse(cleared)).toEqual(cleared);
+  });
+
+  it('bounds the budget so money math stays in safe integers', () => {
+    expect(dealCreateSchema.safeParse({ budgetRupees: MAX_BUDGET_RUPEES }).success).toBe(true);
+    expect(dealCreateSchema.safeParse({ budgetRupees: MAX_BUDGET_RUPEES + 1 }).success).toBe(false);
+    expect(dealCreateSchema.safeParse({ budgetRupees: 0 }).success).toBe(false);
+  });
+});
+
+describe('dealMineQuerySchema', () => {
+  it('accepts a status filter and rejects an unknown one', () => {
+    expect(dealMineQuerySchema.parse({ status: 'DRAFT' }).status).toBe('DRAFT');
+    expect(dealMineQuerySchema.safeParse({ status: 'NOPE' }).success).toBe(false);
   });
 });
 

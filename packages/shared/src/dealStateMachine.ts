@@ -103,6 +103,15 @@ export function endOfDayIST(dateStr: string): Date {
   return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day, 18, 29, 59, 0));
 }
 
+/**
+ * The calendar date (YYYY-MM-DD) it is in IST at `now`. A deal accepts applications
+ * while its deadline date is on or after this date.
+ */
+export function todayIST(now: Date): string {
+  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+  return new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 export interface ApplicationsOpenInput {
   status: DealStatus;
   applicationDeadline: string;
