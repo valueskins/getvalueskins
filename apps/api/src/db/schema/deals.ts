@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import {
   bigint,
+  check,
   date,
   index,
   integer,
@@ -39,8 +41,10 @@ export const deals = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     creatorId: uuid('creator_id').references(() => users.id, { onDelete: 'restrict' }),
-    title: varchar('title', { length: 255 }).notNull(),
-    description: text('description').notNull(),
+    // Nullable while DRAFT (a half-filled form is saved as it is); the CHECK below
+    // makes them required from OPEN onward.
+    title: varchar('title', { length: 255 }),
+    description: text('description'),
     budgetPaise: bigint('budget_paise', { mode: 'number' }),
     commissionBasePaise: bigint('commission_base_paise', { mode: 'number' }),
     commissionGstPaise: bigint('commission_gst_paise', { mode: 'number' }),
@@ -48,9 +52,9 @@ export const deals = pgTable(
     creatorAmountPaise: bigint('creator_amount_paise', { mode: 'number' }),
     advancePaise: bigint('advance_paise', { mode: 'number' }),
     finalPaise: bigint('final_paise', { mode: 'number' }),
-    applicationDeadline: date('application_deadline').notNull(),
-    contentUploadDeadline: date('content_upload_deadline').notNull(),
-    dealDeadline: date('deal_deadline').notNull(),
+    applicationDeadline: date('application_deadline'),
+    contentUploadDeadline: date('content_upload_deadline'),
+    dealDeadline: date('deal_deadline'),
     status: dealStatusEnum('status').notNull().default('DRAFT'),
     contentLink: text('content_link'),
     contentUploadedAt: timestamp('content_uploaded_at', { withTimezone: true, mode: 'date' }),
@@ -77,6 +81,17 @@ export const deals = pgTable(
     index('deals_application_deadline_idx').on(t.applicationDeadline),
     index('deals_content_upload_deadline_idx').on(t.contentUploadDeadline),
     index('deals_deal_deadline_idx').on(t.dealDeadline),
+    check(
+      'deals_published_fields_check',
+      sql`${t.status} = 'DRAFT' or (
+        ${t.title} is not null and ${t.description} is not null
+        and ${t.applicationDeadline} is not null and ${t.contentUploadDeadline} is not null
+        and ${t.dealDeadline} is not null and ${t.budgetPaise} is not null
+        and ${t.commissionBasePaise} is not null and ${t.commissionGstPaise} is not null
+        and ${t.commissionTotalPaise} is not null and ${t.creatorAmountPaise} is not null
+        and ${t.advancePaise} is not null and ${t.finalPaise} is not null
+      )`,
+    ),
   ],
 );
 
