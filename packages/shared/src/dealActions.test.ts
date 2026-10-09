@@ -4,6 +4,7 @@ import {
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
+  CREATOR_PAYOUT_NOT_READY,
   NO_APPLICATIONS_YET,
   SET_UP_PAYOUTS_TO_APPLY,
 } from './copy.js';
@@ -18,6 +19,7 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     applicationCount: 1,
     hasApplied: false,
     payoutActive: true,
+    creatorPayoutActive: true,
     hasBilling: true,
     publishIssues: [],
     ...overrides,
@@ -59,11 +61,32 @@ describe('computeDealActions: brand owner', () => {
     ]);
   });
 
-  it.each(['CONFIRMED', 'COMMISSION_PAID'] as DealStatus[])('%s: cancel only', (status) => {
-    expect(summary({ status })).toEqual([['CANCEL', true, null]]);
+  it('CONFIRMED: pay the commission, or cancel', () => {
+    expect(summary({ status: 'CONFIRMED' })).toEqual([
+      ['PAY_COMMISSION', true, null],
+      ['CANCEL', true, null],
+    ]);
   });
 
-  it.each(['ADVANCE_PAID', 'CONTENT_UPLOADED', 'REVISION_REQUESTED', 'APPROVED'] as DealStatus[])(
+  it('COMMISSION_PAID: pay the advance once the creator can be paid, or cancel', () => {
+    expect(summary({ status: 'COMMISSION_PAID' })).toEqual([
+      ['PAY_ADVANCE', true, null],
+      ['CANCEL', true, null],
+    ]);
+    expect(summary({ status: 'COMMISSION_PAID', creatorPayoutActive: false })).toEqual([
+      ['PAY_ADVANCE', false, CREATOR_PAYOUT_NOT_READY],
+      ['CANCEL', true, null],
+    ]);
+  });
+
+  it('APPROVED: pay the final amount; cancel is disabled with the SPEC reason', () => {
+    expect(summary({ status: 'APPROVED' })).toEqual([
+      ['PAY_FINAL', true, null],
+      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+    ]);
+  });
+
+  it.each(['ADVANCE_PAID', 'CONTENT_UPLOADED', 'REVISION_REQUESTED'] as DealStatus[])(
     '%s: cancel is disabled with the SPEC reason',
     (status) => {
       expect(summary({ status })).toEqual([

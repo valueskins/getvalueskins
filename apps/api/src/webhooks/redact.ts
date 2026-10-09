@@ -1,8 +1,24 @@
 // Webhook payloads are stored as received (SPEC 15), but nothing personal is
-// kept: PAN, KYC, phone and legal info are dropped and bank account numbers are
+// kept: PAN, KYC, phone, legal info and the payer's email, contact, VPA, card, bank and wallet are dropped and bank account numbers are
 // reduced to their last 4 digits. The product status events normally carry
 // none of these; this is the safety net if Razorpay adds them.
-const DROPPED_KEYS = new Set(['pan', 'legal_info', 'kyc', 'phone']);
+const DROPPED_KEYS = new Set([
+  'pan',
+  'legal_info',
+  'kyc',
+  'phone',
+  // Payment entities (SPEC 20): the payer's details never reach our database.
+  'email',
+  'contact',
+  'vpa',
+  'card',
+  'bank',
+  'wallet',
+  'upi',
+  'acquirer_data',
+  'customer_id',
+  'card_id',
+]);
 const LAST4_KEYS = new Set(['account_number']);
 
 export function redactWebhookPayload(value: unknown): unknown {

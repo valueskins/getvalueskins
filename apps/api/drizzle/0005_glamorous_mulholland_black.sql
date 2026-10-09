@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "payments_one_open_per_deal_type_idx" ON "payments" USING btree ("deal_id","type") WHERE "payments"."status" in ('CREATED', 'FAILED');

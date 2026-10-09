@@ -91,7 +91,7 @@ describe('payments partial unique index: one CAPTURED per (deal_id, type)', () =
     ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
-  it('allows a second non-CAPTURED payment of the same type (the index is partial)', async () => {
+  it('allows a CAPTURED payment next to one open payment of the same type (the indexes are partial)', async () => {
     const { dealId } = await insertFixtureDeal();
 
     await db.insert(payments).values({
@@ -99,7 +99,8 @@ describe('payments partial unique index: one CAPTURED per (deal_id, type)', () =
       type: 'COMMISSION',
       amountPaise: 88_500,
       razorpayOrderId: 'order_unique_test_3',
-      status: 'FAILED',
+      razorpayPaymentId: 'pay_unique_test_3',
+      status: 'CAPTURED',
     });
 
     await expect(
@@ -109,6 +110,39 @@ describe('payments partial unique index: one CAPTURED per (deal_id, type)', () =
         amountPaise: 88_500,
         razorpayOrderId: 'order_unique_test_4',
         status: 'FAILED',
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('rejects a second open (CREATED or FAILED) payment of the same type: one open order per deal (SPEC 7.3)', async () => {
+    const { dealId } = await insertFixtureDeal();
+
+    await db.insert(payments).values({
+      dealId,
+      type: 'COMMISSION',
+      amountPaise: 88_500,
+      razorpayOrderId: 'order_unique_test_5',
+      status: 'FAILED',
+    });
+
+    await expect(
+      db.insert(payments).values({
+        dealId,
+        type: 'COMMISSION',
+        amountPaise: 88_500,
+        razorpayOrderId: 'order_unique_test_6',
+        status: 'CREATED',
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23505' } });
+
+    // A different payment type on the same deal is independent.
+    await expect(
+      db.insert(payments).values({
+        dealId,
+        type: 'ADVANCE',
+        amountPaise: 277_500,
+        razorpayOrderId: 'order_unique_test_7',
+        status: 'CREATED',
       }),
     ).resolves.toBeDefined();
   });

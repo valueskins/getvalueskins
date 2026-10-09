@@ -117,6 +117,7 @@ export async function buildDealDetail(
       applicationCount: applicationCount ?? 0,
       hasApplied,
       payoutActive,
+      creatorPayoutActive: creatorPayoutStatus === 'ACTIVE',
       hasBilling,
       publishIssues,
     }),

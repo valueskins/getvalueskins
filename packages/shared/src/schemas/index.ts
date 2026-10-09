@@ -14,3 +14,4 @@ export * from './onboarding.js';
 export * from './pagination.js';
 export * from './resume.js';
 export * from './config.js';
+export * from './payment.js';

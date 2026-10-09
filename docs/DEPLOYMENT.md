@@ -91,11 +91,11 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
    - **Webhook URL:** `https://api-staging.valueskins.com/api/webhooks/razorpay`
    - **Secret:** the value from step 3. Same value as the Render variable.
    - **Alert email:** `valueskinsfounder@gmail.com`
-   - **Active events** to tick now: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated`. These are the only linked-account status events Razorpay documents for Route (there are no `account.*` events for Route, and none for a suspended account: use **Refresh status** for that).
-   - Later, when the payments work ships, also tick `payment.captured`, `payment.failed`, `order.paid`, `transfer.processed` and `transfer.failed`. Until then the API stores any other event and ignores it, so ticking them early is harmless.
+   - **Active events** to tick: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (linked-account status; Razorpay documents no `account.*` events for Route, and none for a suspended account: use **Refresh status** for that), and for payments `payment.captured`, `payment.failed`, `order.paid`, `transfer.processed`, `transfer.failed`. Tick `transfer.reversed` too if the dashboard offers it. Any other event is stored and ignored.
    - In test mode Razorpay may ask for an OTP; its docs give `754081` for test mode.
-   - SPEC 7.3 also names a "reversed" transfer event. Razorpay's Route event list does not include `transfer.reversed`; check the event list in the dashboard and tick any reversal event it offers when the payments work ships.
+   - Razorpay's Route payload page lists only `transfer.processed`, `transfer.failed` and `settlement.processed` for transfers. A reversal event (`transfer.reversed`) appears in other Razorpay material but not on that page: the API handles it if it is ever sent, and you confirm in the dashboard's event list whether it exists.
 5. Route must be enabled on the account in test mode (SPEC 7.1). If it is not, ask Razorpay support to enable it.
+6. Payment capture must be **automatic** (**Accounts & Settings**, the payment capture setting). The API creates Orders without a capture flag; with manual capture, payments stop at `authorized` and the API answers "not captured" instead of moving the deal.
 
 The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on staging. Never put a live key on staging.
 
@@ -284,6 +284,37 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
     Expected: every call answers with JSON and no `error`; the deal ends `CONFIRMED`; emails 1, 2 and 3 arrive; a second `confirm` answers `409`. To cancel instead: `call POST /deals/$DEAL/cancel brand.jar '{"reason":"changed plans"}'` while the deal is `OPEN`, `CONFIRMED` or `COMMISSION_PAID`.
 
+12. **Payments: commission, advance and final (test mode).** Prerequisites: step 11 done so a deal is `CONFIRMED` with a creator whose payout account is `ACTIVE` (a real Razorpay test-mode linked account is better than the SQL fallback here, because the transfer needs a real `acc_...`); the webhook from section 6 step 4 registered with the payment and transfer events ticked; automatic capture on (section 6 step 6). Use a Razorpay test card or test UPI id from Razorpay's test-payment page. Nothing real is charged.
+
+    In a Render **Shell**, define a small query helper once:
+
+    ```bash
+    q() { pnpm --filter @valueskins/api exec node -e "const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query(process.argv[1]).then(r=>{console.log(JSON.stringify(r.rows,null,1));return p.end()})" "$1"; }
+    DEAL=PASTE-THE-DEAL-ID
+    ```
+
+    1. **Commission.** Signed in as the brand in a browser, open `https://staging.valueskins.com/deals/<DEAL>/pay`. Click **Pay commission: ...**, pay in Checkout. Expected: the page says "Payment recorded.", the deal moves to `COMMISSION_PAID`, and the brand and creator get an email. If the page shows an error, `q "select * from webhook_events order by received_at desc limit 5"` shows what Razorpay sent and any error.
+    2. **Advance, with a transfer of the full amount. This is the SPEC 4.3 check.** Reload the page and click **Pay advance: ...**. Expected: the deal moves to `ADVANCE_PAID`. Then run, and keep the output:
+
+       ```bash
+       q "select type, status, amount_paise, razorpay_order_id, razorpay_payment_id, failure_reason from payments where deal_id = '$DEAL' order by created_at"
+       q "select type, status, amount_paise, razorpay_transfer_id, failure_reason, processed_at from transfers where deal_id = '$DEAL'"
+       q "select id, event_type, processed_at, error, payload #>> '{payload,payment,entity,fee}' as payment_fee, payload #>> '{payload,payment,entity,tax}' as payment_tax, payload #>> '{payload,transfer,entity,fees}' as transfer_fees, payload #>> '{payload,transfer,entity,tax}' as transfer_tax, payload #>> '{payload,transfer,entity,status}' as transfer_status, payload #>> '{payload,transfer,entity,error}' as transfer_error from webhook_events order by received_at desc limit 10"
+       ```
+
+       What to look for: the transfer row is `PROCESSED` with the full advance amount (the full transfer worked, the fees came out of the platform balance), or it is `FAILED` or never leaves `PENDING` (for example `BAD_REQUEST_TRANSFER_INSUFFICIENT_BALANCE`). Also open the Razorpay dashboard in test mode, **Route > Linked accounts > the creator's account > Transfers**, and check the transfer is listed. **If the transfer is rejected or fails, stop here and report it: SPEC 4.3 needs a decision (direct transfer from the platform balance, or adding the fee to what the brand pays) and nobody should choose it from the code.** The admin alert email "Transfer to creator failed" arrives at `DISPUTE_EMAIL` in that case.
+
+    3. **Get the test deal to `APPROVED`.** The creator upload and brand approve steps have no endpoints yet. For this one staging test deal only, move it by hand (this bypasses the normal rules on purpose and must never be used on real data):
+
+       ```bash
+       q "update deals set status = 'APPROVED', approved_at = now() where id = '$DEAL' and status = 'ADVANCE_PAID' returning id, status"
+       q "insert into deal_events (id, deal_id, from_status, to_status, actor_type, note) values (gen_random_uuid(), '$DEAL', 'ADVANCE_PAID', 'APPROVED', 'ADMIN', 'staging test only: manual SQL') returning id"
+       ```
+
+    4. **Final.** Reload the pay page and click **Pay final: ...**. Expected: the deal moves to `COMPLETED`, both parties get the "Final payment" email, and the second transfer shows on the creator's linked account in Razorpay's test dashboard.
+
+    The three payments add up to the budget: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"`. Receipts, the tax invoice and PDF attachments are not part of this step (SPEC 7.4, a later prompt), so the emails arrive without attachments.
+
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
 ## 14. Seed staging and set the admin
@@ -407,7 +438,9 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 ## 19. Known limitations
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.
-- **Razorpay payment and transfer events** have no handlers yet: only the three `product.route.*` status events do. Other events are stored and ignored.
+- **Invoices, receipts and the deal report** are not built yet (SPEC 7.4, 17): payment emails 4, 5 and 9 have no attachments, and email 10 is not sent.
+- **Failed transfers** alert the admin by email; there is no admin screen to retry one yet (SPEC 12).
+- **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Razorpay category and address.** Linked accounts are created with `profile.category` `services`, `profile.subcategory` `ad_and_marketing` and a registered address of only `{ country: "IN" }`. Razorpay's allowed category lists could not be retrieved when this was written. If staging shows Razorpay rejecting them, change the constants in `apps/api/src/payout/razorpayProfile.ts`; if it rejects the address, add street, city, state and PIN to the payout form.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Press **Refresh status** to catch up.
 - **Deleting an account** does not yet remove brand billing or payout rows.
