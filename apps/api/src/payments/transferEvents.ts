@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { deals, payments, transfers } from '../db/schema/index.js';
 import { logger } from '../logging/logger.js';
+import { RazorpayApiError } from '../razorpay/errors.js';
 import type { RazorpayTransfer } from '../razorpay/schemas.js';
 import { alertTransferFailed, markPaymentCaptured } from './markPaymentCaptured.js';
 import { mapRazorpayError } from './errors.js';
@@ -46,6 +47,8 @@ async function findTransferRow(
     try {
       remote = await deps.razorpay.fetchPayment(source);
     } catch (error) {
+      // Razorpay does not know this payment under our keys: the transfer is not ours.
+      if (error instanceof RazorpayApiError && error.isRejection) return null;
       throw mapRazorpayError(error);
     }
     if (remote.order_id) {

@@ -39,3 +39,45 @@ describe('redactWebhookPayload', () => {
     ).toEqual({ list: [{ account_number: '****7766' }, 5, 'text', null] });
   });
 });
+
+describe('payment payloads (SPEC 20)', () => {
+  it("drops the payer's email, contact, VPA, card, bank and wallet at any depth but keeps ids and amounts", () => {
+    const redacted = redactWebhookPayload({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_1',
+            order_id: 'order_1',
+            amount: 75_000,
+            status: 'captured',
+            email: 'payer@example.com',
+            contact: '+919876543210',
+            vpa: 'payer@okbank',
+            card: { last4: '1111', name: 'Payer Name' },
+            bank: 'HDFC',
+            wallet: 'paytm',
+            upi: { vpa: 'payer@okbank' },
+            acquirer_data: { rrn: '123' },
+            notes: { deal_id: 'deal-1', type: 'commission' },
+          },
+        },
+      },
+    });
+
+    expect(redacted).toEqual({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: 'pay_1',
+            order_id: 'order_1',
+            amount: 75_000,
+            status: 'captured',
+            notes: { deal_id: 'deal-1', type: 'commission' },
+          },
+        },
+      },
+    });
+  });
+});
