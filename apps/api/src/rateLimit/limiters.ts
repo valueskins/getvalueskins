@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { createRateLimiter } from './factory.js';
+import { createKeyedLimiter, createRateLimiter } from './factory.js';
 
 /** SPEC 13: 100 per minute, per user (falling back to IP for anonymous requests). */
 export const globalUserLimiter = createRateLimiter({
@@ -36,4 +36,18 @@ export const emailVerificationLimiter = createRateLimiter({
   duration: 60 * 60,
   keyPrefix: 'email-verification',
   keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});
+
+/** SPEC 13: publish deal, 10 per 24 hours per brand. Consumed by the handler once the draft is valid. */
+export const consumePublishDealLimit = createKeyedLimiter({
+  points: 10,
+  duration: 24 * 60 * 60,
+  keyPrefix: 'publish-deal',
+});
+
+/** SPEC 13: apply, 20 per 24 hours per creator. Consumed by the handler once the application is allowed. */
+export const consumeApplyLimit = createKeyedLimiter({
+  points: 20,
+  duration: 24 * 60 * 60,
+  keyPrefix: 'apply',
 });

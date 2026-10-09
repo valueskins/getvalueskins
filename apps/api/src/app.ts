@@ -1,5 +1,7 @@
 import express, { type Express } from 'express';
 import './auth/types.js'; // Express.Request augmentation (req.user)
+import type { ApiContext } from './context.js';
+import { dealRoutes } from './deals/deals.routes.js';
 import { devLoginRoutes } from './auth/devLogin.routes.js';
 import { logoutRoutes } from './auth/logout.routes.js';
 import { meRoutes } from './auth/me.routes.js';
@@ -31,10 +33,13 @@ const META_CALLBACK_PATHS = ['/api/meta/deauthorize', '/api/meta/data-deletion']
 export interface AppOptions {
   /** Tests shorten the Razorpay retry delay; production uses the defaults. */
   razorpayClientOptions?: RazorpayClientOptions;
+  /** Tests inject a clock for deadline checks and caches; production uses the real one. */
+  now?: () => Date;
 }
 
 export function createApp(env: Env, options: AppOptions = {}): Express {
   const app = express();
+  const ctx: ApiContext = { env, now: options.now ?? (() => new Date()) };
 
   // Needed so IP-scoped rate limiters see the real client IP behind Render's proxy.
   app.set('trust proxy', 1);
@@ -58,6 +63,7 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(meRoutes(env));
   app.use(onboardingRoutes(env));
   app.use(payoutRoutes(env, createRazorpayClient(env, options.razorpayClientOptions)));
+  app.use(dealRoutes(ctx));
   app.use(razorpayWebhookRoutes(env));
   app.use(instagramAuthRoutes(env));
   app.use(metaRoutes(env));
