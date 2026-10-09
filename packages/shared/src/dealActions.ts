@@ -3,12 +3,13 @@ import {
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
+  CREATOR_PAYOUT_NOT_READY,
   NO_APPLICATIONS_YET,
   SET_UP_PAYOUTS_TO_APPLY,
 } from './copy.js';
 import type { DealStatus } from './dealStateMachine.js';
 
-/** Actions that have an endpoint today. Later phases (pay, upload, feedback, approve, dispute) add theirs. */
+/** Actions that have an endpoint today. Later phases (upload, feedback, approve, dispute) add theirs. */
 export const DEAL_ACTIONS = [
   'EDIT_DRAFT',
   'DELETE_DRAFT',
@@ -16,6 +17,9 @@ export const DEAL_ACTIONS = [
   'CONFIRM_CREATOR',
   'CANCEL',
   'APPLY',
+  'PAY_COMMISSION',
+  'PAY_ADVANCE',
+  'PAY_FINAL',
 ] as const;
 
 export type DealAction = (typeof DEAL_ACTIONS)[number];
@@ -37,6 +41,8 @@ export interface DealActionsInput {
   hasApplied: boolean;
   /** The creator viewer's payout account is ACTIVE. */
   payoutActive: boolean;
+  /** The deal's confirmed creator has an ACTIVE payout account (the brand pays the advance to it). */
+  creatorPayoutActive: boolean;
   hasBilling: boolean;
   /** Messages from validateDealForPublish for the draft, empty when it is ready. */
   publishIssues: readonly string[];
@@ -76,6 +82,13 @@ function brandActions(input: DealActionsInput): DealActionState[] {
   }
 
   const actions: DealActionState[] = [];
+  if (status === 'CONFIRMED') actions.push(on('PAY_COMMISSION'));
+  if (status === 'COMMISSION_PAID') {
+    actions.push(
+      input.creatorPayoutActive ? on('PAY_ADVANCE') : off('PAY_ADVANCE', CREATOR_PAYOUT_NOT_READY),
+    );
+  }
+  if (status === 'APPROVED') actions.push(on('PAY_FINAL'));
   if (status === 'OPEN') {
     actions.push(
       input.applicationCount > 0

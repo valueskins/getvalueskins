@@ -4,6 +4,9 @@ import { RazorpayApiError } from './errors.js';
 import {
   linkedAccountSchema,
   razorpayErrorBodySchema,
+  razorpayOrderSchema,
+  razorpayPaymentSchema,
+  razorpayTransferListSchema,
   routeProductSchema,
   stakeholderSchema,
 } from './schemas.js';
@@ -44,6 +47,21 @@ export interface CreateStakeholderBody {
 export interface SettlementsBody {
   settlements: { account_number: string; ifsc_code: string; beneficiary_name: string };
   tnc_accepted: true;
+}
+
+export interface CreateOrderBody {
+  amount: number;
+  currency: 'INR';
+  receipt: string;
+  notes: Record<string, string>;
+  /** Advance and final: the full amount to the creator's linked account (SPEC 7.3). */
+  transfers?: Array<{
+    account: string;
+    amount: number;
+    currency: 'INR';
+    notes: Record<string, string>;
+    on_hold: boolean;
+  }>;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -148,6 +166,14 @@ export function createRazorpayClient(
 
     fetchRouteProduct: (accountId: string, productId: string) =>
       request('GET', `/v2/accounts/${accountId}/products/${productId}`, routeProductSchema),
+
+    createOrder: (body: CreateOrderBody) => request('POST', '/v1/orders', razorpayOrderSchema, body),
+
+    fetchPayment: (paymentId: string) =>
+      request('GET', `/v1/payments/${paymentId}`, razorpayPaymentSchema),
+
+    fetchPaymentTransfers: (paymentId: string) =>
+      request('GET', `/v1/payments/${paymentId}/transfers`, razorpayTransferListSchema),
   };
 }
 
