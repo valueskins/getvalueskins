@@ -145,6 +145,8 @@ ValueSkins absorbs Razorpay's fees. They are never shown to or charged to users,
 - (B) Add the gateway fee to what the brand pays for Payments 2 and 3 (breaks "brand pays exactly the budget").
 Prompt 12 must test this with a real test-mode transaction and stop and report if the full transfer fails.
 
+Status: the code transfers the full advance and final amount (section 7.3) and does not choose A or B. Razorpay's Route docs say fees come out of the platform balance and a transfer happens only if that balance covers them, so the concern is real. The result of the staging run (`docs/DEPLOYMENT.md` section 13 step 12: transfer status, fees and tax, any error) is recorded here once it exists; this decision stays open until then.
+
 ---
 
 ## 5. Deal lifecycle
@@ -283,18 +285,19 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 
 ### 7.3 Payments
 
-- For each of the 3 payments, the server creates a Razorpay Order: amount from the frozen breakdown, `currency: INR`, `receipt` = `<dealShortId>-<type>`, notes `{ deal_id, type }`, automatic capture.
-- Advance and final Orders include a `transfers` array: the full advance/final amount to the creator's linked account, `on_hold: false`, notes `{ deal_id, type }`. (Subject to the 4.3 check.)
-- Only one open Order per deal per payment type. If one exists and is unpaid, reuse it.
-- The endpoint checks: the caller is the deal's brand, and the deal is in the correct status (CONFIRMED for commission, COMMISSION_PAID for advance, APPROVED for final).
+- For each of the 3 payments, the server creates a Razorpay Order: amount from the frozen breakdown, `currency: INR`, `receipt` = `<dealShortId>-<type>` (type as in the URL: `commission`, `advance`, `final`), notes `{ deal_id, type }`. Capture is automatic through the Razorpay account setting (the Orders API takes no per-order flag).
+- Advance and final Orders include a `transfers` array: the full advance/final amount to the creator's linked account, `on_hold: false`, notes `{ deal_id, type }`. (Subject to the 4.3 check.) Razorpay creates the transfer once the payment is captured; a transfer cannot exceed its order's amount.
+- Only one open Order per deal per payment type (a partial unique index enforces it, and a lock stops two simultaneous requests creating two). If one exists and is unpaid, it is reused. A declined attempt does not close the order: `payment.failed` marks the payment FAILED with Razorpay's reason and leaves the deal untouched, and the next order request reuses the same Razorpay order and reopens it (CREATED). A late successful capture is accepted from CREATED or FAILED.
+- The endpoint checks: the caller is the deal's brand (anyone else gets 404), and the deal is in the correct status (CONFIRMED for commission, COMMISSION_PAID for advance, APPROVED for final; otherwise `409 WRONG_DEAL_STATUS`). The advance also needs the creator's payout account to be ACTIVE (`409 CREATOR_PAYOUT_NOT_ACTIVE`); the final does not, because a transfer to an account that went bad takes the failed-transfer path below.
 - Frontend opens Razorpay Checkout with the Order id. On the Checkout success handler it calls `POST /api/payments/verify` with `razorpay_order_id, razorpay_payment_id, razorpay_signature`. The server verifies the signature.
-- **Both** the verify endpoint and the webhook call the same idempotent function `markPaymentCaptured(orderId, paymentId)`. Whichever arrives first performs the transition. The second is a no-op.
+- **Both** the verify endpoint and the webhook call the same idempotent function `markPaymentCaptured(orderId, paymentId)`. Whichever arrives first performs the transition. The second is a no-op. It does not trust the browser or the webhook body: it fetches the payment from Razorpay and requires status `captured`, the same order, the order's amount and `INR`; a mismatch records nothing, answers `409 PAYMENT_AMOUNT_MISMATCH` (or `PAYMENT_ORDER_MISMATCH`, `PAYMENT_NOT_CAPTURED`) and alerts the admin (A1). In one transaction it marks the payment CAPTURED, stores the transfer row (id and status from `GET /v1/payments/:id/transfers`, or PENDING without an id until the first transfer webhook), and transitions the deal with a SYSTEM actor (CONFIRMED to COMMISSION_PAID, COMMISSION_PAID to ADVANCE_PAID, APPROVED to COMPLETED). Emails 4, 5 and 9 go out after commit (attachments arrive with section 7.4). If the deal is no longer in the status the payment moves it from (for example the brand cancelled while Checkout was open), the payment is still recorded as CAPTURED, the deal is left alone, and the admin is alerted to refund it by hand (section 12). A second captured payment for the same deal and type is marked FAILED and flagged for refund.
+- `POST /payments/verify` checks the Checkout signature (HMAC-SHA256 of `order_id|payment_id` with the key secret, constant-time compare, `400 INVALID_SIGNATURE`), then calls `markPaymentCaptured`. Only the deal's brand can verify its payments.
 - Webhook endpoint `POST /api/webhooks/razorpay`:
   - Uses the raw body for HMAC-SHA256 signature verification with the webhook secret. Invalid signature returns 400.
   - Deduplicates on the `x-razorpay-event-id` header, stored in `webhook_events`. Duplicates return 200 immediately.
-  - Handles, by a registry keyed by event type: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (section 7.2). `payment.captured`, `order.paid`, `payment.failed` and the Route `transfer.processed` and `transfer.failed` events are registered by the payments work; Razorpay's documented Route events do not include a reversal event, so check the dashboard's event list for one. An event with no handler is stored and marked processed.
-  - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
-- A failed transfer (after payment was captured) sets the transfer row to FAILED, emails the admin, and shows the admin a "Retry transfer" button. The deal still advances, because the brand did pay.
+  - Handles, by a registry keyed by event type: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (section 7.2). `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`; and the Route `transfer.processed`, `transfer.failed` and `transfer.reversed` events, which update the transfer row (status only moves forward; a transfer event that arrives before its payment was recorded records the payment first). `transfer.reversed` is not on Razorpay's Route payload page, so check the dashboard's event list for it. An event with no handler (for example `settlement.processed`) is stored and marked processed.
+  - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits, and the payer's email, contact, VPA, card, bank and wallet details removed). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
+- A failed transfer (after payment was captured) sets the transfer row to FAILED with Razorpay's reason, emails the admin once (A1), and shows the admin a "Retry transfer" button (the button comes with the admin work). The deal still advances, because the brand did pay.
 
 ### 7.4 Invoices
 
@@ -466,7 +469,7 @@ A draft is saved as typed: `title`, `description` and the three deadlines are nu
 
 **payments**
 `id, deal_id, type (COMMISSION | ADVANCE | FINAL), amount_paise, razorpay_order_id (unique), razorpay_payment_id (unique, nullable), status (CREATED | CAPTURED | FAILED), failure_reason, captured_at, created_at, updated_at`
-Partial unique index: one CAPTURED payment per `(deal_id, type)`.
+Partial unique indexes: one CAPTURED payment per `(deal_id, type)`, and one open (CREATED or FAILED) payment per `(deal_id, type)`.
 
 **transfers**
 `id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, manual_reference (nullable), manual_by_id (nullable), manual_at (nullable), created_at, updated_at`
@@ -524,7 +527,7 @@ Deals
 - `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
 - `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
 - `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
-- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`; the actions of later phases are added with their endpoints.
+- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`; the actions of later phases are added with their endpoints.
 - `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
 - `POST /deals/:id/content` (creator, body `{ link }`)
 - `POST /deals/:id/feedback` (brand, body `{ feedback }`)
@@ -540,8 +543,8 @@ Applications
 - `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator's payout account must be ACTIVE, `409 CREATOR_PAYOUT_NOT_ACTIVE`; sends emails 3 and 3b)
 
 Payments
-- `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`)
-- `POST /payments/verify`
+- `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS`, `409 CREATOR_PAYOUT_NOT_ACTIVE` for the advance)
+- `POST /payments/verify` (the deal's brand; body `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`; answers `{ payment: { status }, deal }`)
 - `POST /webhooks/razorpay` (no auth, signature verified, raw body)
 
 Admin (`/admin/*`, admin only)
