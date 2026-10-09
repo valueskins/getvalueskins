@@ -235,6 +235,54 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
    5. When the status changes, either wait for the webhook (the status and an "Your payout account is active" or "needs attention" email arrive by themselves) or click **Refresh status**. `ACTIVE` is the goal.
    6. In Razorpay's dashboard (test mode) the linked account `acc_...` appears under **Route**; Render's database has a `creator_payout_accounts` row with the bank account's last 4 digits only.
 10. **Brand billing** (optional check): sign in with a second account, choose **Brand**, add an email if needed, fill in **Billing details**. A GSTIN, if entered, must be valid.
+11. **Deal flow, draft to CONFIRMED (curl).** There is no deals screen yet, so this uses the API directly. You need `curl` and `jq`, two email addresses you can read (one brand, one creator), and a Render **Shell** for the payout fallback. Each person gets a cookie file, so run everything in one terminal session:
+
+    ```bash
+    API=https://api-staging.valueskins.com/api
+    ORIGIN=https://staging.valueskins.com
+    # call METHOD PATH COOKIEFILE [JSON]  (Origin is required on every non-GET request)
+    call() { curl -sS -X "$1" "$API$2" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -b "$3" -c "$3" ${4:+-d "$4"}; echo; }
+
+    # 1. Sign in by email code. Read the 6-digit code from the email, then verify.
+    call POST /auth/email/start brand.jar '{"email":"brand-test@example.com"}'
+    call POST /auth/email/verify brand.jar '{"email":"brand-test@example.com","code":"123456"}'
+    # 2. Onboard the brand: role (permanent), typed Instagram username, billing.
+    call POST /me/role brand.jar '{"role":"BRAND"}'
+    call POST /me/instagram-username brand.jar '{"username":"test_brand"}'
+    call PUT /me/billing brand.jar '{"billingName":"Test Brand Pvt Ltd","billingAddress":"1 Main Road, Bengaluru","billingState":"Karnataka"}'
+    # 3. Do the same for the creator (role CREATOR, creator.jar, a second email, no billing).
+
+    # 4. Read the public config the web app will use.
+    curl -sS $API/config
+
+    # 5. Brand: create a draft, edit it, publish it. Deadlines must be in the future (a deadline is 23:59:59 IST on that date).
+    DEAL=$(call POST /deals brand.jar '{"title":"Test deal"}' | jq -r .deal.id)
+    call PATCH /deals/$DEAL brand.jar "{\"description\":\"Content type: 3 posts\",\"budgetRupees\":10000,\"applicationDeadline\":\"$(date -d '+3 days' +%F)\",\"contentUploadDeadline\":\"$(date -d '+10 days' +%F)\",\"dealDeadline\":\"$(date -d '+15 days' +%F)\"}"
+    call POST /deals/$DEAL/publish brand.jar '{}'          # status OPEN, breakdown frozen, email 1 arrives
+
+    # 6. Creator: the deal is in the feed; see whether Apply is allowed.
+    call GET /deals/feed creator.jar
+    call GET /deals/$DEAL creator.jar                       # allowedActions[].reason says why Apply is disabled
+    ```
+
+    The creator can only apply once their payout account is `ACTIVE` (V0_LAUNCH 2.2). Either finish step 9 above for the creator, or, for a test creator only, in the Render **Shell** insert an account row (`USER_ID` is the creator's `id` from `GET /api/me`):
+
+    ```bash
+    pnpm --filter @valueskins/api exec node -e "const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query(\"insert into creator_payout_accounts (user_id, razorpay_account_id, status) values ('USER_ID', 'acc_manual_test_1', 'ACTIVE')\").then(()=>p.end())"
+    ```
+
+    Then continue:
+
+    ```bash
+    # 7. Creator applies; brand sees the applicant and confirms.
+    call POST /deals/$DEAL/applications creator.jar '{}'    # email 2 goes to the brand
+    APP=$(call GET /deals/$DEAL/applications brand.jar | jq -r '.items[0].id')
+    call POST /applications/$APP/confirm brand.jar '{}'     # deal CONFIRMED, email 3 goes to the creator
+    call GET /deals/$DEAL brand.jar                         # status CONFIRMED, creatorPayoutStatus ACTIVE
+    call GET /users/$(call GET /me creator.jar | jq -r .user.id)/resume brand.jar
+    ```
+
+    Expected: every call answers with JSON and no `error`; the deal ends `CONFIRMED`; emails 1, 2 and 3 arrive; a second `confirm` answers `409`. To cancel instead: `call POST /deals/$DEAL/cancel brand.jar '{"reason":"changed plans"}'` while the deal is `OPEN`, `CONFIRMED` or `COMMISSION_PAID`.
 
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
@@ -363,6 +411,8 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Razorpay category and address.** Linked accounts are created with `profile.category` `services`, `profile.subcategory` `ad_and_marketing` and a registered address of only `{ country: "IN" }`. Razorpay's allowed category lists could not be retrieved when this was written. If staging shows Razorpay rejecting them, change the constants in `apps/api/src/payout/razorpayProfile.ts`; if it rejects the address, add street, city, state and PIN to the payout form.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Press **Refresh status** to catch up.
 - **Deleting an account** does not yet remove brand billing or payout rows.
+- **No live updates.** Socket.io is not built, so the deal feed does not update by itself (SPEC 10). The deals API is the only source of truth for now.
+- **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.
 - **Privacy policy and terms** are placeholder drafts.
 - **Free database** has no backups and expires (section 17).
 - **OAuth state cookie** `vs_ig_oauth_state` has the same name in every environment, and staging and production will share the cookie domain `.valueskins.com`. Complete one sign-in at a time when testing both.
