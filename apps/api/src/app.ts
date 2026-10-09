@@ -1,6 +1,8 @@
 import express, { type Express } from 'express';
 import './auth/types.js'; // Express.Request augmentation (req.user)
 import type { ApiContext } from './context.js';
+import { applicationRoutes } from './applications/applications.routes.js';
+import { configRoutes } from './config/config.routes.js';
 import { dealRoutes } from './deals/deals.routes.js';
 import { devLoginRoutes } from './auth/devLogin.routes.js';
 import { logoutRoutes } from './auth/logout.routes.js';
@@ -26,6 +28,7 @@ import {
   originCheck,
   webhookRawBodyMiddleware,
 } from './security/index.js';
+import { resumeRoutes } from './users/resume.routes.js';
 import { razorpayWebhookRoutes } from './webhooks/razorpay.routes.js';
 
 const META_CALLBACK_PATHS = ['/api/meta/deauthorize', '/api/meta/data-deletion'];
@@ -60,10 +63,13 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use('/api', globalUserLimiter);
 
   app.use(healthRoutes());
+  app.use(configRoutes(ctx));
   app.use(meRoutes(env));
   app.use(onboardingRoutes(env));
   app.use(payoutRoutes(env, createRazorpayClient(env, options.razorpayClientOptions)));
   app.use(dealRoutes(ctx));
+  app.use(applicationRoutes(ctx));
+  app.use(resumeRoutes(ctx));
   app.use(razorpayWebhookRoutes(env));
   app.use(instagramAuthRoutes(env));
   app.use(metaRoutes(env));
