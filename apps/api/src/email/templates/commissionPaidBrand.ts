@@ -1,6 +1,6 @@
 import { formatInr } from '@valueskins/shared';
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
-import { renderHtml } from './layout.js';
+import { escapeHtml, renderHtml } from './layout.js';
 
 /** #4 (brand side): Commission paid (SPEC 8) — the tax invoice is attached by
  * the caller via send()'s attachments option, not built here. */
@@ -11,7 +11,7 @@ export function commissionPaidBrandTemplate(
   const subject = `Commission paid: ${data.dealTitle}`;
   const text = `Your commission payment of ${amount} for "${data.dealTitle}" (${data.dealShortId}) was received. The tax invoice is attached.`;
   const html = renderHtml(
-    `<p>Your commission payment of ${amount} for "${data.dealTitle}" (${data.dealShortId}) was received.</p>` +
+    `<p>Your commission payment of ${amount} for "${escapeHtml(data.dealTitle)}" (${escapeHtml(data.dealShortId)}) was received.</p>` +
       `<p>The tax invoice is attached.</p>`,
   );
   return { subject, text, html };

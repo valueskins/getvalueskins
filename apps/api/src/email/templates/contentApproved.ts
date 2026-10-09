@@ -1,5 +1,5 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
-import { renderHtml } from './layout.js';
+import { escapeHtml, renderHtml } from './layout.js';
 
 /** #8: Content approved (SPEC 8) — sent to the creator. */
 export function contentApprovedTemplate(
@@ -8,7 +8,7 @@ export function contentApprovedTemplate(
   const subject = `Content approved: ${data.dealTitle}`;
   const text = `Your content for "${data.dealTitle}" (${data.dealShortId}) was approved. Waiting for final payment.`;
   const html = renderHtml(
-    `<p>Your content for "${data.dealTitle}" (${data.dealShortId}) was approved. Waiting for final payment.</p>`,
+    `<p>Your content for "${escapeHtml(data.dealTitle)}" (${escapeHtml(data.dealShortId)}) was approved. Waiting for final payment.</p>`,
   );
   return { subject, text, html };
 }

@@ -84,3 +84,45 @@ describe('email templates', () => {
     }
   });
 });
+
+describe('HTML escaping of user-supplied text', () => {
+  const hostile = '<script>alert("x")</script> & "q"';
+  const escaped = '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &quot;q&quot;';
+
+  it('escapes every user-supplied field in the HTML body but not in the plain text', () => {
+    const rendered = [
+      templateRegistry.DEAL_PUBLISHED({
+        dealShortId: 'ABC12345',
+        dealTitle: hostile,
+        applicationDeadline: '2026-10-12',
+      }),
+      templateRegistry.NEW_APPLICATION({
+        dealShortId: 'ABC12345',
+        dealTitle: 'Deal',
+        creatorUsername: hostile,
+      }),
+      templateRegistry.YOU_WERE_SELECTED({
+        dealShortId: 'ABC12345',
+        dealTitle: 'Deal',
+        brandName: hostile,
+      }),
+      templateRegistry.APPLICATION_NOT_SELECTED({ dealShortId: 'ABC12345', dealTitle: hostile }),
+      templateRegistry.DEAL_CANCELLED({
+        dealShortId: 'ABC12345',
+        dealTitle: 'Deal',
+        reason: hostile,
+        commissionKept: false,
+      }),
+      templateRegistry.CHANGES_REQUESTED({
+        dealShortId: 'ABC12345',
+        dealTitle: 'Deal',
+        feedback: hostile,
+      }),
+    ];
+    for (const content of rendered) {
+      expect(content.html).not.toContain('<script>');
+      expect(content.html).toContain(escaped);
+    }
+    expect(rendered[0]?.text).toContain('<script>');
+  });
+});
