@@ -16,6 +16,8 @@ import { instagramAuthRoutes } from './instagram/oauth.routes.js';
 import { httpLogger } from './logging/httpLogger.js';
 import { metaRoutes } from './meta/meta.routes.js';
 import { onboardingRoutes } from './onboarding/onboarding.routes.js';
+import type { PaymentsDeps } from './payments/types.js';
+import { paymentRoutes } from './payments/payments.routes.js';
 import { payoutRoutes } from './payout/payout.routes.js';
 import { type RazorpayClientOptions, createRazorpayClient } from './razorpay/client.js';
 import { globalUserLimiter } from './rateLimit/limiters.js';
@@ -29,6 +31,7 @@ import {
   webhookRawBodyMiddleware,
 } from './security/index.js';
 import { resumeRoutes } from './users/resume.routes.js';
+import { createWebhookHandlers } from './webhooks/handlers/index.js';
 import { razorpayWebhookRoutes } from './webhooks/razorpay.routes.js';
 
 const META_CALLBACK_PATHS = ['/api/meta/deauthorize', '/api/meta/data-deletion'];
@@ -43,6 +46,8 @@ export interface AppOptions {
 export function createApp(env: Env, options: AppOptions = {}): Express {
   const app = express();
   const ctx: ApiContext = { env, now: options.now ?? (() => new Date()) };
+  const razorpay = createRazorpayClient(env, options.razorpayClientOptions);
+  const paymentsDeps: PaymentsDeps = { env, razorpay, now: ctx.now };
 
   // Needed so IP-scoped rate limiters see the real client IP behind Render's proxy.
   app.set('trust proxy', 1);
@@ -66,11 +71,12 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(configRoutes(ctx));
   app.use(meRoutes(env));
   app.use(onboardingRoutes(env));
-  app.use(payoutRoutes(env, createRazorpayClient(env, options.razorpayClientOptions)));
+  app.use(payoutRoutes(env, razorpay));
   app.use(dealRoutes(ctx));
   app.use(applicationRoutes(ctx));
   app.use(resumeRoutes(ctx));
-  app.use(razorpayWebhookRoutes(env));
+  app.use(paymentRoutes(paymentsDeps));
+  app.use(razorpayWebhookRoutes(env, createWebhookHandlers(env, paymentsDeps)));
   app.use(instagramAuthRoutes(env));
   app.use(metaRoutes(env));
   if (env.NODE_ENV !== 'production' && env.ENABLE_DEV_LOGIN) {

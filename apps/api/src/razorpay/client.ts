@@ -167,7 +167,8 @@ export function createRazorpayClient(
     fetchRouteProduct: (accountId: string, productId: string) =>
       request('GET', `/v2/accounts/${accountId}/products/${productId}`, routeProductSchema),
 
-    createOrder: (body: CreateOrderBody) => request('POST', '/v1/orders', razorpayOrderSchema, body),
+    createOrder: (body: CreateOrderBody) =>
+      request('POST', '/v1/orders', razorpayOrderSchema, body),
 
     fetchPayment: (paymentId: string) =>
       request('GET', `/v1/payments/${paymentId}`, razorpayPaymentSchema),

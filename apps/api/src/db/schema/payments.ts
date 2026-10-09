@@ -55,6 +55,11 @@ export const payments = pgTable(
     uniqueIndex('payments_one_captured_per_deal_type_idx')
       .on(t.dealId, t.type)
       .where(sql`${t.status} = 'CAPTURED'`),
+    // SPEC 7.3: one open Order per deal per payment type. A failed attempt keeps its order
+    // (Checkout retries on it), so FAILED counts as open and the row is reused.
+    uniqueIndex('payments_one_open_per_deal_type_idx')
+      .on(t.dealId, t.type)
+      .where(sql`${t.status} in ('CREATED', 'FAILED')`),
   ],
 );
 

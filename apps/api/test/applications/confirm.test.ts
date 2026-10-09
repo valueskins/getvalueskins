@@ -70,6 +70,7 @@ describe('POST /api/applications/:id/confirm', () => {
       applicationCount: 3,
     });
     expect(res.body.deal.allowedActions).toEqual([
+      { action: 'PAY_COMMISSION', enabled: true, reason: null },
       { action: 'CANCEL', enabled: true, reason: null },
     ]);
 

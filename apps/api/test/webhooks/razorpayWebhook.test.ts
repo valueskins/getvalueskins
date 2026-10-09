@@ -422,14 +422,14 @@ describe('the handler registry and the fast 200', () => {
   });
 
   it('stores an event with no handler and marks it processed', async () => {
-    const body = JSON.stringify({ event: 'payment.captured', created_at: 1 });
+    const body = JSON.stringify({ event: 'settlement.processed', created_at: 1 });
 
     const response = await deliver(body);
     await waitForProcessed();
 
     expect(response.status).toBe(200);
     const [row] = await eventRows();
-    expect(row?.eventType).toBe('payment.captured');
+    expect(row?.eventType).toBe('settlement.processed');
     expect(row?.processedAt).not.toBeNull();
     expect(row?.error).toBeNull();
     expect(await emailsOf('ADMIN_ALERT')).toHaveLength(0);
