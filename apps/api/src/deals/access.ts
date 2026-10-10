@@ -47,3 +47,21 @@ export async function loadOwnedDeal(rawId: unknown, brandId: string): Promise<De
   if (!deal || deal.brandId !== brandId) throw notFound();
   return deal;
 }
+
+/**
+ * The deal if the viewer is its brand, its confirmed creator, or an admin; else a 404.
+ * Stricter than canViewDeal: an OPEN deal is not a participant's deal (documents, history).
+ */
+export async function loadParticipantDeal(
+  rawId: unknown,
+  viewer: AuthenticatedUser,
+): Promise<Deal> {
+  const deal = await findDeal(parseId(rawId));
+  if (!deal) throw notFound();
+  const participant =
+    viewer.isAdmin ||
+    deal.brandId === viewer.id ||
+    (deal.creatorId !== null && deal.creatorId === viewer.id);
+  if (!participant) throw notFound();
+  return deal;
+}

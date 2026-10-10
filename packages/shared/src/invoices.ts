@@ -52,6 +52,9 @@ export function formatIstDate(date: Date): string {
   return `${ist.getUTCDate()} ${MONTHS[ist.getUTCMonth()]} ${ist.getUTCFullYear()}`;
 }
 
+/** Bump when the snapshot shape changes, so old rows can still be read. */
+export const INVOICE_SNAPSHOT_VERSION = 1 as const;
+
 export const TAX_KINDS = ['NONE', 'CGST_SGST', 'IGST'] as const;
 export type TaxKind = (typeof TAX_KINDS)[number];
 
@@ -62,7 +65,7 @@ export const INVOICE_TITLES = ['Tax Invoice', 'Invoice', 'Payment Receipt'] as c
  * invoices.snapshot (SPEC 7.4). Renderers read only this, so a re-render is identical.
  */
 export const invoiceSnapshotSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(INVOICE_SNAPSHOT_VERSION),
   kind: z.enum(INVOICE_KINDS),
   number: z.string(),
   financialYear: z.string(),

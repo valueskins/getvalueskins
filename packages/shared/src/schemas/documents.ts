@@ -15,6 +15,7 @@ export type DocumentKind = z.infer<typeof documentKindSchema>;
 
 /** GET /deals/:id/emails and /events take the usual cursor and limit. */
 export const historyQuerySchema = cursorPageQuerySchema;
+export type HistoryQuery = z.infer<typeof historyQuerySchema>;
 
 /** One email of the deal's communication history (SPEC 8). Addresses are never included. */
 export const dealEmailSchema = z.object({

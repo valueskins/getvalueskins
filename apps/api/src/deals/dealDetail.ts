@@ -1,14 +1,15 @@
 import {
+  FIVE_REVISIONS_WARNING,
   applicationsOpen,
   computeDealActions,
   contentOverdue,
   validateDealForPublish,
   type DealDetail,
 } from '@valueskins/shared';
-import { and, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { db } from '../db/client.js';
-import { applications, brandBilling } from '../db/schema/index.js';
+import { applications, brandBilling, contentUploads } from '../db/schema/index.js';
 import { iso, loadParties, toSummary } from './dealView.js';
 import { getPayoutStatus } from './payoutStatus.js';
 import type { Deal } from './stateMachine.js';
@@ -74,9 +75,21 @@ export async function buildDealDetail(
   const creatorPayoutStatus =
     privileged && deal.creatorId ? await getPayoutStatus(deal.creatorId) : null;
 
-  let viewerKind: 'BRAND_OWNER' | 'CREATOR' | 'NONE' = 'NONE';
+  const isConfirmedCreator = deal.creatorId !== null && deal.creatorId === viewer.id;
+  let viewerKind: 'BRAND_OWNER' | 'CONFIRMED_CREATOR' | 'CREATOR' | 'NONE' = 'NONE';
   if (isOwner) viewerKind = 'BRAND_OWNER';
+  else if (isConfirmedCreator) viewerKind = 'CONFIRMED_CREATOR';
   else if (viewer.role === 'CREATOR') viewerKind = 'CREATOR';
+
+  // Delivery history is for the two parties and admins; an OPEN deal has none anyway.
+  const seesDelivery = privileged || isConfirmedCreator;
+  const uploads = seesDelivery
+    ? await db
+        .select({ link: contentUploads.link, uploadedAt: contentUploads.uploadedAt })
+        .from(contentUploads)
+        .where(eq(contentUploads.dealId, deal.id))
+        .orderBy(asc(contentUploads.uploadedAt), asc(contentUploads.id))
+    : [];
 
   let hasApplied = false;
   let payoutActive = false;
@@ -105,6 +118,17 @@ export async function buildDealDetail(
     cancelledAt: iso(deal.cancelledAt),
     cancelledByRole: deal.cancelledByRole,
     cancellationReason: deal.cancellationReason,
+    commissionPaidAt: iso(deal.commissionPaidAt),
+    advancePaidAt: iso(deal.advancePaidAt),
+    approvedAt: iso(deal.approvedAt),
+    completedAt: iso(deal.completedAt),
+    contentLink: seesDelivery ? deal.contentLink : null,
+    contentUploadedAt: iso(deal.contentUploadedAt),
+    uploadCount: deal.uploadCount,
+    revisionCount: deal.revisionCount,
+    feedback: seesDelivery ? deal.feedback : null,
+    contentUploads: uploads.map((u) => ({ link: u.link, uploadedAt: u.uploadedAt.toISOString() })),
+    revisionNotice: deal.revisionCount >= 5 ? FIVE_REVISIONS_WARNING : null,
     creator,
     creatorPayoutStatus,
     applicationCount,
@@ -118,6 +142,7 @@ export async function buildDealDetail(
       hasApplied,
       payoutActive,
       creatorPayoutActive: creatorPayoutStatus === 'ACTIVE',
+      uploadCount: deal.uploadCount,
       hasBilling,
       publishIssues,
     }),
