@@ -173,7 +173,7 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
       : {
           kind: 'table',
           head: ['Time', 'Change', 'By', 'Note'],
-          widths: [0.28, 0.3, 0.17, 0.25],
+          widths: [0.25, 0.3, 0.22, 0.23],
           rows: data.events.map((e) => [
             formatIst(e.at),
             `${e.from} to ${e.to}`,

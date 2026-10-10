@@ -1,5 +1,3 @@
-import type PDFDocument from 'pdfkit';
-
 /**
  * A document is a list of blocks: plain data describing what is on the page. Building the
  * blocks is pure, so tests read the text directly (text in an embedded font cannot be
@@ -16,7 +14,7 @@ export type Block =
 
 export const BLOCK_FONT = { regular: 'Regular', bold: 'Bold' } as const;
 
-const LABEL_WIDTH = 150;
+const LABEL_WIDTH = 190;
 const BODY_SIZE = 10;
 const CELL_PADDING = 4;
 
@@ -86,9 +84,12 @@ export function drawBlocks(doc: PDFKit.PDFDocument, blocks: Block[]): void {
         break;
       case 'row': {
         const valueWidth = doc.page.width - left - doc.page.margins.right - LABEL_WIDTH;
-        doc.font(BLOCK_FONT.regular).fontSize(BODY_SIZE);
+        // The label is drawn bold, so it is measured bold: a wrapped label must not run into the next row.
+        doc.font(BLOCK_FONT.bold).fontSize(BODY_SIZE);
+        const labelHeight = doc.heightOfString(block.label, { width: LABEL_WIDTH - 8 });
+        doc.font(BLOCK_FONT.regular);
         const height = Math.max(
-          doc.heightOfString(block.label, { width: LABEL_WIDTH - 8 }),
+          labelHeight,
           doc.heightOfString(block.value, { width: valueWidth }),
         );
         ensureRoom(doc, height + 4);
