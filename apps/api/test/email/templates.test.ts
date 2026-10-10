@@ -70,6 +70,8 @@ describe('email templates', () => {
       daysInReview: 3,
       disputeSubject: 'Payment issue',
       disputeDescription: 'Details here',
+      resolution: 'Refunded in full',
+      refundReference: 'rfnd_123',
       raisedByUsername: 'brand1',
       status: 'ACTIVE',
       subjectLine: 'Alert',
@@ -124,5 +126,47 @@ describe('HTML escaping of user-supplied text', () => {
       expect(content.html).toContain(escaped);
     }
     expect(rendered[0]?.text).toContain('<script>');
+  });
+});
+
+describe('dispute emails', () => {
+  it('15b names the dispute, the resolution and the refund reference, and escapes user text', () => {
+    const content = templateRegistry.DISPUTE_RESOLVED({
+      dealShortId: 'ABC12345',
+      dealTitle: 'Summer <campaign>',
+      disputeSubject: 'Late & wrong',
+      resolution: 'Refunded <b>in full</b>',
+      refundReference: 'rfnd_123',
+    });
+    expect(content.subject).toBe('Dispute resolved: Summer <campaign>');
+    expect(content.text).toContain('Refunded <b>in full</b>');
+    expect(content.text).toContain('Refund reference: rfnd_123');
+    expect(content.html).toContain('Refunded &lt;b&gt;in full&lt;/b&gt;');
+    expect(content.html).toContain('Late &amp; wrong');
+    expect(content.html).not.toContain('<b>in full</b>');
+  });
+
+  it('15b leaves the refund line out when there is no reference', () => {
+    const content = templateRegistry.DISPUTE_RESOLVED({
+      dealShortId: 'ABC12345',
+      dealTitle: 'Deal',
+      disputeSubject: 'Subject',
+      resolution: 'Settled',
+      refundReference: null,
+    });
+    expect(content.text).not.toContain('Refund reference');
+    expect(content.html).not.toContain('Refund reference');
+  });
+
+  it('15 escapes the dispute text in the HTML body', () => {
+    const content = templateRegistry.DISPUTE_RAISED({
+      dealShortId: 'ABC12345',
+      dealTitle: 'Deal',
+      disputeSubject: '<i>Hi</i>',
+      disputeDescription: 'a & b',
+      raisedByUsername: 'x',
+    });
+    expect(content.html).toContain('&lt;i&gt;Hi&lt;/i&gt;');
+    expect(content.html).toContain('a &amp; b');
   });
 });

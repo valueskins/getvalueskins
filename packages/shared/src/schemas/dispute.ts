@@ -1,10 +1,34 @@
 import { z } from 'zod';
+import { cursorPageQuerySchema } from './pagination.js';
+import { DISPUTE_STATUSES } from '../enums.js';
 
+export const DISPUTE_SUBJECT_MAX = 150;
+export const DISPUTE_TEXT_MAX = 5000;
+export const REFUND_REFERENCE_MAX = 255;
+
+/** POST /deals/:id/disputes (SPEC 12): a subject and a description. */
 export const disputeCreateSchema = z
   .object({
-    subject: z.string().min(1),
-    description: z.string().min(1),
+    subject: z.string().trim().min(1).max(DISPUTE_SUBJECT_MAX),
+    description: z.string().trim().min(1).max(DISPUTE_TEXT_MAX),
   })
   .strict();
 
 export type DisputeCreateInput = z.infer<typeof disputeCreateSchema>;
+
+/** POST /admin/disputes/:id/resolve: the resolution note is required, the Razorpay refund id is optional. */
+export const disputeResolveSchema = z
+  .object({
+    resolution: z.string().trim().min(1).max(DISPUTE_TEXT_MAX),
+    refundReference: z.string().trim().min(1).max(REFUND_REFERENCE_MAX).optional(),
+  })
+  .strict();
+
+export type DisputeResolveInput = z.infer<typeof disputeResolveSchema>;
+
+/** GET /admin/disputes. */
+export const disputeListQuerySchema = cursorPageQuerySchema
+  .extend({ status: z.enum(DISPUTE_STATUSES).optional() })
+  .strict();
+
+export type DisputeListQuery = z.infer<typeof disputeListQuerySchema>;

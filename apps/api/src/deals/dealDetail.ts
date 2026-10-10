@@ -143,6 +143,7 @@ export async function buildDealDetail(
       payoutActive,
       creatorPayoutActive: creatorPayoutStatus === 'ACTIVE',
       uploadCount: deal.uploadCount,
+      hasCreator: deal.creatorId !== null,
       hasBilling,
       publishIssues,
     }),

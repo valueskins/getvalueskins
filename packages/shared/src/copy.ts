@@ -19,6 +19,13 @@ export const CREATOR_PAYOUT_NOT_READY = 'The creator has not finished payout set
 export const UPLOAD_LIMIT_REACHED = 'The limit of 20 content links for this deal has been reached';
 export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 
+// Disputes and admin actions (SPEC 12)
+export const DISPUTE_NOT_ALLOWED =
+  'A dispute can be raised once a creator has been confirmed for the deal';
+export const DISPUTE_ALREADY_RESOLVED = 'This dispute is already resolved';
+export const TRANSFER_STATE_CONFLICT =
+  'This transfer is already paid out or reversed, so it cannot be changed';
+
 // Revision limit notice (SPEC 5.5)
 export const FIVE_REVISIONS_WARNING =
   'This deal has had 5 revisions. If you cannot agree, raise a dispute.';

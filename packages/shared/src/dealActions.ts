@@ -11,7 +11,7 @@ import {
 import { MAX_CONTENT_UPLOADS_PER_DEAL } from './config.js';
 import type { DealStatus } from './dealStateMachine.js';
 
-/** Actions that have an endpoint today. Later phases (dispute) add theirs. */
+/** Actions that have an endpoint today. */
 export const DEAL_ACTIONS = [
   'EDIT_DRAFT',
   'DELETE_DRAFT',
@@ -25,6 +25,7 @@ export const DEAL_ACTIONS = [
   'UPLOAD_CONTENT',
   'SEND_FEEDBACK',
   'APPROVE',
+  'RAISE_DISPUTE',
 ] as const;
 
 export type DealAction = (typeof DEAL_ACTIONS)[number];
@@ -53,6 +54,8 @@ export interface DealActionsInput {
   payoutActive: boolean;
   /** The deal's confirmed creator has an ACTIVE payout account (the brand pays the advance to it). */
   creatorPayoutActive: boolean;
+  /** The deal has a confirmed creator (a cancelled deal may never have had one). */
+  hasCreator: boolean;
   hasBilling: boolean;
   /** Messages from validateDealForPublish for the draft, empty when it is ready. */
   publishIssues: readonly string[];
@@ -67,6 +70,14 @@ const POST_ADVANCE_STATUSES: readonly DealStatus[] = [
 
 const CANCELLABLE_STATUSES: readonly DealStatus[] = ['OPEN', 'CONFIRMED', 'COMMISSION_PAID'];
 
+/**
+ * SPEC 12: a dispute can be raised from CONFIRMED onward, so the deal needs a confirmed creator
+ * and must be past OPEN. A deal cancelled before a creator was confirmed has nothing to dispute.
+ */
+export function disputeAllowed(status: DealStatus, hasCreator: boolean): boolean {
+  return hasCreator && status !== 'DRAFT' && status !== 'OPEN';
+}
+
 function on(action: DealAction): DealActionState {
   return { action, enabled: true, reason: null };
 }
@@ -77,10 +88,19 @@ function off(action: DealAction, reason: string): DealActionState {
 
 /** The actions the viewer can take, or sees disabled with a reason, on a deal right now (SPEC 5.2, 5.4, 5.5, 18). */
 export function computeDealActions(input: DealActionsInput): DealActionState[] {
-  if (input.viewer === 'BRAND_OWNER') return brandActions(input);
-  if (input.viewer === 'CONFIRMED_CREATOR') return confirmedCreatorActions(input);
+  if (input.viewer === 'BRAND_OWNER') return withDispute(input, brandActions(input));
+  if (input.viewer === 'CONFIRMED_CREATOR') {
+    return withDispute(input, confirmedCreatorActions(input));
+  }
   if (input.viewer === 'CREATOR') return creatorActions(input);
   return [];
+}
+
+/** Both parties can raise a dispute once the deal allows it; otherwise the action is not listed. */
+function withDispute(input: DealActionsInput, actions: DealActionState[]): DealActionState[] {
+  return disputeAllowed(input.status, input.hasCreator)
+    ? [...actions, on('RAISE_DISPUTE')]
+    : actions;
 }
 
 function brandActions(input: DealActionsInput): DealActionState[] {

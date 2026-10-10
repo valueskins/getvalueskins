@@ -41,6 +41,12 @@ export interface OrdersMockState {
   orderFailure: { status: number; times: number } | null;
   /** Make GET /v1/payments/:id/transfers answer 500 (the capture must still be recorded). */
   transfersListDown: boolean;
+  /** POST /v1/payments/:id/transfers calls (the admin retry), with the payment id and the body. */
+  createTransferCalls: Array<{ paymentId: string; body: Record<string, unknown> }>;
+  /** Make POST /v1/payments/:id/transfers answer with this 4xx and description. */
+  createTransferRejection: { status: number; code: string; description: string } | null;
+  /** The status a transfer created by POST /v1/payments/:id/transfers starts in. */
+  createdTransferStatus: string;
 }
 
 export function newOrdersState(): OrdersMockState {
@@ -53,6 +59,9 @@ export function newOrdersState(): OrdersMockState {
     fetchTransfersCalls: [],
     orderFailure: null,
     transfersListDown: false,
+    createTransferCalls: [],
+    createTransferRejection: null,
+    createdTransferStatus: 'created',
   };
 }
 
@@ -113,6 +122,28 @@ export function ordersHandlers(state: OrdersMockState) {
       }
       const items = state.transfers.get(id) ?? [];
       return HttpResponse.json({ entity: 'collection', count: items.length, items });
+    }),
+
+    http.post(`${BASE}/v1/payments/:id/transfers`, async ({ params, request }) => {
+      const paymentId = String(params.id);
+      const body = (await request.json()) as {
+        transfers: Array<{ account: string; amount: number; currency: string }>;
+      };
+      state.createTransferCalls.push({ paymentId, body: body as Record<string, unknown> });
+      if (state.createTransferRejection) {
+        const { status, code, description } = state.createTransferRejection;
+        return HttpResponse.json({ error: { code, description } }, { status });
+      }
+      const created: MockTransfer[] = body.transfers.map((t, i) => ({
+        id: `trf_retry${state.createTransferCalls.length}_${i}`,
+        source: paymentId,
+        recipient: t.account,
+        amount: t.amount,
+        currency: t.currency,
+        status: state.createdTransferStatus,
+      }));
+      state.transfers.set(paymentId, [...(state.transfers.get(paymentId) ?? []), ...created]);
+      return HttpResponse.json({ entity: 'collection', count: created.length, items: created });
     }),
   ];
 }

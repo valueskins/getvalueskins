@@ -176,7 +176,7 @@ Derived flags (not statuses):
 | CONTENT_UPLOADED | APPROVED | Brand | Final approval |
 | REVISION_REQUESTED | CONTENT_UPLOADED | Creator | Upload a new link |
 | APPROVED | COMPLETED | System | Final payment captured and transfer created |
-| ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED | Admin only | Dispute resolution. Records a resolution note and any manual refund reference. |
+| ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED | Admin only | Dispute resolution (`POST /admin/deals/:id/cancel`). The note is required and becomes the cancellation reason; a manual refund reference is optional. Both are kept in the deal event (its note, and its metadata `refundReference`), because the deals table has no column for the reference. The commission is always kept. |
 
 Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cancel at any stage. The cancel button is not rendered from ADVANCE_PAID onward.
 
@@ -297,7 +297,9 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
   - Deduplicates on the `x-razorpay-event-id` header, stored in `webhook_events`. Duplicates return 200 immediately.
   - Handles, by a registry keyed by event type: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (section 7.2). `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`; and the Route `transfer.processed`, `transfer.failed` and `transfer.reversed` events, which update the transfer row (status only moves forward; a transfer event that arrives before its payment was recorded records the payment first). `transfer.reversed` is not on Razorpay's Route payload page, so check the dashboard's event list for it. An event with no handler (for example `settlement.processed`) is stored and marked processed.
   - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits, and the payer's email, contact, VPA, card, bank and wallet details removed). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
-- A failed transfer (after payment was captured) sets the transfer row to FAILED with Razorpay's reason, emails the admin once (A1), and shows the admin a "Retry transfer" button (the button comes with the admin work). The deal still advances, because the brand did pay.
+- A failed transfer (after payment was captured) sets the transfer row to FAILED with Razorpay's reason, emails the admin once (A1), and leaves the admin two actions (section 12): retry, or mark it as paid by hand. The deal still advances, because the brand did pay.
+  - **Retry** (`POST /admin/transfers/:id/retry`). Razorpay has no retry endpoint, and its docs do not say whether a failed transfer frees its amount under the payment's cap. So a retry first lists the payment's transfers (`GET /v1/payments/:id/transfers`): a pending or processed one to the creator for the same amount is adopted into our row and nothing is created, which makes repeated or simultaneous retries safe (the row is locked for the whole call). Only if ours is FAILED, none is live and the creator's payout account is ACTIVE does it create one new transfer with `POST /v1/payments/:id/transfers` (same amount, `on_hold: false`, notes `{ deal_id, type, retry: '1' }`), stores its id on the same row and sets the row to PENDING so the transfer webhooks move it on. A PROCESSED (including manual) or REVERSED transfer is `409 TRANSFER_STATE_CONFLICT`. A rejection by Razorpay (for example the cap) is `422 TRANSFER_REJECTED` with Razorpay's reason and leaves the row unchanged. This repairs one transfer; it does not settle the section 4.3 fee question.
+  - **Mark manual** (`POST /admin/transfers/:id/mark-manual`, body `{ reference }`, required): for a FAILED or PENDING transfer the admin paid outside Razorpay Route. Sets PROCESSED with `manual_reference`, `manual_by_id`, `manual_at`; the same reference again is a no-op, anything else on a PROCESSED or REVERSED row is `409 TRANSFER_STATE_CONFLICT`. A later webhook cannot undo it, and retry refuses it, so the creator is never paid twice.
 
 ### 7.4 Invoices
 
@@ -333,11 +335,12 @@ In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of se
 | 8 | Content approved | Creator | Brand approves ("waiting for final payment") |
 | 9 | Final payment done | Creator and Brand (final receipt attached) | Payment 3 captured |
 | 10 | Deal report ready | Creator and Brand (ADP attached) | Deal COMPLETED |
-| 11 | Deal cancelled | Brand, and Creator if confirmed | Deal CANCELLED (includes reason, and whether commission was kept) |
+| 11 | Deal cancelled | Brand, and Creator if confirmed | Deal CANCELLED, by the brand or by an admin (includes reason, and whether commission was kept) |
 | 12 | Commission payment reminder | Brand | Daily while CONFIRMED |
 | 13 | Content overdue | Creator and Brand | Daily while content_overdue |
 | 14 | Review reminder | Brand | Daily after 3 days in CONTENT_UPLOADED |
-| 15 | Dispute raised | valueskinsfounder@gmail.com, CC both parties | Dispute form submitted |
+| 15 | Dispute raised | valueskinsfounder@gmail.com (`DISPUTE_EMAIL`), CC both parties | Dispute form submitted |
+| 15b | Dispute resolved | Brand and Creator | Admin resolves a dispute (includes the resolution note and the refund reference when given) |
 | 16 | Payout account status | Creator | Linked account becomes ACTIVE or NEEDS_CLARIFICATION |
 | A1 | Admin alert | Admin | Webhook processing error, transfer failed |
 
@@ -392,7 +395,7 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 
 ## 12. Disputes and admin
 
-- **Raise dispute** button on any deal from CONFIRMED onward, for both parties. Form: subject, description. Creates a `disputes` row and sends Email 15.
+- **Raise dispute** (`POST /deals/:id/disputes`) on any deal that has a confirmed creator and is past OPEN (CONFIRMED to COMPLETED, and a CANCELLED deal that had a creator), for its brand and its confirmed creator only (everyone else, admins included, gets 404; `409 DISPUTE_NOT_ALLOWED` before that). Body: subject (1 to 150 characters), description (1 to 5000). Creates a `disputes` row and sends Email 15 to `DISPUTE_EMAIL` with both parties in CC. 3 per deal per 24 hours per user (section 13). A deal can have several disputes. The deal's actions list `RAISE_DISPUTE` when it is allowed.
 - Admins are users whose Instagram user id is in env `ADMIN_INSTAGRAM_USER_IDS`. `is_admin` is set on login from that list.
 - `/admin` (admin only, 404 for everyone else):
   - **Analytics** (auto-refresh every 30 seconds):
@@ -401,8 +404,11 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
     - This month: deals created, completed, commission revenue (base, excluding GST), creator payouts, completion rate.
     - Charts: deals by status, daily deals created (30 days), daily commission revenue (30 days), histogram of hours from final payment to transfer processed.
     - Tables: recent deals, recent transfers, open disputes. Every row links to a detail view.
-  - **Deal detail**: full event log, payments, transfers, emails, disputes. Actions: cancel deal (admin override, requires a resolution note and optional manual refund reference), retry failed transfer, resend any email.
-  - **Disputes**: list, mark resolved with a resolution note (emails both parties).
+  - **Deal list** (`GET /admin/deals?status=&q=`): every deal including drafts, newest first, filtered by status and searched by short id (prefix, any case).
+  - **Deal detail** (`GET /admin/deals/:id`): full event log, payments (with the invoice number each produced), transfers, emails (with recipient addresses, the 200 newest), disputes. Actions: cancel deal (`POST /admin/deals/:id/cancel`, admin override from ADVANCE_PAID to APPROVED only, section 5.2: requires a resolution note, optional manual refund reference, sends email 11), retry failed transfer and mark a transfer paid by hand (section 7.3), resend any email.
+  - **Resend** (`POST /admin/emails/:id/resend`): sends the stored subject and text again to the stored address and CC list as a new `email_log` row (the original stays). Only the plain text is stored, so the HTML is rebuilt from it. Invoices, receipts and the deal report that the first email carried are rebuilt from their stored snapshots (the report from the database as it is now); an attachment that cannot be rebuilt is left off and named in `missingAttachments`.
+  - **Disputes** (`GET /admin/disputes?status=`, `POST /admin/disputes/:id/resolve`): list, mark resolved with a resolution note and an optional refund reference (a second resolve is `409 DISPUTE_ALREADY_RESOLVED`). Email 15b goes to both parties. Resolving does not change the deal; cancelling it is a separate action.
+  - Every admin route answers 404 to signed-out users and non-admins alike. The analytics (`GET /admin/analytics`) and the admin screens are not built yet.
 - Refunds, when needed, are done manually in the Razorpay dashboard. The admin records the refund id in the resolution. No automated refunds in v1.
 
 ---
@@ -418,7 +424,7 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 | Signup (new user created) | 5 per hour | IP |
 | Login attempts | 20 per hour, then 15-minute lockout | IP |
 | Email verification resend | 5 per hour | User |
-| Dispute | 3 per deal per 24h | User |
+| Dispute | 3 per deal per 24h (counted once the request is valid and allowed) | User |
 
 Publish and apply are counted only once the request has passed validation (and, for apply, the payout and deadline checks), so a form full of errors does not use up the day's allowance.
 
@@ -533,7 +539,7 @@ Deals
 - `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
 - `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
 - `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
-- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`; the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
+- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`, `RAISE_DISPUTE` (the deal's brand and confirmed creator, once the deal allows a dispute, section 12); the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
 - `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
 - `POST /deals/:id/content` (the confirmed creator, body `{ link }`, from ADVANCE_PAID or REVISION_REQUESTED; a Drive or Docs https link; `409 WRONG_DEAL_STATUS`, `429 UPLOAD_LIMIT_REACHED` after 20; email 6)
 - `POST /deals/:id/feedback` (brand, body `{ feedback }`, from CONTENT_UPLOADED; email 7)
@@ -541,7 +547,7 @@ Deals
 - `GET /deals/:id/emails` (communication history: the deal's emails to the brand and the creator, newest first, as `{ template, subject, bodyText, status, attachmentNames, recipient { role, username }, createdAt }`, without addresses; admins see every email logged for the deal; cursor pagination)
 - `GET /deals/:id/events` (status changes from `deal_events`, oldest first, as `{ fromStatus, toStatus, actor { type, username }, note, createdAt }`; cursor pagination)
 - `GET /deals/:id/documents/:kind` (PDF: `commission-invoice`, `advance-receipt`, `final-receipt`, `adp`; the deal's brand, its confirmed creator and admins, everyone else 404; `409 DOCUMENT_NOT_AVAILABLE` until the payment is captured, and for the report until COMPLETED)
-- `POST /deals/:id/disputes`
+- `POST /deals/:id/disputes` (the deal's brand or confirmed creator, body `{ subject, description }`, answers 201 `{ dispute }`; `409 DISPUTE_NOT_ALLOWED`, `429` over 3 per deal per day; email 15)
 
 Applications
 - `POST /deals/:id/applications` (creator; needs an ACTIVE payout account, `403 PAYOUT_NOT_ACTIVE`; `409 APPLICATIONS_CLOSED`, `409 ALREADY_APPLIED`; sends email 2)
@@ -555,7 +561,14 @@ Payments
 - `POST /webhooks/razorpay` (no auth, signature verified, raw body)
 
 Admin (`/admin/*`, admin only)
-- `GET /admin/analytics`, `GET /admin/deals`, `GET /admin/deals/:id`, `POST /admin/deals/:id/cancel`, `POST /admin/transfers/:id/retry`, `POST /admin/emails/:id/resend`, `GET /admin/disputes`, `POST /admin/disputes/:id/resolve`
+- `GET /admin/analytics` (not built yet)
+- `GET /admin/deals` (`?status=&q=&cursor=&limit=`), `GET /admin/deals/:id`
+- `POST /admin/deals/:id/cancel` (body `{ note, refundReference? }`; from ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED or APPROVED, otherwise `409 INVALID_TRANSITION`; email 11)
+- `POST /admin/transfers/:id/retry` (body `{}`; answers `{ transfer, outcome: CREATED | SYNCED }`; `409 TRANSFER_STATE_CONFLICT`, `409 CREATOR_PAYOUT_NOT_ACTIVE`, `422 TRANSFER_REJECTED`)
+- `POST /admin/transfers/:id/mark-manual` (body `{ reference }`; `409 TRANSFER_STATE_CONFLICT`)
+- `POST /admin/emails/:id/resend` (answers `{ emailLogId, status, missingAttachments }`)
+- `GET /admin/disputes` (`?status=OPEN|RESOLVED`), `POST /admin/disputes/:id/resolve` (body `{ resolution, refundReference? }`; `409 DISPUTE_ALREADY_RESOLVED`; email 15b)
+- All admin routes: 404 for everyone who is not an admin.
 
 Health
 - `GET /health` (DB check, used by Render)

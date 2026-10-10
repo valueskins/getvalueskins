@@ -73,3 +73,36 @@ export async function renderDealDocument(
   if (!row) throw notAvailable();
   return renderInvoiceRow(row);
 }
+
+/**
+ * The PDFs a stored email carried, rebuilt by file name for an admin resend (SPEC 12): invoices
+ * and receipts from their stored snapshots (byte-identical to the first send), the deal report
+ * from the database as it is now. A name that matches nothing is returned in `missing`.
+ */
+export async function renderAttachmentsByName(
+  dealId: string,
+  names: readonly string[],
+  now: Date,
+): Promise<{ attachments: RenderedDocument[]; missing: string[] }> {
+  const attachments: RenderedDocument[] = [];
+  const missing: string[] = [];
+  if (names.length === 0) return { attachments, missing };
+
+  const rows = await db.select().from(invoices).where(eq(invoices.dealId, dealId));
+  const byName = new Map(
+    rows.map((row) => [invoiceFilename(invoiceSnapshotSchema.parse(row.snapshot)), row]),
+  );
+  const [deal] = await db
+    .select({ shortId: deals.shortId })
+    .from(deals)
+    .where(eq(deals.id, dealId));
+
+  for (const name of names) {
+    const row = byName.get(name);
+    if (row) attachments.push(await renderInvoiceRow(row));
+    else if (deal && name === `ValueSkins-Deal-Report-${deal.shortId}.pdf`) {
+      attachments.push(await renderAdp(dealId, now));
+    } else missing.push(name);
+  }
+  return { attachments, missing };
+}

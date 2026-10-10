@@ -9,7 +9,7 @@ import {
   NO_APPLICATIONS_YET,
   SET_UP_PAYOUTS_TO_APPLY,
 } from './copy.js';
-import { computeDealActions, type DealActionsInput } from './dealActions.js';
+import { computeDealActions, disputeAllowed, type DealActionsInput } from './dealActions.js';
 import { DEAL_STATUSES, type DealStatus } from './dealStateMachine.js';
 
 function input(overrides: Partial<DealActionsInput>): DealActionsInput {
@@ -22,6 +22,7 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     payoutActive: true,
     creatorPayoutActive: true,
     uploadCount: 1,
+    hasCreator: true,
     hasBilling: true,
     publishIssues: [],
     ...overrides,
@@ -67,6 +68,7 @@ describe('computeDealActions: brand owner', () => {
     expect(summary({ status: 'CONFIRMED' })).toEqual([
       ['PAY_COMMISSION', true, null],
       ['CANCEL', true, null],
+      ['RAISE_DISPUTE', true, null],
     ]);
   });
 
@@ -74,10 +76,12 @@ describe('computeDealActions: brand owner', () => {
     expect(summary({ status: 'COMMISSION_PAID' })).toEqual([
       ['PAY_ADVANCE', true, null],
       ['CANCEL', true, null],
+      ['RAISE_DISPUTE', true, null],
     ]);
     expect(summary({ status: 'COMMISSION_PAID', creatorPayoutActive: false })).toEqual([
       ['PAY_ADVANCE', false, CREATOR_PAYOUT_NOT_READY],
       ['CANCEL', true, null],
+      ['RAISE_DISPUTE', true, null],
     ]);
   });
 
@@ -85,6 +89,7 @@ describe('computeDealActions: brand owner', () => {
     expect(summary({ status: 'APPROVED' })).toEqual([
       ['PAY_FINAL', true, null],
       ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+      ['RAISE_DISPUTE', true, null],
     ]);
   });
 
@@ -93,6 +98,7 @@ describe('computeDealActions: brand owner', () => {
       ['SEND_FEEDBACK', true, null],
       ['APPROVE', true, null],
       ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+      ['RAISE_DISPUTE', true, null],
     ]);
   });
 
@@ -101,12 +107,34 @@ describe('computeDealActions: brand owner', () => {
     (status) => {
       expect(summary({ status })).toEqual([
         ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+        ['RAISE_DISPUTE', true, null],
       ]);
     },
   );
 
-  it.each(['COMPLETED', 'CANCELLED'] as DealStatus[])('%s: nothing to do', (status) => {
-    expect(summary({ status })).toEqual([]);
+  it.each(['COMPLETED', 'CANCELLED'] as DealStatus[])(
+    '%s: only a dispute can still be raised',
+    (status) => {
+      expect(summary({ status })).toEqual([['RAISE_DISPUTE', true, null]]);
+    },
+  );
+
+  it('a cancelled deal that never had a creator has nothing to dispute', () => {
+    expect(summary({ status: 'CANCELLED', hasCreator: false })).toEqual([]);
+  });
+
+  it('DRAFT and OPEN never offer a dispute', () => {
+    for (const status of ['DRAFT', 'OPEN'] as DealStatus[]) {
+      expect(summary({ status }).map(([a]) => a)).not.toContain('RAISE_DISPUTE');
+    }
+  });
+});
+
+describe('disputeAllowed', () => {
+  it.each(DEAL_STATUSES)('%s', (status) => {
+    const early = status === 'DRAFT' || status === 'OPEN';
+    expect(disputeAllowed(status, true)).toBe(!early);
+    expect(disputeAllowed(status, false)).toBe(false);
   });
 });
 
@@ -149,6 +177,7 @@ describe('computeDealActions: confirmed creator', () => {
     (status) => {
       expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual([
         ['UPLOAD_CONTENT', true, null],
+        ['RAISE_DISPUTE', true, null],
       ]);
     },
   );
@@ -156,16 +185,25 @@ describe('computeDealActions: confirmed creator', () => {
   it('upload is disabled with the reason once 20 links are used', () => {
     expect(
       summary({ viewer: 'CONFIRMED_CREATOR', status: 'ADVANCE_PAID', uploadCount: 19 }),
-    ).toEqual([['UPLOAD_CONTENT', true, null]]);
+    ).toEqual([
+      ['UPLOAD_CONTENT', true, null],
+      ['RAISE_DISPUTE', true, null],
+    ]);
     expect(
       summary({ viewer: 'CONFIRMED_CREATOR', status: 'REVISION_REQUESTED', uploadCount: 20 }),
-    ).toEqual([['UPLOAD_CONTENT', false, UPLOAD_LIMIT_REACHED]]);
+    ).toEqual([
+      ['UPLOAD_CONTENT', false, UPLOAD_LIMIT_REACHED],
+      ['RAISE_DISPUTE', true, null],
+    ]);
   });
 
   it.each(DEAL_STATUSES.filter((s) => s !== 'ADVANCE_PAID' && s !== 'REVISION_REQUESTED'))(
-    '%s: nothing to do',
+    '%s: nothing but a dispute',
     (status) => {
-      expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual([]);
+      const early = status === 'DRAFT' || status === 'OPEN';
+      expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual(
+        early ? [] : [['RAISE_DISPUTE', true, null]],
+      );
     },
   );
 

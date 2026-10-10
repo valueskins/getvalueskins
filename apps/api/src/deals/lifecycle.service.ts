@@ -6,17 +6,15 @@ import {
   type DealStatus,
 } from '@valueskins/shared';
 import type { Response } from 'express';
-import { eq } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
-import { db } from '../db/client.js';
-import { users } from '../db/schema/index.js';
 import type { ApiContext } from '../context.js';
+import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { AppError } from '../errors/AppError.js';
 import { consumePublishDealLimit } from '../rateLimit/limiters.js';
 import { loadOwnedDeal } from './access.js';
 import { hasBillingDetails } from './dealDetail.js';
-import { transitionDeal, type Deal, type DealPatch } from './stateMachine.js';
+import { transitionDeal, type AfterCommitTask, type Deal, type DealPatch } from './stateMachine.js';
 
 /** SPEC 5.2: the statuses a brand can cancel from. */
 const CANCELLABLE: readonly DealStatus[] = ['OPEN', 'CONFIRMED', 'COMMISSION_PAID'];
@@ -123,6 +121,39 @@ function assertCancellable(status: DealStatus): void {
   );
 }
 
+/**
+ * Email 11 to the brand and, when one was confirmed, the creator (SPEC 8). Shared by the
+ * brand's cancel and the admin override; a party with no email address is skipped.
+ */
+export function cancellationEmailTasks(
+  ctx: ApiContext,
+  reason: string,
+  commissionKept: boolean,
+): AfterCommitTask[] {
+  const sendTo = async (cancelled: Deal, partyId: string): Promise<void> => {
+    const to = await emailOf(partyId);
+    if (!to) return;
+    await send(
+      'DEAL_CANCELLED',
+      to,
+      {
+        dealShortId: cancelled.shortId,
+        dealTitle: cancelled.title ?? '',
+        reason,
+        commissionKept,
+      },
+      ctx.env,
+      { dealId: cancelled.id, userId: partyId },
+    );
+  };
+  return [
+    async (cancelled) => sendTo(cancelled, cancelled.brandId),
+    async (cancelled) => {
+      if (cancelled.creatorId) await sendTo(cancelled, cancelled.creatorId);
+    },
+  ];
+}
+
 /** Brand cancels from OPEN, CONFIRMED or COMMISSION_PAID (SPEC 5.2); email 11 to the brand and a confirmed creator. */
 export async function cancelDeal(
   ctx: ApiContext,
@@ -133,13 +164,6 @@ export async function cancelDeal(
   const deal = await loadOwnedDeal(rawId, user.id);
   assertCancellable(deal.status);
   const commissionKept = deal.status === 'COMMISSION_PAID';
-
-  const emailData = (cancelled: Deal) => ({
-    dealShortId: cancelled.shortId,
-    dealTitle: cancelled.title ?? '',
-    reason,
-    commissionKept,
-  });
 
   return transitionDeal({
     dealId: deal.id,
@@ -153,27 +177,6 @@ export async function cancelDeal(
       cancellationReason: reason,
     },
     note: reason,
-    afterCommit: [
-      async (cancelled) => {
-        if (!user.email) return;
-        await send('DEAL_CANCELLED', user.email, emailData(cancelled), ctx.env, {
-          dealId: cancelled.id,
-          userId: user.id,
-        });
-      },
-      async (cancelled) => {
-        if (!cancelled.creatorId) return;
-        const [creator] = await db
-          .select({ email: users.email })
-          .from(users)
-          .where(eq(users.id, cancelled.creatorId))
-          .limit(1);
-        if (!creator?.email) return;
-        await send('DEAL_CANCELLED', creator.email, emailData(cancelled), ctx.env, {
-          dealId: cancelled.id,
-          userId: cancelled.creatorId,
-        });
-      },
-    ],
+    afterCommit: cancellationEmailTasks(ctx, reason, commissionKept),
   });
 }
