@@ -326,6 +326,37 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
     The three payments add up to the budget: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"`.
 
+13. **Disputes and the admin API (curl).** Needs a deal from step 12 (any status from `ADVANCE_PAID`), and your admin session: sign in at `https://staging.valueskins.com` with the Instagram account listed in `ADMIN_INSTAGRAM_USER_IDS` (section 14), then copy the value of the `vs_session_staging` cookie from the browser's developer tools (Application > Cookies). Admin accounts are Instagram accounts: an email-only account is never an admin. Every admin route answers 404 to anyone else, so a 404 on the first call means the cookie or the admin id is wrong.
+
+    ```bash
+    ADMIN_SESSION=PASTE-THE-COOKIE-VALUE
+    # acall METHOD PATH [JSON]
+    acall() { curl -sS -X "$1" "$API$2" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -H "Cookie: vs_session_staging=$ADMIN_SESSION" ${3:+-d "$3"}; echo; }
+
+    # 1. Raise a dispute as the brand or the creator. Email 15 goes to DISPUTE_EMAIL with both parties in CC.
+    call POST /deals/$DEAL/disputes brand.jar '{"subject":"Test dispute","description":"Checking the admin flow"}'
+
+    # 2. Resolve it as the admin. Email 15b goes to both parties.
+    acall GET '/admin/disputes?status=OPEN'
+    DISPUTE=PASTE-THE-DISPUTE-ID
+    acall POST /admin/disputes/$DISPUTE/resolve '{"resolution":"Checked and settled","refundReference":"rfnd_test_1"}'
+
+    # 3. Find a deal, see everything about it, and force-cancel a stuck one (ADVANCE_PAID to APPROVED only). Email 11 goes to both parties.
+    acall GET '/admin/deals?q=SHORTID'                     # the short id is on the deal and in every email
+    acall GET /admin/deals/$DEAL
+    acall POST /admin/deals/$DEAL/cancel '{"note":"Creator unreachable; refunded in the Razorpay dashboard","refundReference":"rfnd_test_1"}'
+
+    # 4. Transfers: retry a failed one, or mark it paid by hand (reference required: where you paid it from).
+    TRANSFER=PASTE-THE-TRANSFER-ID                          # from /admin/deals/$DEAL, "transfers"
+    acall POST /admin/transfers/$TRANSFER/retry '{}'
+    acall POST /admin/transfers/$TRANSFER/mark-manual '{"reference":"UTR123456789"}'
+
+    # 5. Resend any email (the id is in /admin/deals/$DEAL, "emails"). Invoices and receipts are attached again.
+    acall POST /admin/emails/PASTE-THE-EMAIL-ID/resend '{}'
+    ```
+
+    Refunds are never moved by the API: refund in the Razorpay dashboard first, then record the refund id in the cancel or resolve call. **Retry** creates a new Razorpay transfer from the captured payment only when the failed one is the only one; if Razorpay refuses it (for example "Transfer amount can't be greater than the payment"), the call answers `422 TRANSFER_REJECTED` with Razorpay's reason and changes nothing. Retry may run into the same balance or fee limit that failed the first transfer (SPEC 4.3). In that case pay the creator another way and record it with **mark-manual**; after that a retry is refused so nobody is paid twice.
+
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
 ## 14. Seed staging and set the admin
@@ -450,7 +481,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.
 - **Invoices for older payments:** payments captured before invoicing shipped have no invoice, receipt or deal report. Documents are rendered on demand and never stored.
-- **Failed transfers** alert the admin by email; there is no admin screen to retry one yet (SPEC 12).
+- **Failed transfers** alert the admin by email; retry and mark-manual are API calls (step 13 of section 13), there is no admin screen for them yet (SPEC 12). The admin analytics are not built.
 - **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Razorpay category and address.** Linked accounts are created with `profile.category` `services`, `profile.subcategory` `ad_and_marketing` and a registered address of only `{ country: "IN" }`. Razorpay's allowed category lists could not be retrieved when this was written. If staging shows Razorpay rejecting them, change the constants in `apps/api/src/payout/razorpayProfile.ts`; if it rejects the address, add street, city, state and PIN to the payout form.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Press **Refresh status** to catch up.
