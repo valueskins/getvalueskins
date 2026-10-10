@@ -1,7 +1,8 @@
 import {
   APPLICATIONS_CLOSED,
   ALREADY_APPLIED_MESSAGE,
-  SET_UP_PAYOUTS_TO_APPLY,
+  ADD_UPI_TO_APPLY,
+  CREATOR_PAYOUT_NOT_SET,
   applicationsOpen,
   type ApplicationItem,
   type ApplicationListQuery,
@@ -21,7 +22,7 @@ import { consumeApplyLimit } from '../rateLimit/limiters.js';
 import { findDeal, loadOwnedDeal, notFound, parseId } from '../deals/access.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { DELETED_USER_NAME, loadParties, toParty } from '../deals/dealView.js';
-import { getPayoutStatus } from '../deals/payoutStatus.js';
+import { hasPayoutDetails } from '../deals/payoutDetails.js';
 import { transitionDeal, type Deal, type AfterCommitTask } from '../deals/stateMachine.js';
 
 type ApplicationRow = typeof applications.$inferSelect;
@@ -44,8 +45,8 @@ function applicationsClosed(): AppError {
 }
 
 /**
- * A creator applies to an OPEN deal (SPEC 5.5). Needs an ACTIVE payout account
- * (V0_LAUNCH 2.2), open applications, and no earlier application. The insert runs
+ * A creator applies to an OPEN deal (SPEC 5.5). Needs a saved UPI ID with consent
+ * (REPLACEMENT_PLAN 2.1), open applications, and no earlier application. The insert runs
  * with the deal row locked FOR SHARE, so a confirm that is waiting for the same
  * row sees this application and rejects it: none is left APPLIED on a CONFIRMED deal.
  */
@@ -68,8 +69,8 @@ export async function applyToDeal(
   if (existing) throw alreadyApplied();
 
   assertOpenForApplications(deal, ctx.now());
-  if ((await getPayoutStatus(user.id)) !== 'ACTIVE') {
-    throw new AppError('PAYOUT_NOT_ACTIVE', 403, SET_UP_PAYOUTS_TO_APPLY);
+  if (!(await hasPayoutDetails(user.id))) {
+    throw new AppError('PAYOUT_NOT_SET', 403, ADD_UPI_TO_APPLY);
   }
 
   await consumeApplyLimit(user.id, res);
@@ -177,12 +178,8 @@ export async function confirmApplication(
       if (!creator || creator.deletedAt) {
         throw new AppError('APPLICANT_UNAVAILABLE', 409, 'This creator is no longer available');
       }
-      if ((await getPayoutStatus(application.creatorId, tx)) !== 'ACTIVE') {
-        throw new AppError(
-          'CREATOR_PAYOUT_NOT_ACTIVE',
-          409,
-          'This creator has not finished payout setup, so they cannot be confirmed yet',
-        );
+      if (!(await hasPayoutDetails(application.creatorId, tx))) {
+        throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, CREATOR_PAYOUT_NOT_SET);
       }
 
       const [confirmed] = await tx

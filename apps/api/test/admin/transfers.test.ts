@@ -3,11 +3,11 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { creatorPayoutAccounts, transfers } from '../../src/db/schema/index.js';
+import { transfers } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { NOW, http as api } from '../helpers/deals.js';
 import { deliverWebhook, transferEvent, verifyBody } from '../helpers/payments.js';
-import { dealWithOrder, emails, razorpayCaptured } from '../payments/fixture.js';
+import { dealWithOrder, razorpayCaptured } from '../payments/fixture.js';
 import {
   newOrdersState,
   ordersHandlers,
@@ -74,177 +74,26 @@ const markManual = (cookie: string, id: string, body: object = { reference: 'UTR
   call.send('post', `/api/admin/transfers/${id}/mark-manual`, cookie, body);
 
 describe('POST /api/admin/transfers/:id/retry', () => {
-  it('creates one new transfer for a failed one and moves the row back to PENDING with the new id', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    expect(f.transfer.status).toBe('FAILED');
+  // A retry creates a Route transfer, and Route is not available (REPLACEMENT_PLAN 0): the
+  // route stays until Prompt 13 removes it, but it never calls Razorpay.
+  it.each(['FAILED', 'PENDING', 'PROCESSED', 'REVERSED'] as const)(
+    'answers 409 PAYMENT_RAIL_CHANGED for a %s transfer and calls Razorpay not at all',
+    async (status) => {
+      const admin = await adminUser();
+      const f = await failedTransfer();
+      await db.update(transfers).set({ status }).where(eq(transfers.id, f.transfer.id));
+      const listedBefore = razorpay.fetchTransfersCalls.length;
 
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(200);
-    expect(res.body.outcome).toBe('CREATED');
-    expect(res.body.transfer).toMatchObject({
-      id: f.transfer.id,
-      status: 'PENDING',
-      razorpayTransferId: 'trf_retry1_0',
-      failureReason: null,
-    });
+      const res = await retry(admin.cookie, f.transfer.id);
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
+      expect(razorpay.createTransferCalls).toHaveLength(0);
+      expect(razorpay.fetchTransfersCalls).toHaveLength(listedBefore);
+      expect((await rowOf(f.transfer.id)).status).toBe(status);
+    },
+  );
 
-    expect(razorpay.createTransferCalls).toHaveLength(1);
-    expect(razorpay.createTransferCalls[0]).toMatchObject({
-      paymentId: f.paymentId,
-      body: {
-        transfers: [
-          {
-            account: f.accountId,
-            amount: f.amount,
-            currency: 'INR',
-            on_hold: false,
-            notes: { deal_id: f.deal.id, type: 'ADVANCE', retry: '1' },
-          },
-        ],
-      },
-    });
-    expect(await rowOf(f.transfer.id)).toMatchObject({
-      status: 'PENDING',
-      razorpayTransferId: 'trf_retry1_0',
-    });
-  });
-
-  it('is idempotent: repeating it, or two at once, never creates a second transfer', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-
-    const [a, b] = await Promise.all([
-      retry(admin.cookie, f.transfer.id),
-      retry(admin.cookie, f.transfer.id),
-    ]);
-    expect([a.status, b.status]).toEqual([200, 200]);
-    expect([a.body.outcome, b.body.outcome].sort()).toEqual(['CREATED', 'SYNCED']);
-
-    const again = await retry(admin.cookie, f.transfer.id);
-    expect(again.status).toBe(200);
-    expect(again.body.outcome).toBe('SYNCED');
-    expect(razorpay.createTransferCalls).toHaveLength(1);
-    expect(await rowOf(f.transfer.id)).toMatchObject({ razorpayTransferId: 'trf_retry1_0' });
-  });
-
-  it('adopts a live transfer Razorpay already has instead of creating one', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    razorpay.transfers.set(f.paymentId, [
-      ...(razorpay.transfers.get(f.paymentId) ?? []),
-      {
-        id: 'trf_made_in_dashboard',
-        source: f.paymentId,
-        recipient: f.accountId,
-        amount: f.amount,
-        currency: 'INR',
-        status: 'processed',
-        fees: 590,
-        tax: 106,
-        processed_at: 1_790_000_200,
-      },
-    ]);
-
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(200);
-    expect(res.body.outcome).toBe('SYNCED');
-    expect(razorpay.createTransferCalls).toHaveLength(0);
-    expect(await rowOf(f.transfer.id)).toMatchObject({
-      status: 'PROCESSED',
-      razorpayTransferId: 'trf_made_in_dashboard',
-      razorpayFeePaise: 590,
-      failureReason: null,
-    });
-  });
-
-  it('refuses a PROCESSED or REVERSED transfer without calling Razorpay', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer({ status: 'processed', processed_at: 1_790_000_000 });
-    expect(f.transfer.status).toBe('PROCESSED');
-    const before = razorpay.fetchTransfersCalls.length;
-
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('TRANSFER_STATE_CONFLICT');
-
-    await db.update(transfers).set({ status: 'REVERSED' }).where(eq(transfers.id, f.transfer.id));
-    expect((await retry(admin.cookie, f.transfer.id)).status).toBe(409);
-    expect(razorpay.fetchTransfersCalls).toHaveLength(before);
-    expect(razorpay.createTransferCalls).toHaveLength(0);
-  });
-
-  it("leaves the row FAILED and returns Razorpay's reason when it rejects the new transfer", async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    razorpay.createTransferRejection = {
-      status: 400,
-      code: 'BAD_REQUEST_ERROR',
-      description: "Transfer amount can't be greater than the payment",
-    };
-
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('TRANSFER_REJECTED');
-    expect(res.body.error.message).toContain("Transfer amount can't be greater than the payment");
-    expect(await rowOf(f.transfer.id)).toMatchObject({
-      status: 'FAILED',
-      razorpayTransferId: f.transfer.razorpayTransferId,
-    });
-  });
-
-  it('needs the creator payout account to be ACTIVE', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    await db
-      .update(creatorPayoutAccounts)
-      .set({ status: 'SUSPENDED' })
-      .where(eq(creatorPayoutAccounts.userId, f.creator.user.id));
-
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('CREATOR_PAYOUT_NOT_ACTIVE');
-    expect(razorpay.createTransferCalls).toHaveLength(0);
-  });
-
-  it("the new transfer's own webhook then moves the row to PROCESSED", async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    await retry(admin.cookie, f.transfer.id);
-
-    await deliverWebhook(
-      app,
-      transferEvent('transfer.processed', {
-        id: 'trf_retry1_0',
-        source: f.paymentId,
-        recipient: f.accountId,
-        amount: f.amount,
-        currency: 'INR',
-        status: 'processed',
-        fees: 590,
-        tax: 106,
-        processed_at: 1_790_000_300,
-      }),
-    );
-    expect(await rowOf(f.transfer.id)).toMatchObject({
-      status: 'PROCESSED',
-      razorpayTransferId: 'trf_retry1_0',
-    });
-  });
-
-  it('alerts the admin again when the new transfer fails straight away', async () => {
-    const admin = await adminUser();
-    const f = await failedTransfer();
-    const alertsBefore = (await emails('ADMIN_ALERT')).length;
-    razorpay.createdTransferStatus = 'failed';
-
-    const res = await retry(admin.cookie, f.transfer.id);
-    expect(res.status).toBe(200);
-    expect(res.body.transfer.status).toBe('FAILED');
-    expect((await emails('ADMIN_ALERT')).length).toBe(alertsBefore + 1);
-  });
-
-  it('is 404 for an id that does not exist', async () => {
+  it('is 404 for an id that does not exist, so the admin routes still look alike', async () => {
     const admin = await adminUser();
     expect((await retry(admin.cookie, '0197c0a0-0000-7000-8000-000000000000')).status).toBe(404);
     expect((await retry(admin.cookie, 'nope')).status).toBe(404);
@@ -338,6 +187,7 @@ describe('POST /api/admin/transfers/:id/mark-manual', () => {
 
     const res = await retry(admin.cookie, f.transfer.id);
     expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
     expect(razorpay.createTransferCalls).toHaveLength(0);
   });
 

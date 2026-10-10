@@ -1,13 +1,7 @@
 import type { DealStatus } from '@valueskins/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
-import {
-  creatorPayoutAccounts,
-  dealEvents,
-  deals,
-  emailLog,
-  transfers,
-} from '../../src/db/schema/index.js';
+import { dealEvents, deals, emailLog, payments, transfers } from '../../src/db/schema/index.js';
 import { brandWithBilling, creatorWithPayout, http, insertDeal } from '../helpers/deals.js';
 import { addPayment, type MockTransfer, type OrdersMockState } from './razorpayOrdersMock.js';
 
@@ -26,15 +20,45 @@ export const NEXT_STATUS: Record<PaymentKind, DealStatus> = {
   final: 'COMPLETED',
 };
 
-/** A deal in the status where `kind` is due, with an order already created through the API. */
+/** The Razorpay linked account the mock puts on a Route transfer. Matching ignores it now. */
+export const FIXTURE_ACCOUNT_ID = 'acc_fixture';
+
+let orderCounter = 0;
+
+/**
+ * An advance or final order as one made before the rail changed: the API no longer creates
+ * them (REPLACEMENT_PLAN 2.1), but verify and the webhooks still capture one that exists.
+ */
+export async function insertOrder(
+  deal: { id: string; advancePaise: number | null; finalPaise: number | null },
+  kind: 'advance' | 'final',
+) {
+  orderCounter += 1;
+  const amountPaise = kind === 'advance' ? deal.advancePaise : deal.finalPaise;
+  const [row] = await db
+    .insert(payments)
+    .values({
+      dealId: deal.id,
+      type: kind === 'advance' ? 'ADVANCE' : 'FINAL',
+      amountPaise: amountPaise!,
+      razorpayOrderId: `order_fixture${orderCounter}`,
+    })
+    .returning();
+  return { orderId: row!.razorpayOrderId, amount: row!.amountPaise };
+}
+
+/**
+ * A deal in the status where `kind` is due, with an order. The commission order is created
+ * through the API; an advance or final order is inserted (see insertOrder).
+ */
 export async function dealWithOrder(call: Api, kind: PaymentKind) {
   const brand = await brandWithBilling();
   const creator = await creatorWithPayout('ACTIVE');
   const deal = await insertDeal(brand.user.id, DUE_STATUS[kind], { creatorId: creator.user.id });
-  const [account] = await db
-    .select()
-    .from(creatorPayoutAccounts)
-    .where(eq(creatorPayoutAccounts.userId, creator.user.id));
+  if (kind !== 'commission') {
+    const order = await insertOrder(deal, kind);
+    return { brand, creator, deal, accountId: FIXTURE_ACCOUNT_ID, ...order };
+  }
   const res = await call.send(
     'post',
     `/api/deals/${deal.id}/payments/${kind}/order`,
@@ -47,7 +71,7 @@ export async function dealWithOrder(call: Api, kind: PaymentKind) {
     brand,
     creator,
     deal,
-    accountId: account!.razorpayAccountId,
+    accountId: FIXTURE_ACCOUNT_ID,
     orderId: res.body.orderId as string,
     amount: res.body.amountPaise as number,
   };

@@ -4,10 +4,10 @@ import {
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
-  CREATOR_PAYOUT_NOT_READY,
+  DIRECT_PAYMENT_NOT_AVAILABLE,
   UPLOAD_LIMIT_REACHED,
   NO_APPLICATIONS_YET,
-  SET_UP_PAYOUTS_TO_APPLY,
+  ADD_UPI_TO_APPLY,
 } from './copy.js';
 import { computeDealActions, disputeAllowed, type DealActionsInput } from './dealActions.js';
 import { DEAL_STATUSES, type DealStatus } from './dealStateMachine.js';
@@ -19,8 +19,7 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     applicationsOpen: true,
     applicationCount: 1,
     hasApplied: false,
-    payoutActive: true,
-    creatorPayoutActive: true,
+    payoutSet: true,
     uploadCount: 1,
     hasCreator: true,
     hasBilling: true,
@@ -72,22 +71,17 @@ describe('computeDealActions: brand owner', () => {
     ]);
   });
 
-  it('COMMISSION_PAID: pay the advance once the creator can be paid, or cancel', () => {
+  it('COMMISSION_PAID: the advance is disabled with a reason until direct payments exist, cancel stays', () => {
     expect(summary({ status: 'COMMISSION_PAID' })).toEqual([
-      ['PAY_ADVANCE', true, null],
-      ['CANCEL', true, null],
-      ['RAISE_DISPUTE', true, null],
-    ]);
-    expect(summary({ status: 'COMMISSION_PAID', creatorPayoutActive: false })).toEqual([
-      ['PAY_ADVANCE', false, CREATOR_PAYOUT_NOT_READY],
+      ['PAY_ADVANCE', false, DIRECT_PAYMENT_NOT_AVAILABLE],
       ['CANCEL', true, null],
       ['RAISE_DISPUTE', true, null],
     ]);
   });
 
-  it('APPROVED: pay the final amount; cancel is disabled with the SPEC reason', () => {
+  it('APPROVED: the final is disabled with a reason; cancel is disabled with the SPEC reason', () => {
     expect(summary({ status: 'APPROVED' })).toEqual([
-      ['PAY_FINAL', true, null],
+      ['PAY_FINAL', false, DIRECT_PAYMENT_NOT_AVAILABLE],
       ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
       ['RAISE_DISPUTE', true, null],
     ]);
@@ -139,7 +133,7 @@ describe('disputeAllowed', () => {
 });
 
 describe('computeDealActions: creator', () => {
-  it('OPEN: can apply when open and payouts are active', () => {
+  it('OPEN: can apply when open and a UPI ID is saved', () => {
     expect(summary({ viewer: 'CREATOR' })).toEqual([['APPLY', true, null]]);
   });
 
@@ -149,14 +143,14 @@ describe('computeDealActions: creator', () => {
         viewer: 'CREATOR',
         hasApplied: true,
         applicationsOpen: false,
-        payoutActive: false,
+        payoutSet: false,
       }),
     ).toEqual([['APPLY', false, ALREADY_APPLIED_MESSAGE]]);
-    expect(summary({ viewer: 'CREATOR', applicationsOpen: false, payoutActive: false })).toEqual([
+    expect(summary({ viewer: 'CREATOR', applicationsOpen: false, payoutSet: false })).toEqual([
       ['APPLY', false, APPLICATIONS_CLOSED],
     ]);
-    expect(summary({ viewer: 'CREATOR', payoutActive: false })).toEqual([
-      ['APPLY', false, SET_UP_PAYOUTS_TO_APPLY],
+    expect(summary({ viewer: 'CREATOR', payoutSet: false })).toEqual([
+      ['APPLY', false, ADD_UPI_TO_APPLY],
     ]);
   });
 

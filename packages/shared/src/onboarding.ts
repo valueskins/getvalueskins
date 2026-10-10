@@ -1,4 +1,4 @@
-import type { PayoutAccountStatus, UserRole } from './enums.js';
+import type { UserRole } from './enums.js';
 
 /** Steps in the order they are asked (SPEC 6.4, V0_LAUNCH 2.2). */
 export const ONBOARDING_STEPS = [
@@ -18,7 +18,8 @@ export interface OnboardingInput {
   hasBilling: boolean;
   /** True once an email-only account has typed its Instagram username. */
   instagramUsernameSet: boolean;
-  payoutStatus: PayoutAccountStatus | null;
+  /** The UPI ID, the name on the account and the consent are all saved (REPLACEMENT_PLAN 2.1). */
+  hasPayoutDetails: boolean;
 }
 
 export interface OnboardingStepState {
@@ -55,7 +56,7 @@ export function computeOnboarding(input: OnboardingInput): OnboardingState {
     steps.push({ id: 'billing', done: input.hasBilling, required: true });
   }
   if (input.role === 'CREATOR') {
-    steps.push({ id: 'payout', done: input.payoutStatus === 'ACTIVE', required: false });
+    steps.push({ id: 'payout', done: input.hasPayoutDetails, required: false });
   }
 
   const nextRequired = steps.find((step) => step.required && !step.done);

@@ -1,6 +1,11 @@
 import type { http } from './deals.js';
 import { verifyBody } from './payments.js';
-import { dealWithOrder, razorpayCaptured, type PaymentKind } from '../payments/fixture.js';
+import {
+  dealWithOrder,
+  insertOrder,
+  razorpayCaptured,
+  type PaymentKind,
+} from '../payments/fixture.js';
 import type { OrdersMockState } from '../payments/razorpayOrdersMock.js';
 
 type Api = ReturnType<typeof http>;
@@ -39,17 +44,8 @@ export async function runDeal(
       throw new Error(`verify failed: ${res.status} ${JSON.stringify(res.body)}`);
     return paymentId;
   }
-  const orderFor = async (kind: PaymentKind) => {
-    const res = await call.send(
-      'post',
-      `/api/deals/${deal.id}/payments/${kind}/order`,
-      brand.cookie,
-      {},
-    );
-    if (res.status !== 200)
-      throw new Error(`order failed: ${res.status} ${JSON.stringify(res.body)}`);
-    return { orderId: res.body.orderId as string, amount: res.body.amountPaise as number };
-  };
+  // Advance and final orders are not created by the API any more; an existing one still captures.
+  const orderFor = (kind: 'advance' | 'final') => insertOrder(deal, kind);
 
   const paymentIds: Record<string, string> = {};
   paymentIds.commission = await pay('commission', first);

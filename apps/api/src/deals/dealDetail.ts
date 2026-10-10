@@ -11,7 +11,7 @@ import type { AuthenticatedUser } from '../auth/types.js';
 import { db } from '../db/client.js';
 import { applications, brandBilling, contentUploads } from '../db/schema/index.js';
 import { iso, loadParties, toSummary } from './dealView.js';
-import { getPayoutStatus } from './payoutStatus.js';
+import { hasPayoutDetails } from './payoutDetails.js';
 import type { Deal } from './stateMachine.js';
 
 /** What the draft form still needs before it can be published, as messages. */
@@ -72,8 +72,8 @@ export async function buildDealDetail(
     applicationCount = row?.value ?? 0;
   }
 
-  const creatorPayoutStatus =
-    privileged && deal.creatorId ? await getPayoutStatus(deal.creatorId) : null;
+  const creatorPayoutSet =
+    privileged && deal.creatorId ? await hasPayoutDetails(deal.creatorId) : null;
 
   const isConfirmedCreator = deal.creatorId !== null && deal.creatorId === viewer.id;
   let viewerKind: 'BRAND_OWNER' | 'CONFIRMED_CREATOR' | 'CREATOR' | 'NONE' = 'NONE';
@@ -92,7 +92,7 @@ export async function buildDealDetail(
     : [];
 
   let hasApplied = false;
-  let payoutActive = false;
+  let payoutSet = false;
   if (viewerKind === 'CREATOR' && deal.status === 'OPEN') {
     const [existing] = await db
       .select({ id: applications.id })
@@ -100,7 +100,7 @@ export async function buildDealDetail(
       .where(and(eq(applications.dealId, deal.id), eq(applications.creatorId, viewer.id)))
       .limit(1);
     hasApplied = existing !== undefined;
-    payoutActive = (await getPayoutStatus(viewer.id)) === 'ACTIVE';
+    payoutSet = await hasPayoutDetails(viewer.id);
   }
 
   const hasBilling = viewerKind === 'BRAND_OWNER' ? await hasBillingDetails(viewer.id) : false;
@@ -130,7 +130,7 @@ export async function buildDealDetail(
     contentUploads: uploads.map((u) => ({ link: u.link, uploadedAt: u.uploadedAt.toISOString() })),
     revisionNotice: deal.revisionCount >= 5 ? FIVE_REVISIONS_WARNING : null,
     creator,
-    creatorPayoutStatus,
+    creatorPayoutSet,
     applicationCount,
     applicationsOpen: open,
     contentOverdue: overdue,
@@ -140,8 +140,7 @@ export async function buildDealDetail(
       applicationsOpen: open,
       applicationCount: applicationCount ?? 0,
       hasApplied,
-      payoutActive,
-      creatorPayoutActive: creatorPayoutStatus === 'ACTIVE',
+      payoutSet,
       uploadCount: deal.uploadCount,
       hasCreator: deal.creatorId !== null,
       hasBilling,

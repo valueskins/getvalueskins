@@ -47,7 +47,6 @@ export interface EmailTemplateDataMap {
     resolution: string;
     refundReference: string | null;
   };
-  PAYOUT_ACCOUNT_STATUS: { status: 'ACTIVE' | 'NEEDS_CLARIFICATION' };
   ADMIN_ALERT: { subjectLine: string; details: string };
   SIGN_IN_CODE: { code: string; expiresInMinutes: number };
 }

@@ -48,7 +48,7 @@ function deal(overrides: { status?: string; allowedActions?: Action[] } = {}) {
       cancelledByRole: null,
       cancellationReason: null,
       creator: null,
-      creatorPayoutStatus: 'ACTIVE',
+      creatorPayoutSet: true,
       applicationCount: 1,
       applicationsOpen: false,
       contentOverdue: false,
@@ -173,7 +173,7 @@ describe('/deals/[id]/pay', () => {
             {
               action: 'PAY_ADVANCE',
               enabled: false,
-              reason: 'The creator has not finished payout setup',
+              reason: 'Paying the creator directly is not available yet',
             },
           ],
         }),
@@ -184,7 +184,9 @@ describe('/deals/[id]/pay', () => {
 
     const button = await screen.findByRole('button', { name: 'Pay advance: ₹2,775.00' });
     expect(button).toBeDisabled();
-    expect(screen.getByText('The creator has not finished payout setup')).toBeInTheDocument();
+    expect(
+      screen.getByText('Paying the creator directly is not available yet'),
+    ).toBeInTheDocument();
   });
 
   it('offers to check again when Razorpay took the payment but confirming failed', async () => {

@@ -5,12 +5,11 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { creatorPayoutAccounts, emailLog, webhookEvents } from '../../src/db/schema/index.js';
+import { emailLog, webhookEvents } from '../../src/db/schema/index.js';
 import { errorMiddleware } from '../../src/errors/errorMiddleware.js';
 import { RAZORPAY_WEBHOOK_PATH, webhookRawBodyMiddleware } from '../../src/security/index.js';
 import { razorpayWebhookRoutes } from '../../src/webhooks/razorpay.routes.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
-import { instagramUser } from '../helpers/auth.js';
 import { buildTestEnv } from '../testEnv.js';
 
 const env = buildTestEnv();
@@ -75,29 +74,6 @@ function productEvent(
   });
 }
 
-async function creatorWithPayoutAccount(
-  overrides: Partial<typeof creatorPayoutAccounts.$inferInsert> = {},
-) {
-  const { user } = await instagramUser({
-    role: 'CREATOR',
-    roleLockedAt: new Date(),
-    email: 'creator@example.com',
-    emailVerifiedAt: new Date(),
-  });
-  await db.insert(creatorPayoutAccounts).values({
-    userId: user.id,
-    razorpayAccountId: 'acc_test1',
-    razorpayStakeholderId: 'sth_test1',
-    razorpayProductId: 'acc_prd_test1',
-    status: 'PENDING',
-    bankLast4: '9012',
-    ifsc: 'HDFC0001234',
-    ...overrides,
-  });
-  return user;
-}
-
-const accountStatus = async () => (await db.select().from(creatorPayoutAccounts))[0]?.status;
 const eventRows = () => db.select().from(webhookEvents);
 const emailsOf = (template: string) =>
   db.select().from(emailLog).where(eq(emailLog.template, template));
@@ -109,12 +85,18 @@ async function waitForProcessed(eventId = 'evt_1') {
   });
 }
 
+function miniApp(handlers: Record<string, (payload: unknown) => Promise<void>>) {
+  const mini = express();
+  mini.use(RAZORPAY_WEBHOOK_PATH, webhookRawBodyMiddleware);
+  mini.use(razorpayWebhookRoutes(env, handlers));
+  mini.use(errorMiddleware);
+  return mini;
+}
+
 describe('signature verification (raw body)', () => {
   const body = productEvent('product.route.activated', 'activated');
 
   it('accepts a correctly signed delivery with 200 and stores the event', async () => {
-    await creatorWithPayoutAccount();
-
     const response = await deliver(body);
 
     expect(response.status).toBe(200);
@@ -161,192 +143,61 @@ describe('signature verification (raw body)', () => {
   });
 
   it('does not need an Origin header or a session: the signature is the authentication', async () => {
-    await creatorWithPayoutAccount();
     const response = await deliver(body);
     expect(response.status).toBe(200);
   });
 });
 
-describe('product status events', () => {
-  it('product.route.activated makes the account ACTIVE and emails #16 once', async () => {
-    await creatorWithPayoutAccount();
-
-    await deliver(productEvent('product.route.activated', 'activated'));
+describe('Route product events (Route is not available, REPLACEMENT_PLAN 0)', () => {
+  it.each([
+    'product.route.under_review',
+    'product.route.needs_clarification',
+    'product.route.activated',
+  ])('stores %s and marks it processed, with no handler, no error and no email', async (name) => {
+    const response = await deliver(productEvent(name, 'activated'));
     await waitForProcessed();
 
-    expect(await accountStatus()).toBe('ACTIVE');
-    const emails = await emailsOf('PAYOUT_ACCOUNT_STATUS');
-    expect(emails).toHaveLength(1);
-    expect(emails[0]?.toEmail).toBe('creator@example.com');
-    const [event] = await eventRows();
-    expect(event?.processedAt).not.toBeNull();
-    expect(event?.error).toBeNull();
-  });
-
-  it('product.route.needs_clarification stores the reasons and emails #16', async () => {
-    await creatorWithPayoutAccount();
-
-    await deliver(
-      productEvent('product.route.needs_clarification', 'needs_clarification', {
-        requirements: [
-          {
-            field_reference: 'settlements.account_number',
-            reason_code: 'needs_clarification',
-            status: 'required',
-          },
-        ],
-      }),
-    );
-    await waitForProcessed();
-
-    const [row] = await db.select().from(creatorPayoutAccounts);
-    expect(row?.status).toBe('NEEDS_CLARIFICATION');
-    expect(row?.requirements).toEqual({
-      items: [
-        {
-          fieldReference: 'settlements.account_number',
-          reasonCode: 'needs_clarification',
-          status: 'required',
-        },
-      ],
-    });
-    const emails = await emailsOf('PAYOUT_ACCOUNT_STATUS');
-    expect(emails).toHaveLength(1);
-    expect(emails[0]?.subject).toBe('Your payout account needs attention');
-  });
-
-  it('product.route.under_review keeps PENDING and sends no email', async () => {
-    await creatorWithPayoutAccount();
-
-    await deliver(productEvent('product.route.under_review', 'under_review'));
-    await waitForProcessed();
-
-    expect(await accountStatus()).toBe('PENDING');
-    expect(await emailsOf('PAYOUT_ACCOUNT_STATUS')).toHaveLength(0);
-  });
-
-  it('does not email again when the status did not change', async () => {
-    await creatorWithPayoutAccount({ status: 'ACTIVE' });
-
-    await deliver(productEvent('product.route.activated', 'activated'));
-    await waitForProcessed();
-
-    expect(await emailsOf('PAYOUT_ACCOUNT_STATUS')).toHaveLength(0);
-  });
-
-  it('ignores an event older than the status already applied (out of order delivery)', async () => {
-    const now = Math.floor(Date.now() / 1000);
-    await creatorWithPayoutAccount({
-      status: 'ACTIVE',
-      statusSyncedAt: new Date(now * 1000),
-    });
-
-    await deliver(
-      productEvent('product.route.needs_clarification', 'needs_clarification', {
-        createdAt: now - 60,
-      }),
-      {
-        eventId: 'evt_old',
-      },
-    );
-    await waitForProcessed('evt_old');
-
-    expect(await accountStatus()).toBe('ACTIVE');
-    expect(await emailsOf('PAYOUT_ACCOUNT_STATUS')).toHaveLength(0);
-    const [event] = await eventRows();
-    expect(event?.processedAt).not.toBeNull();
-    expect(event?.error).toBeNull();
-  });
-
-  it('applies a newer event over an older status', async () => {
-    const now = Math.floor(Date.now() / 1000);
-    await creatorWithPayoutAccount({
-      status: 'NEEDS_CLARIFICATION',
-      statusSyncedAt: new Date((now - 120) * 1000),
-    });
-
-    await deliver(productEvent('product.route.activated', 'activated', { createdAt: now }));
-    await waitForProcessed();
-
-    expect(await accountStatus()).toBe('ACTIVE');
-  });
-
-  it('records an error and emails admin alert A1 for an unknown linked account', async () => {
-    await creatorWithPayoutAccount();
-
-    await deliver(
-      productEvent('product.route.activated', 'activated', { accountId: 'acc_unknown' }),
-    );
-    await waitForProcessed();
-
-    const [event] = await eventRows();
-    expect(event?.processedAt).toBeNull();
-    expect(event?.error).toContain('acc_unknown');
-    expect(await accountStatus()).toBe('PENDING');
-
-    const alerts = await emailsOf('ADMIN_ALERT');
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0]?.toEmail).toBe(env.DISPUTE_EMAIL);
-    expect(alerts[0]?.bodyText).toContain('evt_1');
-    expect(alerts[0]?.bodyText).toContain('product.route.activated');
-  });
-
-  it('records an error and alerts the admin when the payload has the wrong shape', async () => {
-    await creatorWithPayoutAccount();
-    const broken = JSON.stringify({ event: 'product.route.activated', created_at: 1 });
-
-    await deliver(broken);
-    await waitForProcessed();
-
-    const [event] = await eventRows();
-    expect(event?.error).toBeTruthy();
-    expect(await emailsOf('ADMIN_ALERT')).toHaveLength(1);
-  });
-
-  it('keeps the alert free of the payload (no personal data in the email or the error)', async () => {
-    await creatorWithPayoutAccount();
-    await deliver(
-      productEvent('product.route.activated', 'activated', {
-        accountId: 'acc_unknown',
-        entity: { account_number: '123456789012', pan: 'ABCPE1234F' },
-      }),
-    );
-    await waitForProcessed();
-
-    const [event] = await eventRows();
-    const alerts = await emailsOf('ADMIN_ALERT');
-    for (const text of [event?.error ?? '', alerts[0]?.bodyText ?? '']) {
-      expect(text).not.toContain('123456789012');
-      expect(text).not.toContain('ABCPE1234F');
-    }
+    expect(response.status).toBe(200);
+    const [row] = await eventRows();
+    expect(row).toMatchObject({ eventType: name, error: null });
+    expect(row?.processedAt).not.toBeNull();
+    expect(await db.select().from(emailLog)).toHaveLength(0);
   });
 });
 
 describe('deduplication on x-razorpay-event-id', () => {
   it('ignores a repeated delivery: one row, handled once, still 200', async () => {
-    await creatorWithPayoutAccount();
-    const body = productEvent('product.route.activated', 'activated');
+    const handled: unknown[] = [];
+    const mini = miniApp({
+      'test.once': async (payload) => {
+        handled.push(payload);
+      },
+    });
+    const body = JSON.stringify({ event: 'test.once', created_at: 1 });
 
-    const first = await deliver(body);
+    const first = await deliver(body, { app: mini });
     await waitForProcessed();
-    // Put the account back: a reprocessed event would flip it to ACTIVE again.
-    await db.update(creatorPayoutAccounts).set({ status: 'PENDING', statusSyncedAt: null });
-    const second = await deliver(body);
-    const third = await deliver(body);
+    const second = await deliver(body, { app: mini });
+    const third = await deliver(body, { app: mini });
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     expect([first.status, second.status, third.status]).toEqual([200, 200, 200]);
     expect(await eventRows()).toHaveLength(1);
-    expect(await accountStatus()).toBe('PENDING');
-    expect(await emailsOf('PAYOUT_ACCOUNT_STATUS')).toHaveLength(1);
+    expect(handled).toHaveLength(1);
   });
 
   it('treats two different event ids as two events', async () => {
-    await creatorWithPayoutAccount();
-    const body = productEvent('product.route.under_review', 'under_review');
+    const handled: unknown[] = [];
+    const mini = miniApp({
+      'test.twice': async (payload) => {
+        handled.push(payload);
+      },
+    });
+    const body = JSON.stringify({ event: 'test.twice', created_at: 1 });
 
-    await deliver(body, { eventId: 'evt_a' });
-    await deliver(body, { eventId: 'evt_b' });
+    await deliver(body, { eventId: 'evt_a', app: mini });
+    await deliver(body, { eventId: 'evt_b', app: mini });
+    await vi.waitFor(() => expect(handled).toHaveLength(2));
 
     expect(await eventRows()).toHaveLength(2);
   });
@@ -354,7 +205,6 @@ describe('deduplication on x-razorpay-event-id', () => {
 
 describe('what is stored', () => {
   it('redacts account numbers, PAN and legal info before storing the payload', async () => {
-    await creatorWithPayoutAccount();
     const body = productEvent('product.route.activated', 'activated', {
       entity: {
         active_configuration: {
@@ -377,14 +227,6 @@ describe('what is stored', () => {
 });
 
 describe('the handler registry and the fast 200', () => {
-  function miniApp(handlers: Record<string, (payload: unknown) => Promise<void>>) {
-    const mini = express();
-    mini.use(RAZORPAY_WEBHOOK_PATH, webhookRawBodyMiddleware);
-    mini.use(razorpayWebhookRoutes(env, handlers));
-    mini.use(errorMiddleware);
-    return mini;
-  }
-
   it('answers 200 before the handler finishes', async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => (release = resolve));

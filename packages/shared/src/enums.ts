@@ -3,14 +3,6 @@ export { DEAL_STATUSES, type DealStatus } from './dealStateMachine.js';
 export const USER_ROLES = ['CREATOR', 'BRAND'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const PAYOUT_ACCOUNT_STATUSES = [
-  'PENDING',
-  'ACTIVE',
-  'NEEDS_CLARIFICATION',
-  'SUSPENDED',
-] as const;
-export type PayoutAccountStatus = (typeof PAYOUT_ACCOUNT_STATUSES)[number];
-
 export const CANCELLED_BY_ROLES = ['BRAND', 'ADMIN'] as const;
 export type CancelledByRole = (typeof CANCELLED_BY_ROLES)[number];
 
@@ -66,7 +58,6 @@ export const EMAIL_TEMPLATES = [
   'REVIEW_REMINDER',
   'DISPUTE_RAISED',
   'DISPUTE_RESOLVED',
-  'PAYOUT_ACCOUNT_STATUS',
   'ADMIN_ALERT',
   'SIGN_IN_CODE',
 ] as const;

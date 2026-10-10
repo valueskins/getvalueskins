@@ -1,14 +1,8 @@
-import { computeBreakdown, type DealStatus, type PayoutAccountStatus } from '@valueskins/shared';
+import { computeBreakdown, type DealStatus } from '@valueskins/shared';
 import type { Express } from 'express';
 import request from 'supertest';
 import { db } from '../../src/db/client.js';
-import {
-  applications,
-  brandBilling,
-  creatorPayoutAccounts,
-  deals,
-  emailLog,
-} from '../../src/db/schema/index.js';
+import { applications, brandBilling, deals, emailLog } from '../../src/db/schema/index.js';
 import { createUserWithSession } from './auth.js';
 import { buildTestEnv } from '../testEnv.js';
 
@@ -53,31 +47,36 @@ export async function brandWithBilling(
   return session;
 }
 
-/** A creator that finished onboarding. `payout` is the payout account status, null for no account. */
+/** The UPI ID given to a test creator. Never the payer VPA the Razorpay mock uses. */
+export const testVpa = (n: number) => `test.creator${n}@okaxis`;
+
+/**
+ * A creator that finished onboarding. `payout` 'ACTIVE' (the default) means they saved a UPI ID,
+ * the name on the account and consent (REPLACEMENT_PLAN 2.1); null means they saved nothing.
+ */
 export async function creatorWithPayout(
-  payout: PayoutAccountStatus | null = 'ACTIVE',
+  payout: 'ACTIVE' | null = 'ACTIVE',
   overrides: Parameters<typeof createUserWithSession>[0] = {},
 ) {
-  const session = await createUserWithSession({
+  counter += 1;
+  return createUserWithSession({
     role: 'CREATOR',
     email: uniqueEmail('creator'),
     emailVerifiedAt: new Date(),
-    instagramUserId: `ig-creator-${++counter}`,
+    instagramUserId: `ig-creator-${counter}`,
     igAccountType: 'CREATOR',
     followersCount: 5000,
     engagementRate: '3.50',
     ...ONBOARDED(),
+    ...(payout
+      ? {
+          payoutVpa: testVpa(counter),
+          payoutName: `Test Creator ${counter}`,
+          payoutVpaConsentAt: new Date(),
+        }
+      : {}),
     ...overrides,
   });
-  if (payout) {
-    await db.insert(creatorPayoutAccounts).values({
-      userId: session.user.id,
-      razorpayAccountId: `acc_${session.user.id.replaceAll('-', '')}`,
-      status: payout,
-      statusSyncedAt: new Date(),
-    });
-  }
-  return session;
 }
 
 /** The frozen breakdown columns for a ₹10,000 deal at GST 0, as publish writes them. */

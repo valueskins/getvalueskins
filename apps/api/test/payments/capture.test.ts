@@ -24,6 +24,7 @@ import {
   dealState,
   dealWithOrder,
   emails,
+  insertOrder,
   razorpayCaptured,
   type PaymentKind,
 } from './fixture.js';
@@ -133,17 +134,8 @@ describe('POST /api/payments/verify', () => {
     );
     expect((await dealState(f.deal.id)).deal.status).toBe('COMMISSION_PAID');
 
-    const adv = await call.send(
-      'post',
-      `/api/deals/${f.deal.id}/payments/advance/order`,
-      f.brand.cookie,
-      {},
-    );
-    const advance = {
-      orderId: adv.body.orderId,
-      amount: adv.body.amountPaise,
-      accountId: f.accountId,
-    };
+    // The API no longer creates advance or final orders; one that exists still captures.
+    const advance = { ...(await insertOrder(f.deal, 'advance')), accountId: f.accountId };
     await verify(
       f.brand.cookie,
       verifyBody(
@@ -153,20 +145,9 @@ describe('POST /api/payments/verify', () => {
     );
     expect((await dealState(f.deal.id)).deal.status).toBe('ADVANCE_PAID');
 
-    // Upload and approve have no endpoints yet; the staging run uses the documented SQL.
     await db.update(deals).set({ status: 'APPROVED' }).where(eq(deals.id, f.deal.id));
 
-    const fin = await call.send(
-      'post',
-      `/api/deals/${f.deal.id}/payments/final/order`,
-      f.brand.cookie,
-      {},
-    );
-    const final = {
-      orderId: fin.body.orderId,
-      amount: fin.body.amountPaise,
-      accountId: f.accountId,
-    };
+    const final = { ...(await insertOrder(f.deal, 'final')), accountId: f.accountId };
     const done = await verify(
       f.brand.cookie,
       verifyBody(
@@ -536,14 +517,7 @@ describe('payment.failed', () => {
     expect(state.transfers).toHaveLength(0);
     expect(await db.select().from(emailLog)).toHaveLength(0);
 
-    // The brand retries on the same order and it goes through.
-    const again = await call.send(
-      'post',
-      `/api/deals/${f.deal.id}/payments/advance/order`,
-      f.brand.cookie,
-      {},
-    );
-    expect(again.body.orderId).toBe(f.orderId);
+    // The same order is still payable, and a late capture on it goes through.
     const paymentId = razorpayCaptured(razorpay, f, 'advance');
     const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
     expect(res.body.deal.status).toBe('ADVANCE_PAID');

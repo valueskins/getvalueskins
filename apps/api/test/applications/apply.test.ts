@@ -48,24 +48,46 @@ describe('POST /api/deals/:id/applications', () => {
     expect(emails[0]?.bodyText).toContain(creator.user.username);
   });
 
-  describe('payout gating (V0_LAUNCH 2.2)', () => {
-    it.each([null, 'PENDING', 'NEEDS_CLARIFICATION', 'SUSPENDED'] as const)(
-      'refuses a creator whose payout account is %s',
-      async (payout) => {
-        const brand = await brandWithBilling();
-        const creator = await creatorWithPayout(payout);
-        const deal = await insertDeal(brand.user.id, 'OPEN');
+  describe('payout gating (REPLACEMENT_PLAN 2.1)', () => {
+    const missing: Array<[string, Parameters<typeof creatorWithPayout>[1]]> = [
+      ['no UPI details at all', {}],
+      ['a UPI ID and name but no consent', { payoutVpa: 'a.b@okaxis', payoutName: 'A B' }],
+      [
+        'consent and a UPI ID but no name',
+        { payoutVpa: 'a.b@okaxis', payoutVpaConsentAt: new Date() },
+      ],
+      ['consent and a name but no UPI ID', { payoutName: 'A B', payoutVpaConsentAt: new Date() }],
+    ];
 
-        const res = await apply(creator.cookie, deal.id);
-        expect(res.status).toBe(403);
-        expect(res.body.error).toMatchObject({
-          code: 'PAYOUT_NOT_ACTIVE',
-          message: 'Set up payouts to apply',
-        });
-        expect(await rows(deal.id)).toHaveLength(0);
-        expect(await sentEmails('NEW_APPLICATION')).toHaveLength(0);
-      },
-    );
+    it.each(missing)('refuses a creator with %s', async (_label, overrides) => {
+      const brand = await brandWithBilling();
+      const creator = await creatorWithPayout(null, overrides);
+      const deal = await insertDeal(brand.user.id, 'OPEN');
+
+      const res = await apply(creator.cookie, deal.id);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatchObject({
+        code: 'PAYOUT_NOT_SET',
+        message: 'Add your UPI ID to apply',
+      });
+      expect(await rows(deal.id)).toHaveLength(0);
+      expect(await sentEmails('NEW_APPLICATION')).toHaveLength(0);
+    });
+
+    it('lets the same creator apply once the details are saved through the API', async () => {
+      const brand = await brandWithBilling();
+      const creator = await creatorWithPayout(null);
+      const deal = await insertDeal(brand.user.id, 'OPEN');
+      expect((await apply(creator.cookie, deal.id)).status).toBe(403);
+
+      const saved = await api.send('put', '/api/me/payout-upi', creator.cookie, {
+        vpa: 'new.creator@okaxis',
+        name: 'New Creator',
+        consent: true,
+      });
+      expect(saved.status).toBe(200);
+      expect((await apply(creator.cookie, deal.id)).status).toBe(201);
+    });
   });
 
   describe('application deadline (end of day IST)', () => {

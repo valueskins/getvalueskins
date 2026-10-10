@@ -246,7 +246,7 @@ describe('GET /api/deals/:id body', () => {
       advancePaise: deal.advancePaise,
       finalPaise: deal.finalPaise,
       creator: { id: creator.user.id, username: creator.user.username },
-      creatorPayoutStatus: 'ACTIVE',
+      creatorPayoutSet: true,
       applicationCount: 1,
       applicationsOpen: false,
       contentOverdue: false,
@@ -258,7 +258,7 @@ describe('GET /api/deals/:id body', () => {
     const creator = await creatorWithPayout();
     const deal = await insertDeal(brand.user.id, 'CONFIRMED', { creatorId: creator.user.id });
     const body = (await api.get(`/api/deals/${deal.id}`, creator.cookie)).body.deal;
-    expect(body.creatorPayoutStatus).toBeNull();
+    expect(body.creatorPayoutSet).toBeNull();
     expect(body.applicationCount).toBeNull();
     expect(body.allowedActions).toEqual([{ action: 'RAISE_DISPUTE', enabled: true, reason: null }]);
   });
@@ -334,14 +334,17 @@ describe('allowedActions through GET /api/deals/:id', () => {
   it('open: the creator sees why Apply is disabled', async () => {
     const brand = await brandWithBilling();
     const noPayout = await creatorWithPayout(null);
-    const pending = await creatorWithPayout('PENDING');
+    const noConsent = await creatorWithPayout(null, {
+      payoutVpa: 'a.b@okaxis',
+      payoutName: 'A B',
+    });
     const active = await creatorWithPayout('ACTIVE');
     const deal = await insertDeal(brand.user.id, 'OPEN');
 
     expect(await actions(noPayout.cookie, deal.id)).toEqual([
-      { action: 'APPLY', enabled: false, reason: 'Set up payouts to apply' },
+      { action: 'APPLY', enabled: false, reason: 'Add your UPI ID to apply' },
     ]);
-    expect((await actions(pending.cookie, deal.id))[0]?.reason).toBe('Set up payouts to apply');
+    expect((await actions(noConsent.cookie, deal.id))[0]?.reason).toBe('Add your UPI ID to apply');
     expect(await actions(active.cookie, deal.id)).toEqual([
       { action: 'APPLY', enabled: true, reason: null },
     ]);
@@ -354,7 +357,7 @@ describe('allowedActions through GET /api/deals/:id', () => {
     });
 
     clock = new Date('2026-10-13T00:00:00Z');
-    expect((await actions(pending.cookie, deal.id))[0]?.reason).toBe('Applications closed');
+    expect((await actions(noConsent.cookie, deal.id))[0]?.reason).toBe('Applications closed');
   });
 
   it('open: the brand can cancel, and can confirm once someone applied, even after the deadline', async () => {
@@ -371,6 +374,27 @@ describe('allowedActions through GET /api/deals/:id', () => {
       { action: 'CONFIRM_CREATOR', enabled: true, reason: null },
       { action: 'CANCEL', enabled: true, reason: null },
     ]);
+  });
+
+  it('the advance and the final are disabled with a reason until direct payments exist', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    const reason = 'Paying the creator directly is not available yet';
+
+    const commissionPaid = await insertDeal(brand.user.id, 'COMMISSION_PAID', {
+      creatorId: creator.user.id,
+    });
+    expect(await actions(brand.cookie, commissionPaid.id)).toContainEqual({
+      action: 'PAY_ADVANCE',
+      enabled: false,
+      reason,
+    });
+    const approved = await insertDeal(brand.user.id, 'APPROVED', { creatorId: creator.user.id });
+    expect(await actions(brand.cookie, approved.id)).toContainEqual({
+      action: 'PAY_FINAL',
+      enabled: false,
+      reason,
+    });
   });
 
   it('advance paid: the brand sees cancel disabled with the SPEC reason', async () => {

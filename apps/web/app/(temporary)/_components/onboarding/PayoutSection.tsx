@@ -1,157 +1,124 @@
 'use client';
 
 import {
-  type MePayoutAccountResponse,
+  type PayoutUpiView,
   PAYOUT_CONSENT_TEXT,
-  SETTLEMENT_TIMING_NOTE,
-  mePayoutAccountResponseSchema,
-  mePayoutAccountSchema,
+  UPI_NOT_VERIFIED_WARNING,
+  mePayoutUpiResponseSchema,
+  mePayoutUpiSaveResponseSchema,
+  mePayoutUpiSchema,
 } from '@valueskins/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiErrorMessage, apiFetch } from '../../../../lib/temporary/api';
 import { errorClass, hintClass, inputClass, primaryButton, secondaryButton } from '../styles';
 import { useAction } from '../useAction';
 
-type PayoutAccount = NonNullable<MePayoutAccountResponse['payoutAccount']>;
+const EMPTY_FORM = { vpa: '', name: '', consent: false };
 
-const STATUS_TEXT: Record<PayoutAccount['status'], string> = {
-  PENDING:
-    'Razorpay is checking your details. This can take a few minutes. Use Refresh status to check.',
-  ACTIVE: 'Your payout account is active. You can apply to deals.',
-  NEEDS_CLARIFICATION:
-    'Razorpay needs more information. Fix the items below and submit the form again.',
-  SUSPENDED: 'Your payout account is suspended. Contact support.',
-};
+function formatConsentDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+}
 
-const EMPTY_FORM = {
-  legalName: '',
-  pan: '',
-  phone: '',
-  bankAccountNumber: '',
-  ifsc: '',
-  accountHolderName: '',
-  consent: false,
-};
-
+/** Creator payout details: a UPI ID, the name on the account and consent (REPLACEMENT_PLAN 2.1). */
 export function PayoutSection() {
-  const [account, setAccount] = useState<PayoutAccount | null | undefined>(undefined);
+  const [saved, setSaved] = useState<PayoutUpiView | null | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
   const [values, setValues] = useState(EMPTY_FORM);
   const submitAction = useAction();
-  const refreshAction = useAction();
-
-  const apply = useCallback(async (response: Response): Promise<string | null> => {
-    if (!response.ok) return apiErrorMessage(response, 'Something went wrong. Try again.');
-    const parsed = mePayoutAccountResponseSchema.safeParse(await response.json());
-    if (!parsed.success) return 'Unexpected answer from the server.';
-    setAccount(parsed.data.payoutAccount);
-    return null;
-  }, []);
 
   useEffect(() => {
-    apiFetch('/api/me/payout-account')
-      .then(apply)
-      .catch(() => setAccount(null));
-  }, [apply]);
+    apiFetch('/api/me/payout-upi')
+      .then(async (response) => {
+        const parsed = mePayoutUpiResponseSchema.safeParse(await response.json());
+        setSaved(response.ok && parsed.success ? parsed.data.payoutUpi : null);
+      })
+      .catch(() => setSaved(null));
+  }, []);
 
-  const body = {
-    legalName: values.legalName,
-    pan: values.pan.trim().toUpperCase(),
-    phone: values.phone,
-    bankAccountNumber: values.bankAccountNumber.trim(),
-    ifsc: values.ifsc.trim().toUpperCase(),
-    accountHolderName: values.accountHolderName,
-    consent: values.consent,
-  };
-  const valid = mePayoutAccountSchema.safeParse(body).success;
+  const body = { vpa: values.vpa.trim(), name: values.name.trim(), consent: values.consent };
+  const check = mePayoutUpiSchema.safeParse(body);
+  const typedSomething = body.vpa !== '' || body.name !== '';
+  const reason = check.success
+    ? null
+    : typedSomething
+      ? (check.error.issues.find((issue) => issue.path.length > 0)?.message ??
+        'Accept the consent text to continue.')
+      : 'Enter your UPI ID and the name on the account, and accept the consent text.';
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    const ok = await submitAction.run(async () =>
-      apply(
-        await apiFetch('/api/me/payout-account', { method: 'POST', body: JSON.stringify(body) }),
-      ),
-    );
-    // The personal details are not kept in the page once they are sent.
-    if (ok) setValues(EMPTY_FORM);
+    const ok = await submitAction.run(async () => {
+      const response = await apiFetch('/api/me/payout-upi', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) return apiErrorMessage(response, 'Something went wrong. Try again.');
+      const parsed = mePayoutUpiSaveResponseSchema.safeParse(await response.json());
+      if (!parsed.success) return 'Unexpected answer from the server.';
+      setSaved(parsed.data.payoutUpi);
+      return null;
+    });
+    // The UPI ID is not kept in the page once it is saved: only the masked form comes back.
+    if (ok) {
+      setValues(EMPTY_FORM);
+      setEditing(false);
+    }
   }
 
-  async function refresh() {
-    await refreshAction.run(async () =>
-      apply(await apiFetch('/api/me/payout-account/refresh', { method: 'POST' })),
-    );
-  }
+  if (saved === undefined) return <p className={hintClass}>Loading payout details</p>;
 
-  if (account === undefined) return <p className={hintClass}>Loading payout details</p>;
-
-  const needsForm =
-    account === null || !account.setupComplete || account.status === 'NEEDS_CLARIFICATION';
-
-  const text = (key: keyof typeof EMPTY_FORM, label: string, type = 'text') => (
-    <label className="block space-y-2">
-      <span>{label}</span>
-      <input
-        type={type}
-        value={String(values[key])}
-        onChange={(event) => setValues({ ...values, [key]: event.target.value })}
-        autoComplete="off"
-        className={inputClass}
-      />
-    </label>
-  );
+  const showForm = saved === null || editing;
 
   return (
     <section className="space-y-6" aria-label="Payout setup">
       <h2 className="text-xl font-semibold">Payout setup</h2>
 
-      {account ? (
+      {saved ? (
         <div className="space-y-3 border-t border-line pt-4">
           <p>
-            Status: <strong>{account.status}</strong>
+            UPI ID: <strong>{saved.maskedVpa}</strong>
           </p>
-          <p className={hintClass}>{STATUS_TEXT[account.status]}</p>
-          {account.status === 'ACTIVE' ? (
-            <p className={hintClass}>{SETTLEMENT_TIMING_NOTE}</p>
-          ) : null}
-          {account.bankLast4 ? (
-            <p className={hintClass}>
-              Bank account ending {account.bankLast4}
-              {account.ifsc ? `, IFSC ${account.ifsc}` : ''}
-            </p>
-          ) : null}
-          {!account.setupComplete ? (
-            <p className={hintClass}>Setup was interrupted. Submit the form again to finish it.</p>
-          ) : null}
-          {account.requirements.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-6 text-danger">
-              {account.requirements.map((item) => (
-                <li key={`${item.fieldReference}-${item.reasonCode}`}>
-                  {item.fieldReference}: {item.reasonCode.replace(/_/g, ' ')}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {account.setupComplete ? (
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={refreshAction.busy}
-              className={secondaryButton}
-            >
-              Refresh status
+          <p>Name on the account: {saved.name}</p>
+          <p className={hintClass}>Consent given on {formatConsentDate(saved.consentAt)}.</p>
+          {!editing ? (
+            <button type="button" onClick={() => setEditing(true)} className={secondaryButton}>
+              Change UPI details
             </button>
           ) : null}
-          {refreshAction.error ? <p className={errorClass}>{refreshAction.error}</p> : null}
         </div>
-      ) : null}
+      ) : (
+        <p className={hintClass}>Add your UPI ID to apply to deals.</p>
+      )}
 
-      {needsForm ? (
+      {showForm ? (
         <form onSubmit={submit} className="space-y-4">
-          {text('legalName', 'Legal name (as on your PAN card)')}
-          {text('pan', 'PAN')}
-          {text('phone', 'Mobile number (sent to Razorpay, not stored by ValueSkins)', 'tel')}
-          {text('bankAccountNumber', 'Bank account number')}
-          {text('ifsc', 'IFSC')}
-          {text('accountHolderName', 'Account holder name')}
+          <label className="block space-y-2">
+            <span>UPI ID</span>
+            <input
+              type="text"
+              value={values.vpa}
+              onChange={(event) => setValues({ ...values, vpa: event.target.value })}
+              autoComplete="off"
+              placeholder="name@bank"
+              className={inputClass}
+            />
+          </label>
+          <label className="block space-y-2">
+            <span>Name on the account, as your UPI app shows it</span>
+            <input
+              type="text"
+              value={values.name}
+              onChange={(event) => setValues({ ...values, name: event.target.value })}
+              autoComplete="off"
+              className={inputClass}
+            />
+          </label>
+          <p className={hintClass}>{UPI_NOT_VERIFIED_WARNING}</p>
           <label className="flex items-start gap-3">
             <input
               type="checkbox"
@@ -161,15 +128,14 @@ export function PayoutSection() {
             />
             <span>{PAYOUT_CONSENT_TEXT}</span>
           </label>
-          <button type="submit" disabled={!valid || submitAction.busy} className={primaryButton}>
-            Submit payout details
+          <button
+            type="submit"
+            disabled={!check.success || submitAction.busy}
+            className={primaryButton}
+          >
+            Save UPI details
           </button>
-          {!valid ? (
-            <p className={hintClass}>
-              Fill in every field correctly (PAN of an individual, 10 digit mobile number, IFSC) and
-              accept the consent text to continue.
-            </p>
-          ) : null}
+          {reason ? <p className={hintClass}>{reason}</p> : null}
           {submitAction.error ? <p className={errorClass}>{submitAction.error}</p> : null}
         </form>
       ) : null}
