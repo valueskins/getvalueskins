@@ -49,6 +49,17 @@ export interface SettlementsBody {
   tnc_accepted: true;
 }
 
+/** POST /v1/payments/:id/transfers: one transfer from an already captured payment (admin retry, SPEC 7.3). */
+export interface CreatePaymentTransferBody {
+  transfers: Array<{
+    account: string;
+    amount: number;
+    currency: 'INR';
+    notes: Record<string, string>;
+    on_hold: boolean;
+  }>;
+}
+
 export interface CreateOrderBody {
   amount: number;
   currency: 'INR';
@@ -172,6 +183,9 @@ export function createRazorpayClient(
 
     fetchPayment: (paymentId: string) =>
       request('GET', `/v1/payments/${paymentId}`, razorpayPaymentSchema),
+
+    createPaymentTransfers: (paymentId: string, body: CreatePaymentTransferBody) =>
+      request('POST', `/v1/payments/${paymentId}/transfers`, razorpayTransferListSchema, body),
 
     fetchPaymentTransfers: (paymentId: string) =>
       request('GET', `/v1/payments/${paymentId}/transfers`, razorpayTransferListSchema),
