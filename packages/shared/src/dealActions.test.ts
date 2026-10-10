@@ -5,6 +5,7 @@ import {
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
   CREATOR_PAYOUT_NOT_READY,
+  UPLOAD_LIMIT_REACHED,
   NO_APPLICATIONS_YET,
   SET_UP_PAYOUTS_TO_APPLY,
 } from './copy.js';
@@ -20,6 +21,7 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     hasApplied: false,
     payoutActive: true,
     creatorPayoutActive: true,
+    uploadCount: 1,
     hasBilling: true,
     publishIssues: [],
     ...overrides,
@@ -86,7 +88,15 @@ describe('computeDealActions: brand owner', () => {
     ]);
   });
 
-  it.each(['ADVANCE_PAID', 'CONTENT_UPLOADED', 'REVISION_REQUESTED'] as DealStatus[])(
+  it('CONTENT_UPLOADED: suggest changes or approve; cancel stays disabled', () => {
+    expect(summary({ status: 'CONTENT_UPLOADED' })).toEqual([
+      ['SEND_FEEDBACK', true, null],
+      ['APPROVE', true, null],
+      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+    ]);
+  });
+
+  it.each(['ADVANCE_PAID', 'REVISION_REQUESTED'] as DealStatus[])(
     '%s: cancel is disabled with the SPEC reason',
     (status) => {
       expect(summary({ status })).toEqual([
@@ -130,5 +140,38 @@ describe('computeDealActions: creator', () => {
 describe('computeDealActions: everyone else', () => {
   it.each(DEAL_STATUSES)('%s: no actions for a non-owner, non-creator viewer', (status) => {
     expect(summary({ viewer: 'NONE', status })).toEqual([]);
+  });
+});
+
+describe('computeDealActions: confirmed creator', () => {
+  it.each(['ADVANCE_PAID', 'REVISION_REQUESTED'] as DealStatus[])(
+    '%s: can upload content',
+    (status) => {
+      expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual([
+        ['UPLOAD_CONTENT', true, null],
+      ]);
+    },
+  );
+
+  it('upload is disabled with the reason once 20 links are used', () => {
+    expect(
+      summary({ viewer: 'CONFIRMED_CREATOR', status: 'ADVANCE_PAID', uploadCount: 19 }),
+    ).toEqual([['UPLOAD_CONTENT', true, null]]);
+    expect(
+      summary({ viewer: 'CONFIRMED_CREATOR', status: 'REVISION_REQUESTED', uploadCount: 20 }),
+    ).toEqual([['UPLOAD_CONTENT', false, UPLOAD_LIMIT_REACHED]]);
+  });
+
+  it.each(DEAL_STATUSES.filter((s) => s !== 'ADVANCE_PAID' && s !== 'REVISION_REQUESTED'))(
+    '%s: nothing to do',
+    (status) => {
+      expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual([]);
+    },
+  );
+
+  it('other creators never get upload actions', () => {
+    for (const status of DEAL_STATUSES.filter((s) => s !== 'OPEN')) {
+      expect(summary({ viewer: 'CREATOR', status })).toEqual([]);
+    }
   });
 });

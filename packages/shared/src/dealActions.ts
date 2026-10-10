@@ -6,10 +6,12 @@ import {
   CREATOR_PAYOUT_NOT_READY,
   NO_APPLICATIONS_YET,
   SET_UP_PAYOUTS_TO_APPLY,
+  UPLOAD_LIMIT_REACHED,
 } from './copy.js';
+import { MAX_CONTENT_UPLOADS_PER_DEAL } from './config.js';
 import type { DealStatus } from './dealStateMachine.js';
 
-/** Actions that have an endpoint today. Later phases (upload, feedback, approve, dispute) add theirs. */
+/** Actions that have an endpoint today. Later phases (dispute) add theirs. */
 export const DEAL_ACTIONS = [
   'EDIT_DRAFT',
   'DELETE_DRAFT',
@@ -20,6 +22,9 @@ export const DEAL_ACTIONS = [
   'PAY_COMMISSION',
   'PAY_ADVANCE',
   'PAY_FINAL',
+  'UPLOAD_CONTENT',
+  'SEND_FEEDBACK',
+  'APPROVE',
 ] as const;
 
 export type DealAction = (typeof DEAL_ACTIONS)[number];
@@ -33,8 +38,13 @@ export interface DealActionState {
 
 export interface DealActionsInput {
   status: DealStatus;
-  /** BRAND_OWNER: the deal's brand. CREATOR: a creator looking at a deal. NONE: everyone else, admins included. */
-  viewer: 'BRAND_OWNER' | 'CREATOR' | 'NONE';
+  /**
+   * BRAND_OWNER: the deal's brand. CONFIRMED_CREATOR: the creator the deal was confirmed with.
+   * CREATOR: any other creator looking at the deal. NONE: everyone else, admins included.
+   */
+  viewer: 'BRAND_OWNER' | 'CONFIRMED_CREATOR' | 'CREATOR' | 'NONE';
+  /** Content links uploaded so far (SPEC 13: at most 20 per deal). */
+  uploadCount: number;
   applicationsOpen: boolean;
   applicationCount: number;
   /** The creator viewer already has an application on this deal. */
@@ -68,6 +78,7 @@ function off(action: DealAction, reason: string): DealActionState {
 /** The actions the viewer can take, or sees disabled with a reason, on a deal right now (SPEC 5.2, 5.4, 5.5, 18). */
 export function computeDealActions(input: DealActionsInput): DealActionState[] {
   if (input.viewer === 'BRAND_OWNER') return brandActions(input);
+  if (input.viewer === 'CONFIRMED_CREATOR') return confirmedCreatorActions(input);
   if (input.viewer === 'CREATOR') return creatorActions(input);
   return [];
 }
@@ -89,6 +100,7 @@ function brandActions(input: DealActionsInput): DealActionState[] {
     );
   }
   if (status === 'APPROVED') actions.push(on('PAY_FINAL'));
+  if (status === 'CONTENT_UPLOADED') actions.push(on('SEND_FEEDBACK'), on('APPROVE'));
   if (status === 'OPEN') {
     actions.push(
       input.applicationCount > 0
@@ -110,4 +122,15 @@ function creatorActions(input: DealActionsInput): DealActionState[] {
   if (!input.applicationsOpen) return [off('APPLY', APPLICATIONS_CLOSED)];
   if (!input.payoutActive) return [off('APPLY', SET_UP_PAYOUTS_TO_APPLY)];
   return [on('APPLY')];
+}
+
+function confirmedCreatorActions(input: DealActionsInput): DealActionState[] {
+  if (input.status === 'ADVANCE_PAID' || input.status === 'REVISION_REQUESTED') {
+    return [
+      input.uploadCount >= MAX_CONTENT_UPLOADS_PER_DEAL
+        ? off('UPLOAD_CONTENT', UPLOAD_LIMIT_REACHED)
+        : on('UPLOAD_CONTENT'),
+    ];
+  }
+  return [];
 }
