@@ -25,6 +25,9 @@ export interface MockPayment {
   email?: string;
   contact?: string;
   vpa?: string;
+  /** Razorpay's fee and tax on the payment, in paise. */
+  fee?: number;
+  tax?: number;
 }
 
 export interface OrdersMockState {

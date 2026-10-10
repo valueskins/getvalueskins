@@ -65,7 +65,7 @@ const DATE_COLUMN = {
 const EMAILS = {
   commission: ['COMMISSION_PAID_BRAND', 'COMMISSION_PAID_CREATOR'],
   advance: ['ADVANCE_PAID', 'ADVANCE_PAID'],
-  final: ['FINAL_PAYMENT_DONE', 'FINAL_PAYMENT_DONE'],
+  final: ['FINAL_PAYMENT_DONE', 'FINAL_PAYMENT_DONE', 'DEAL_REPORT_READY', 'DEAL_REPORT_READY'],
 } as const;
 
 describe('POST /api/payments/verify', () => {
@@ -115,8 +115,12 @@ describe('POST /api/payments/verify', () => {
 
       const sent = (await db.select().from(emailLog)).filter((e) => e.dealId === f.deal.id);
       expect(sent.map((e) => e.template).sort()).toEqual([...EMAILS[kind]].sort());
+      const twice = kind === 'final';
       expect(sent.map((e) => e.toEmail).sort()).toEqual(
-        [f.brand.user.email, f.creator.user.email].sort(),
+        (twice
+          ? [f.brand.user.email, f.brand.user.email, f.creator.user.email, f.creator.user.email]
+          : [f.brand.user.email, f.creator.user.email]
+        ).sort(),
       );
     },
   );
@@ -245,8 +249,9 @@ describe('verify and webhooks in any order, and repeated', () => {
     expect(state.deal.status).toBe(NEXT_STATUS[kind]);
     expect(state.events).toHaveLength(1);
     expect(state.transfers).toHaveLength(kind === 'commission' ? 0 : 1);
+    // Emails 4, 5 or 9 go to both parties; the final also sends email 10 to both.
     expect((await db.select().from(emailLog)).filter((e) => e.dealId === f.deal.id)).toHaveLength(
-      2,
+      kind === 'final' ? 4 : 2,
     );
     expect(await db.select().from(payments).where(eq(payments.dealId, f.deal.id))).toHaveLength(1);
   }

@@ -15,3 +15,4 @@ export * from './pagination.js';
 export * from './resume.js';
 export * from './config.js';
 export * from './payment.js';
+export * from './documents.js';

@@ -304,16 +304,27 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
        What to look for: the transfer row is `PROCESSED` with the full advance amount (the full transfer worked, the fees came out of the platform balance), or it is `FAILED` or never leaves `PENDING` (for example `BAD_REQUEST_TRANSFER_INSUFFICIENT_BALANCE`). Also open the Razorpay dashboard in test mode, **Route > Linked accounts > the creator's account > Transfers**, and check the transfer is listed. **If the transfer is rejected or fails, stop here and report it: SPEC 4.3 needs a decision (direct transfer from the platform balance, or adding the fee to what the brand pays) and nobody should choose it from the code.** The admin alert email "Transfer to creator failed" arrives at `DISPUTE_EMAIL` in that case.
 
-    3. **Get the test deal to `APPROVED`.** The creator upload and brand approve steps have no endpoints yet. For this one staging test deal only, move it by hand (this bypasses the normal rules on purpose and must never be used on real data):
+    3. **Upload and approve.** The creator uploads a Drive link and the brand approves it, with the same `call` helper as step 11 (the deal must be `ADVANCE_PAID`):
 
        ```bash
-       q "update deals set status = 'APPROVED', approved_at = now() where id = '$DEAL' and status = 'ADVANCE_PAID' returning id, status"
-       q "insert into deal_events (id, deal_id, from_status, to_status, actor_type, note) values (gen_random_uuid(), '$DEAL', 'ADVANCE_PAID', 'APPROVED', 'ADMIN', 'staging test only: manual SQL') returning id"
+       call POST /deals/$DEAL/content creator.jar '{"link":"https://drive.google.com/file/d/test/view"}'   # CONTENT_UPLOADED, email 6 to the brand
+       call POST /deals/$DEAL/approve brand.jar '{}'                                                        # APPROVED, email 8 to the creator
        ```
 
-    4. **Final.** Reload the pay page and click **Pay final: ...**. Expected: the deal moves to `COMPLETED`, both parties get the "Final payment" email, and the second transfer shows on the creator's linked account in Razorpay's test dashboard.
+       To try a revision first: `call POST /deals/$DEAL/feedback brand.jar '{"feedback":"Please reshoot the intro"}'` (email 7), then upload again.
 
-    The three payments add up to the budget: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"`. Receipts, the tax invoice and PDF attachments are not part of this step (SPEC 7.4, a later prompt), so the emails arrive without attachments.
+    4. **Final.** Reload the pay page and click **Pay final: ...**. Expected: the deal moves to `COMPLETED`, both parties get the "Final payment" email followed by the "Deal report ready" email, and the second transfer shows on the creator's linked account in Razorpay's test dashboard.
+    5. **The four PDFs.** Download them as the brand (or the creator) and open them:
+
+       ```bash
+       for kind in commission-invoice advance-receipt final-receipt adp; do curl -sS -b brand.jar -o "$kind.pdf" "$API/deals/$DEAL/documents/$kind"; done
+       ```
+
+       Expected: four PDFs, with the rupee sign showing and the numbers `VS/...` and `VS-R/...` on the invoice and receipts. Check that the brand received the invoice with email 4, both parties the receipts with emails 5 and 9, and both the deal report with email 10. `call GET /deals/$DEAL/emails brand.jar` and `call GET /deals/$DEAL/events brand.jar` show the deal's communication history and timeline.
+
+    Deals paid before the invoices change shipped have no invoices or receipts (their documents answer `409`): use a fresh deal for this step. With GST 0 the commission document is titled "Invoice" with no tax lines. The tax split compares the brand's billing state with `COMPANY_STATE` as text, so a misspelled state is billed as IGST once GST is on.
+
+    The three payments add up to the budget: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"`.
 
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
@@ -438,7 +449,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 ## 19. Known limitations
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.
-- **Invoices, receipts and the deal report** are not built yet (SPEC 7.4, 17): payment emails 4, 5 and 9 have no attachments, and email 10 is not sent.
+- **Invoices for older payments:** payments captured before invoicing shipped have no invoice, receipt or deal report. Documents are rendered on demand and never stored.
 - **Failed transfers** alert the admin by email; there is no admin screen to retry one yet (SPEC 12).
 - **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Razorpay category and address.** Linked accounts are created with `profile.category` `services`, `profile.subcategory` `ad_and_marketing` and a registered address of only `{ country: "IN" }`. Razorpay's allowed category lists could not be retrieved when this was written. If staging shows Razorpay rejecting them, change the constants in `apps/api/src/payout/razorpayProfile.ts`; if it rejects the address, add street, city, state and PIN to the payout form.

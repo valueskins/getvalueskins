@@ -16,6 +16,7 @@ export const CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE =
 export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
 export const NO_APPLICATIONS_YET = 'No applications yet';
 export const CREATOR_PAYOUT_NOT_READY = 'The creator has not finished payout setup';
+export const UPLOAD_LIMIT_REACHED = 'The limit of 20 content links for this deal has been reached';
 export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 
 // Revision limit notice (SPEC 5.5)

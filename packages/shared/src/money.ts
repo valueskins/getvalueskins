@@ -124,3 +124,25 @@ export function formatInr(paise: number): string {
 
   return `₹${INR_DECIMAL_FORMATTER.format(paise / 100)}`;
 }
+
+export interface GstSplit {
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+}
+
+/**
+ * SPEC 7.4: GST on the commission is CGST + SGST when the brand's state is the company's
+ * state, IGST otherwise. The two halves always add up to the GST: the odd paisa goes to SGST.
+ */
+export function splitGst(gstPaise: number, sameState: boolean): GstSplit {
+  if (!Number.isSafeInteger(gstPaise) || gstPaise < 0) {
+    throw new MoneyError(
+      'NOT_SAFE_INTEGER',
+      `gstPaise must be a non-negative safe integer, got ${gstPaise}`,
+    );
+  }
+  if (!sameState) return { cgstPaise: 0, sgstPaise: 0, igstPaise: gstPaise };
+  const cgstPaise = Math.floor(gstPaise / 2);
+  return { cgstPaise, sgstPaise: gstPaise - cgstPaise, igstPaise: 0 };
+}

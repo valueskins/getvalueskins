@@ -2,8 +2,10 @@ import express, { type Express } from 'express';
 import './auth/types.js'; // Express.Request augmentation (req.user)
 import type { ApiContext } from './context.js';
 import { applicationRoutes } from './applications/applications.routes.js';
+import { documentRoutes } from './documents/documents.routes.js';
 import { configRoutes } from './config/config.routes.js';
 import { dealRoutes } from './deals/deals.routes.js';
+import { reviewRoutes } from './deals/review.routes.js';
 import { devLoginRoutes } from './auth/devLogin.routes.js';
 import { logoutRoutes } from './auth/logout.routes.js';
 import { meRoutes } from './auth/me.routes.js';
@@ -73,7 +75,9 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(onboardingRoutes(env));
   app.use(payoutRoutes(env, razorpay));
   app.use(dealRoutes(ctx));
+  app.use(reviewRoutes(ctx));
   app.use(applicationRoutes(ctx));
+  app.use(documentRoutes(ctx));
   app.use(resumeRoutes(ctx));
   app.use(paymentRoutes(paymentsDeps));
   app.use(razorpayWebhookRoutes(env, createWebhookHandlers(env, paymentsDeps)));

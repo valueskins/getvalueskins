@@ -47,6 +47,10 @@ export const payments = pgTable(
     status: paymentStatusEnum('status').notNull().default('CREATED'),
     failureReason: text('failure_reason'),
     capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'date' }),
+    // Razorpay's fee and tax on this payment, from its payment entity. ValueSkins absorbs them
+    // (SPEC 4.3) and shows them in the deal report (SPEC 17). Null when not recorded.
+    razorpayFeePaise: bigint('razorpay_fee_paise', { mode: 'number' }),
+    razorpayTaxPaise: bigint('razorpay_tax_paise', { mode: 'number' }),
     ...timestamps,
   },
   (t) => [
@@ -84,6 +88,9 @@ export const transfers = pgTable(
     status: transferStatusEnum('status').notNull().default('PENDING'),
     failureReason: text('failure_reason'),
     processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
+    // Razorpay's transfer fee and tax (SPEC 17). Null when not recorded.
+    razorpayFeePaise: bigint('razorpay_fee_paise', { mode: 'number' }),
+    razorpayTaxPaise: bigint('razorpay_tax_paise', { mode: 'number' }),
     // Manual completion, e.g. a bank transfer done outside Razorpay Route (V0_LAUNCH 2.1-adjacent).
     manualReference: text('manual_reference'),
     manualById: uuid('manual_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -120,7 +127,8 @@ export const invoices = pgTable(
   },
   (t) => [
     index('invoices_deal_id_idx').on(t.dealId),
-    index('invoices_payment_id_idx').on(t.paymentId),
+    // One invoice or receipt per payment (SPEC 7.4).
+    uniqueIndex('invoices_payment_id_unique_idx').on(t.paymentId),
     index('invoices_financial_year_idx').on(t.financialYear),
   ],
 );

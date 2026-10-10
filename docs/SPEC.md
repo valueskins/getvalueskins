@@ -200,12 +200,12 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
 1. **Brand posts deal.** Form: title, description (with template, see section 9), budget in rupees, the three deadlines. Brand sees the full payment breakdown before publishing. Publish sets status OPEN, broadcasts `deal:new` to all connected creators, sends Email 1.
 2. **Creators apply.** Feed shows brand name (hover for virtual resume), budget, creator amount, deadlines, description. Apply needs an ACTIVE payout account. If it is missing, the button reads "Set up payouts to apply" and links to settings.
 3. **Brand confirms a creator.** Application list with hover resumes. Confirm on one creator, and the rest are auto-rejected.
-4. **Payment 1, commission.** "Pay commission: ₹885.00". Razorpay Checkout. On capture: COMMISSION_PAID, tax invoice issued, Email 4.
+4. **Payment 1, commission.** "Pay commission: ₹885.00". Razorpay Checkout. On capture: COMMISSION_PAID, invoice issued (a tax invoice when GST is charged), Email 4 with it attached.
 5. **Payment 2, advance.** "Pay advance: ₹2,734.50". On capture: transfer to the creator's linked account, ADVANCE_PAID, Email 5.
-6. **Creator uploads content.** Countdown to the upload deadline. Paste a Google Drive link (validated as `https://drive.google.com/...` or `https://docs.google.com/...`). CONTENT_UPLOADED, Email 6.
-7. **Brand reviews.** Either "Suggest changes" (text, REVISION_REQUESTED, Email 7) or "Final approval" (APPROVED, Email 8). After 5 revisions, both see: "This deal has had 5 revisions. If you cannot agree, raise a dispute."
+6. **Creator uploads content.** Countdown to the upload deadline. Paste a Google Drive link (validated as `https://drive.google.com/...` or `https://docs.google.com/...`). CONTENT_UPLOADED, Email 6. Every link is kept in `content_uploads`, so a re-upload never erases the earlier ones; at most 20 links per deal. Uploading after the deadline is allowed (the deal is only flagged overdue).
+7. **Brand reviews.** Either "Suggest changes" (text, REVISION_REQUESTED, Email 7) or "Final approval" (APPROVED, Email 8). After 5 revisions, both see: "This deal has had 5 revisions. If you cannot agree, raise a dispute." The feedback text and its time are kept as the note of the deal event, and each round adds one to `revision_count`.
 8. **Payment 3, final.** "Pay final: ₹6,380.50". On capture: transfer, COMPLETED, Email 9, then ADP ready, Email 10.
-9. **ADP.** Downloadable by both parties from the deal page at any time after completion. Generated on demand.
+9. **ADP.** Downloadable by both parties from the deal page at any time after completion, and attached to Email 10. Generated on demand.
 
 ---
 
@@ -301,9 +301,14 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 
 ### 7.4 Invoices
 
-- **Commission tax invoice**, issued by Valueskins Private Limited to the brand when Payment 1 is captured. Sequential number per financial year: `VS/2026-27/000001`. Contents: ValueSkins legal name, address, GSTIN, SAC code, brand billing name, address, state and GSTIN if any, place of supply, taxable value, CGST+SGST (same state) or IGST (different state), total, Razorpay payment id, date. **[CONFIRM format with the CA before go-live.]**
-- **Advance receipt** and **Final receipt**: non-GST payment receipts showing that the brand paid the creator's advance/final through ValueSkins via Razorpay. Creator name and Instagram username, amount, Razorpay payment id and transfer id, date. Sequential numbers `VS-R/2026-27/000001`.
-- The invoice number and a JSON snapshot of all its data are stored in `invoices` when issued, so re-rendering later always produces the same document. PDFs are rendered on demand.
+- **Commission invoice**, issued by Valueskins Private Limited to the brand when Payment 1 is captured. Number `VS/2026-27/000001`. Contents: ValueSkins legal name, address, GSTIN (when it has one), SAC code, brand billing name, address, state and GSTIN if any, place of supply (the brand's billing state), taxable value, tax, total, Razorpay payment id, date. **[CONFIRM format with the CA before go-live.]**
+  - With GST charged, the document is titled "Tax Invoice" and splits the GST into CGST + SGST when the brand's billing state is the company's state (`COMPANY_STATE`), or IGST when it is not. The two states are compared as text, ignoring case and spacing, so a misspelled state is billed as IGST. The odd paisa of an odd GST amount goes to SGST so the halves add up.
+  - With GST 0 (V0_LAUNCH 2.6) the document is titled "Invoice" and has no tax lines. The amounts always come from the deal's frozen breakdown, never from today's rate.
+- **Advance receipt** and **Final receipt**: non-GST payment receipts showing that the brand paid the creator's advance/final through ValueSkins via Razorpay. Creator name, Instagram username and Instagram user id, amount, Razorpay payment id and transfer id (or a note that Razorpay had not created the transfer yet), date. Both draw from one sequence, `VS-R/2026-27/000001`, `000002`, and so on.
+- Tax invoices and receipts are numbered in separate gapless sequences per financial year (April to March, in IST). One upsert on the counter row (`invoice_counters`) takes its lock and holds it until the transaction that issues the invoice ends, so concurrent captures queue up and a rollback leaves no hole. The receipt sequence is the `ADVANCE_RECEIPT` counter row; `FINAL_RECEIPT` uses the same one.
+- An invoice or receipt is issued inside the transaction that marks its payment captured (section 7.3), once per payment (unique on `payment_id`). A payment recorded on a deal that cannot take it (to be refunded by hand) gets none.
+- The invoice number and a JSON snapshot of all its data (company details from env at that moment included) are stored in `invoices` when issued, so re-rendering later always produces the same document, byte for byte. PDFs are rendered on demand with PDFKit and never stored, in an embedded DejaVu Sans font (the built-in fonts have no rupee sign), plain black on white.
+- Each document is downloaded from `GET /deals/:id/documents/:kind` (section 16) by the deal's brand, its confirmed creator or an admin, once its payment is captured; the deal report only when the deal is COMPLETED. They are also attached to emails 4 (brand), 5, 9 and 10 (section 8).
 
 ---
 
@@ -321,7 +326,7 @@ In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of se
 | 2 | New application | Brand | Creator applies |
 | 3 | You were selected | Creator | Brand confirms |
 | 3b | Application not selected | Other applicants | Brand confirms someone else |
-| 4 | Commission paid | Brand (tax invoice attached), Creator (notice only) | Payment 1 captured |
+| 4 | Commission paid | Brand (invoice attached), Creator (notice only) | Payment 1 captured |
 | 5 | Advance paid | Creator and Brand (advance receipt attached) | Payment 2 captured |
 | 6 | Content uploaded | Brand | Creator uploads |
 | 7 | Changes requested | Creator | Brand sends feedback (feedback text included) |
@@ -408,7 +413,7 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 |---|---|---|
 | Publish deal | 10 per 24h | Brand |
 | Apply | 20 per 24h | Creator |
-| Content upload | 20 per deal | Deal |
+| Content upload | 20 per deal (a permanent cap: `429 UPLOAD_LIMIT_REACHED`, no `Retry-After`) | Deal |
 | API requests | 100 per minute | User |
 | Signup (new user created) | 5 per hour | IP |
 | Login attempts | 20 per hour, then 15-minute lockout | IP |
@@ -468,15 +473,16 @@ A draft is saved as typed: `title`, `description` and the three deadlines are nu
 `id, deal_id, creator_id, status (APPLIED | CONFIRMED | REJECTED), created_at, updated_at`, unique `(deal_id, creator_id)`
 
 **payments**
-`id, deal_id, type (COMMISSION | ADVANCE | FINAL), amount_paise, razorpay_order_id (unique), razorpay_payment_id (unique, nullable), status (CREATED | CAPTURED | FAILED), failure_reason, captured_at, created_at, updated_at`
+`id, deal_id, type (COMMISSION | ADVANCE | FINAL), amount_paise, razorpay_order_id (unique), razorpay_payment_id (unique, nullable), status (CREATED | CAPTURED | FAILED), failure_reason, captured_at, razorpay_fee_paise (nullable), razorpay_tax_paise (nullable), created_at, updated_at`
+The fee and tax are Razorpay's own, from its payment entity, for the deal report (section 17). Null when not recorded.
 Partial unique indexes: one CAPTURED payment per `(deal_id, type)`, and one open (CREATED or FAILED) payment per `(deal_id, type)`.
 
 **transfers**
-`id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, manual_reference (nullable), manual_by_id (nullable), manual_at (nullable), created_at, updated_at`
+`id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, razorpay_fee_paise (nullable), razorpay_tax_paise (nullable), manual_reference (nullable), manual_by_id (nullable), manual_at (nullable), created_at, updated_at`
 
 **invoices**
 `id, deal_id, payment_id, kind (COMMISSION_TAX_INVOICE | ADVANCE_RECEIPT | FINAL_RECEIPT), number (unique), financial_year, sequence, snapshot jsonb, issued_at`
-Numbering uses a row lock on a per-kind, per-financial-year counter table (`invoice_counters`), so numbers are gapless and never duplicated.
+Unique on `payment_id` (one invoice or receipt per payment). Numbering uses a row lock on a per-financial-year counter table (`invoice_counters`), so numbers are gapless and never duplicated. The tax invoice has its own counter; advance and final receipts share the `ADVANCE_RECEIPT` row (section 7.4).
 
 **deal_events**
 `id, deal_id, from_status, to_status, actor_id (nullable), actor_type (USER | SYSTEM | ADMIN), note, metadata jsonb, created_at`
@@ -527,13 +533,14 @@ Deals
 - `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
 - `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
 - `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
-- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`; the actions of later phases are added with their endpoints.
+- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`; the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
 - `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
-- `POST /deals/:id/content` (creator, body `{ link }`)
-- `POST /deals/:id/feedback` (brand, body `{ feedback }`)
-- `POST /deals/:id/approve` (brand)
-- `GET /deals/:id/emails` (communication history)
-- `GET /deals/:id/documents/:kind` (PDF: `commission-invoice`, `advance-receipt`, `final-receipt`, `adp`)
+- `POST /deals/:id/content` (the confirmed creator, body `{ link }`, from ADVANCE_PAID or REVISION_REQUESTED; a Drive or Docs https link; `409 WRONG_DEAL_STATUS`, `429 UPLOAD_LIMIT_REACHED` after 20; email 6)
+- `POST /deals/:id/feedback` (brand, body `{ feedback }`, from CONTENT_UPLOADED; email 7)
+- `POST /deals/:id/approve` (brand, from CONTENT_UPLOADED; email 8)
+- `GET /deals/:id/emails` (communication history: the deal's emails to the brand and the creator, newest first, as `{ template, subject, bodyText, status, attachmentNames, recipient { role, username }, createdAt }`, without addresses; admins see every email logged for the deal; cursor pagination)
+- `GET /deals/:id/events` (status changes from `deal_events`, oldest first, as `{ fromStatus, toStatus, actor { type, username }, note, createdAt }`; cursor pagination)
+- `GET /deals/:id/documents/:kind` (PDF: `commission-invoice`, `advance-receipt`, `final-receipt`, `adp`; the deal's brand, its confirmed creator and admins, everyone else 404; `409 DOCUMENT_NOT_AVAILABLE` until the payment is captured, and for the report until COMPLETED)
 - `POST /deals/:id/disputes`
 
 Applications
@@ -568,7 +575,7 @@ Generated on demand with PDFKit, same document for both parties.
 7. Final receipt (full).
 8. Delivery proof: every content link uploaded with its timestamp, number of revisions, each feedback timestamp, final approval timestamp.
 9. Transfers: Razorpay transfer ids and statuses for advance and final.
-10. Razorpay fees absorbed by ValueSkins (from Razorpay payment entities), for information.
+10. Razorpay fees absorbed by ValueSkins (from Razorpay payment and transfer entities, stored on `payments` and `transfers` when captured; "Not recorded" for older rows), for information.
 11. Event timeline from `deal_events`.
 
 ---

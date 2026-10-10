@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { MIN_BUDGET_PAISE } from './config.js';
-import { MoneyError, computeBreakdown, formatInr, roundHalfUp, rupeesToPaise } from './money.js';
+import {
+  MoneyError,
+  computeBreakdown,
+  formatInr,
+  roundHalfUp,
+  rupeesToPaise,
+  splitGst,
+} from './money.js';
 
 describe('computeBreakdown', () => {
   it('matches the SPEC 4.2 worked example for budget ₹10,000', () => {
@@ -221,5 +228,31 @@ describe('formatInr', () => {
 
   it('contains no non-breaking spaces', () => {
     expect(formatInr(1_000_000)).not.toContain(' ');
+  });
+});
+
+describe('splitGst', () => {
+  it('splits evenly into CGST and SGST within a state', () => {
+    expect(splitGst(13_500, true)).toEqual({ cgstPaise: 6_750, sgstPaise: 6_750, igstPaise: 0 });
+  });
+
+  it('gives the odd paisa to SGST so the halves add up', () => {
+    const split = splitGst(13_501, true);
+    expect(split).toEqual({ cgstPaise: 6_750, sgstPaise: 6_751, igstPaise: 0 });
+    expect(split.cgstPaise + split.sgstPaise).toBe(13_501);
+  });
+
+  it('is all IGST across states', () => {
+    expect(splitGst(13_501, false)).toEqual({ cgstPaise: 0, sgstPaise: 0, igstPaise: 13_501 });
+  });
+
+  it('handles zero GST', () => {
+    expect(splitGst(0, true)).toEqual({ cgstPaise: 0, sgstPaise: 0, igstPaise: 0 });
+    expect(splitGst(0, false)).toEqual({ cgstPaise: 0, sgstPaise: 0, igstPaise: 0 });
+  });
+
+  it('rejects negative and fractional amounts', () => {
+    expect(() => splitGst(-1, true)).toThrow();
+    expect(() => splitGst(1.5, false)).toThrow();
   });
 });

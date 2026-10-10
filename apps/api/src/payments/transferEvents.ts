@@ -114,6 +114,8 @@ export async function applyTransferEvent(
       .update(transfers)
       .set({
         razorpayTransferId: locked.razorpayTransferId ?? transfer.id,
+        razorpayFeePaise: transfer.fees ?? locked.razorpayFeePaise,
+        razorpayTaxPaise: transfer.tax ?? locked.razorpayTaxPaise,
         ...(move
           ? {
               status: next,

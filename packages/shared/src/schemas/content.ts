@@ -9,3 +9,7 @@ export const dealContentLinkSchema = z
   .strict();
 
 export type DealContentLinkInput = z.infer<typeof dealContentLinkSchema>;
+
+/** POST /deals/:id/approve takes no request body. */
+export const dealApproveSchema = z.object({}).strict();
+export type DealApproveInput = z.infer<typeof dealApproveSchema>;

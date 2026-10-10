@@ -94,6 +94,20 @@ export const dealDetailSchema = dealSummarySchema.extend({
   cancelledAt: z.string().nullable(),
   cancelledByRole: z.enum(CANCELLED_BY_ROLES).nullable(),
   cancellationReason: z.string().nullable(),
+  commissionPaidAt: z.string().nullable(),
+  advancePaidAt: z.string().nullable(),
+  approvedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  /** Delivery (SPEC 5.5 phases 6 and 7): the latest link, the count, and the revision state. */
+  contentLink: z.string().nullable(),
+  contentUploadedAt: z.string().nullable(),
+  uploadCount: z.number().int(),
+  revisionCount: z.number().int(),
+  feedback: z.string().nullable(),
+  /** Every link ever uploaded, oldest first. Empty for anyone but the brand, the creator and admins. */
+  contentUploads: z.array(z.object({ link: z.string(), uploadedAt: z.string() })),
+  /** FIVE_REVISIONS_WARNING once the deal has had 5 revisions, else null. */
+  revisionNotice: z.string().nullable(),
   creator: dealPartySchema.nullable(),
   /** Only for the deal's brand and admins. */
   creatorPayoutStatus: z.enum(PAYOUT_ACCOUNT_STATUSES).nullable(),
