@@ -7,6 +7,8 @@ import { transitionDeal, type AfterCommitTask, type Deal, type Tx } from '../dea
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
 import type { RazorpayTransfer } from '../razorpay/schemas.js';
+import { issueInvoice } from '../invoices/issueInvoice.js';
+import { companyFromEnv, type CompanyDetails } from '../invoices/snapshot.js';
 import { alertAdmin } from './alerts.js';
 import { captureEmailTasks } from './captureEmails.js';
 import { mapRazorpayError } from './errors.js';
@@ -85,7 +87,8 @@ export async function markPaymentCaptured(
   const rules = PAYMENT_RULES[row.type];
   const transfer = rules.transfersToCreator ? await planTransfer(deps, deal, row, paymentId) : null;
 
-  const afterCommit: AfterCommitTask[] = [...captureEmailTasks(deps.env, row)];
+  const fees: CaptureFees = { feePaise: remote.fee ?? null, taxPaise: remote.tax ?? null };
+  const afterCommit: AfterCommitTask[] = [...captureEmailTasks(deps, row)];
   if (transfer?.status === 'FAILED') {
     afterCommit.push(async (moved) => alertTransferFailed(deps, moved, transfer));
   }
@@ -98,35 +101,66 @@ export async function markPaymentCaptured(
       actor: { role: 'SYSTEM' },
       patch: { [DEAL_COLUMN[row.type]]: deps.now() },
       metadata: { paymentId: row.id, razorpayPaymentId: paymentId, type: row.type },
-      within: (tx) => recordCapture(tx, row, paymentId, deps.now(), transfer),
+      within: (tx, updated) =>
+        recordCapture(tx, row, paymentId, deps.now(), transfer, fees, {
+          deal: updated,
+          company: companyFromEnv(deps.env),
+        }),
       afterCommit,
     });
     return { kind: 'captured', dealMoved: true };
   } catch (error) {
     if (error instanceof AlreadyCaptured) return { kind: 'already_captured' };
     if (error instanceof AppError && error.code === 'INVALID_TRANSITION') {
-      return recordWithoutTransition(deps, row, paymentId, transfer);
+      return recordWithoutTransition(deps, row, paymentId, transfer, fees);
     }
     if (isUniqueViolation(error)) return recordDuplicate(deps, row, paymentId);
     throw error;
   }
 }
 
-/** The payment and transfer rows, written inside the deal transition's transaction. */
+interface CaptureFees {
+  feePaise: number | null;
+  taxPaise: number | null;
+}
+
+/**
+ * The payment, transfer and invoice rows, written inside the deal transition's transaction.
+ * `invoice` is given only when the deal moves: a payment recorded on a deal that cannot take
+ * it is going to be refunded by hand, so it gets no invoice (SPEC 7.3, 7.4).
+ */
 async function recordCapture(
   tx: Tx,
   row: PaymentRow,
   paymentId: string,
   now: Date,
   transfer: TransferInsert | null,
+  fees: CaptureFees,
+  invoice?: { deal: Deal; company: CompanyDetails },
 ): Promise<void> {
   const [updated] = await tx
     .update(payments)
-    .set({ status: 'CAPTURED', razorpayPaymentId: paymentId, capturedAt: now, failureReason: null })
+    .set({
+      status: 'CAPTURED',
+      razorpayPaymentId: paymentId,
+      capturedAt: now,
+      failureReason: null,
+      razorpayFeePaise: fees.feePaise,
+      razorpayTaxPaise: fees.taxPaise,
+    })
     .where(and(eq(payments.id, row.id), inArray(payments.status, ['CREATED', 'FAILED'])))
     .returning({ id: payments.id });
   if (!updated) throw new AlreadyCaptured();
   if (transfer) await tx.insert(transfers).values(transfer);
+  if (invoice) {
+    await issueInvoice(tx, {
+      deal: invoice.deal,
+      payment: { ...row, razorpayPaymentId: paymentId },
+      transferId: transfer?.razorpayTransferId ?? null,
+      now,
+      company: invoice.company,
+    });
+  }
 }
 
 /**
@@ -139,6 +173,7 @@ async function recordWithoutTransition(
   row: PaymentRow,
   paymentId: string,
   transfer: TransferInsert | null,
+  fees: CaptureFees,
 ): Promise<CaptureResult> {
   try {
     const outcome = await db.transaction(async (tx) => {
@@ -149,7 +184,7 @@ async function recordWithoutTransition(
         .for('update')
         .limit(1);
       if (!locked || locked.status === 'CAPTURED') return 'already' as const;
-      await recordCapture(tx, row, paymentId, deps.now(), transfer);
+      await recordCapture(tx, row, paymentId, deps.now(), transfer, fees);
       return 'recorded' as const;
     });
     if (outcome === 'already') return { kind: 'already_captured' };
@@ -264,6 +299,8 @@ async function planTransfer(
     status: match ? mapTransferStatus(match.status) : 'PENDING',
     failureReason: match ? transferFailureReason(match) : null,
     processedAt: match ? secondsToDate(match.processed_at) : null,
+    razorpayFeePaise: match?.fees ?? null,
+    razorpayTaxPaise: match?.tax ?? null,
   };
 }
 

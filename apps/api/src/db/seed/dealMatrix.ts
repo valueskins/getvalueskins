@@ -6,6 +6,8 @@ import {
   type DealStatus,
 } from '@valueskins/shared';
 import { v7 as uuidv7 } from 'uuid';
+import { issueInvoice } from '../../invoices/issueInvoice.js';
+import type { CompanyDetails } from '../../invoices/snapshot.js';
 import type { db as Database } from '../client.js';
 import {
   applications,
@@ -84,6 +86,8 @@ export interface DealCheckpointInput {
   applicationDeadline: string;
   contentUploadDeadline: string;
   dealDeadline: string;
+  /** Seller details frozen into the seeded invoices. */
+  company: CompanyDetails;
 }
 
 /**
@@ -112,40 +116,44 @@ export async function insertDealAtCheckpoint(
 
   const breakdown = isPublished ? computeBreakdown(rupeesToPaise(input.budgetRupees)) : null;
 
-  await db.insert(deals).values({
-    id: dealId,
-    shortId,
-    brandId: input.brandId,
-    creatorId: isConfirmed ? input.confirmedCreatorId : null,
-    title: `Seed deal - ${input.status}`,
-    description: `Seed fixture frozen at status ${input.status}.`,
-    budgetPaise: breakdown?.budgetPaise ?? null,
-    commissionBasePaise: breakdown?.commissionBasePaise ?? null,
-    commissionGstPaise: breakdown?.commissionGstPaise ?? null,
-    commissionTotalPaise: breakdown?.commissionTotalPaise ?? null,
-    creatorAmountPaise: breakdown?.creatorAmountPaise ?? null,
-    advancePaise: breakdown?.advancePaise ?? null,
-    finalPaise: breakdown?.finalPaise ?? null,
-    applicationDeadline: input.applicationDeadline,
-    contentUploadDeadline: input.contentUploadDeadline,
-    dealDeadline: input.dealDeadline,
-    status: input.status,
-    contentLink: isContentUploaded ? 'https://drive.google.com/file/d/seed-content/view' : null,
-    contentUploadedAt: isContentUploaded ? now : null,
-    uploadCount: isContentUploaded ? 1 : 0,
-    feedback: isRevisionRequested ? 'Please reshoot the intro scene.' : null,
-    revisionCount: isRevisionRequested ? 1 : 0,
-    publishedAt: isPublished ? now : null,
-    confirmedAt: isConfirmed ? now : null,
-    commissionPaidAt: isCommissionPaid ? now : null,
-    advancePaidAt: isAdvancePaid ? now : null,
-    approvedAt: isApproved ? now : null,
-    completedAt: isCompleted ? now : null,
-    cancelledAt: isCancelled ? now : null,
-    cancelledById: isCancelled ? input.brandId : null,
-    cancelledByRole: isCancelled ? 'BRAND' : null,
-    cancellationReason: isCancelled ? 'Brand no longer needs this deliverable.' : null,
-  });
+  const [dealRow] = await db
+    .insert(deals)
+    .values({
+      id: dealId,
+      shortId,
+      brandId: input.brandId,
+      creatorId: isConfirmed ? input.confirmedCreatorId : null,
+      title: `Seed deal - ${input.status}`,
+      description: `Seed fixture frozen at status ${input.status}.`,
+      budgetPaise: breakdown?.budgetPaise ?? null,
+      commissionBasePaise: breakdown?.commissionBasePaise ?? null,
+      commissionGstPaise: breakdown?.commissionGstPaise ?? null,
+      commissionTotalPaise: breakdown?.commissionTotalPaise ?? null,
+      creatorAmountPaise: breakdown?.creatorAmountPaise ?? null,
+      advancePaise: breakdown?.advancePaise ?? null,
+      finalPaise: breakdown?.finalPaise ?? null,
+      applicationDeadline: input.applicationDeadline,
+      contentUploadDeadline: input.contentUploadDeadline,
+      dealDeadline: input.dealDeadline,
+      status: input.status,
+      contentLink: isContentUploaded ? 'https://drive.google.com/file/d/seed-content/view' : null,
+      contentUploadedAt: isContentUploaded ? now : null,
+      uploadCount: isContentUploaded ? 1 : 0,
+      feedback: isRevisionRequested ? 'Please reshoot the intro scene.' : null,
+      revisionCount: isRevisionRequested ? 1 : 0,
+      publishedAt: isPublished ? now : null,
+      confirmedAt: isConfirmed ? now : null,
+      commissionPaidAt: isCommissionPaid ? now : null,
+      advancePaidAt: isAdvancePaid ? now : null,
+      approvedAt: isApproved ? now : null,
+      completedAt: isCompleted ? now : null,
+      cancelledAt: isCancelled ? now : null,
+      cancelledById: isCancelled ? input.brandId : null,
+      cancelledByRole: isCancelled ? 'BRAND' : null,
+      cancellationReason: isCancelled ? 'Brand no longer needs this deliverable.' : null,
+    })
+    .returning();
+  if (!dealRow) throw new Error('failed to insert the seed deal');
 
   for (const step of path) {
     const actorId =
@@ -189,73 +197,77 @@ export async function insertDealAtCheckpoint(
     });
   }
 
+  /** Razorpay's fee and the tax on it, invented for the demo data (about 2% plus 18%). */
+  const seedFees = (amountPaise: number, percent: number) => {
+    const fee = Math.round((amountPaise * percent) / 100);
+    return { razorpayFeePaise: fee, razorpayTaxPaise: Math.round(fee * 0.18) };
+  };
+
   if (breakdown && isCommissionPaid) {
-    await db.insert(payments).values({
+    const [commissionPayment] = await db
+      .insert(payments)
+      .values({
+        dealId,
+        type: 'COMMISSION',
+        amountPaise: breakdown.commissionTotalPaise,
+        razorpayOrderId: `order_seed_${input.index}_commission`,
+        razorpayPaymentId: `pay_seed_${input.index}_commission`,
+        status: 'CAPTURED',
+        capturedAt: now,
+        ...seedFees(breakdown.commissionTotalPaise, 2),
+      })
+      .returning();
+    if (commissionPayment) {
+      await issueInvoice(db, {
+        deal: dealRow,
+        payment: { ...commissionPayment, razorpayPaymentId: `pay_seed_${input.index}_commission` },
+        transferId: null,
+        now,
+        company: input.company,
+      });
+    }
+  }
+
+  const seedTransferred = async (type: 'ADVANCE' | 'FINAL', amountPaise: number) => {
+    const key = type.toLowerCase();
+    const [payment] = await db
+      .insert(payments)
+      .values({
+        dealId,
+        type,
+        amountPaise,
+        razorpayOrderId: `order_seed_${input.index}_${key}`,
+        razorpayPaymentId: `pay_seed_${input.index}_${key}`,
+        status: 'CAPTURED',
+        capturedAt: now,
+        ...seedFees(amountPaise, 2),
+      })
+      .returning();
+    if (!payment) return;
+
+    const transferId = `trf_seed_${input.index}_${key}`;
+    await db.insert(transfers).values({
       dealId,
-      type: 'COMMISSION',
-      amountPaise: breakdown.commissionTotalPaise,
-      razorpayOrderId: `order_seed_${input.index}_commission`,
-      razorpayPaymentId: `pay_seed_${input.index}_commission`,
-      status: 'CAPTURED',
-      capturedAt: now,
+      paymentId: payment.id,
+      creatorId: input.confirmedCreatorId,
+      type,
+      amountPaise,
+      razorpayTransferId: transferId,
+      status: 'PROCESSED',
+      processedAt: now,
+      ...seedFees(amountPaise, 0.25),
     });
-  }
+    await issueInvoice(db, {
+      deal: dealRow,
+      payment: { ...payment, razorpayPaymentId: `pay_seed_${input.index}_${key}` },
+      transferId,
+      now,
+      company: input.company,
+    });
+  };
 
-  if (breakdown && isAdvancePaid) {
-    const [advancePayment] = await db
-      .insert(payments)
-      .values({
-        dealId,
-        type: 'ADVANCE',
-        amountPaise: breakdown.advancePaise,
-        razorpayOrderId: `order_seed_${input.index}_advance`,
-        razorpayPaymentId: `pay_seed_${input.index}_advance`,
-        status: 'CAPTURED',
-        capturedAt: now,
-      })
-      .returning();
-
-    if (advancePayment) {
-      await db.insert(transfers).values({
-        dealId,
-        paymentId: advancePayment.id,
-        creatorId: input.confirmedCreatorId,
-        type: 'ADVANCE',
-        amountPaise: breakdown.advancePaise,
-        razorpayTransferId: `trf_seed_${input.index}_advance`,
-        status: 'PROCESSED',
-        processedAt: now,
-      });
-    }
-  }
-
-  if (breakdown && isCompleted) {
-    const [finalPayment] = await db
-      .insert(payments)
-      .values({
-        dealId,
-        type: 'FINAL',
-        amountPaise: breakdown.finalPaise,
-        razorpayOrderId: `order_seed_${input.index}_final`,
-        razorpayPaymentId: `pay_seed_${input.index}_final`,
-        status: 'CAPTURED',
-        capturedAt: now,
-      })
-      .returning();
-
-    if (finalPayment) {
-      await db.insert(transfers).values({
-        dealId,
-        paymentId: finalPayment.id,
-        creatorId: input.confirmedCreatorId,
-        type: 'FINAL',
-        amountPaise: breakdown.finalPaise,
-        razorpayTransferId: `trf_seed_${input.index}_final`,
-        status: 'PROCESSED',
-        processedAt: now,
-      });
-    }
-  }
+  if (breakdown && isAdvancePaid) await seedTransferred('ADVANCE', breakdown.advancePaise);
+  if (breakdown && isCompleted) await seedTransferred('FINAL', breakdown.finalPaise);
 }
 
 export const SEED_DEAL_STATUSES: readonly DealStatus[] = DEAL_STATUSES;

@@ -105,6 +105,9 @@ export const razorpayPaymentSchema = z.object({
   currency: z.string(),
   error_code: z.string().nullable().optional(),
   error_description: z.string().nullable().optional(),
+  // Razorpay's fee and the tax on it, in paise. ValueSkins absorbs them (SPEC 4.3, 17).
+  fee: z.number().int().nullable().optional(),
+  tax: z.number().int().nullable().optional(),
 });
 
 export type RazorpayPayment = z.infer<typeof razorpayPaymentSchema>;

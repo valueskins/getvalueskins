@@ -9,10 +9,10 @@ export function commissionPaidBrandTemplate(
 ): EmailContent {
   const amount = formatInr(data.commissionTotalPaise);
   const subject = `Commission paid: ${data.dealTitle}`;
-  const text = `Your commission payment of ${amount} for "${data.dealTitle}" (${data.dealShortId}) was received. The tax invoice is attached.`;
+  const text = `Your commission payment of ${amount} for "${data.dealTitle}" (${data.dealShortId}) was received. The invoice is attached.`;
   const html = renderHtml(
     `<p>Your commission payment of ${amount} for "${escapeHtml(data.dealTitle)}" (${escapeHtml(data.dealShortId)}) was received.</p>` +
-      `<p>The tax invoice is attached.</p>`,
+      `<p>The invoice is attached.</p>`,
   );
   return { subject, text, html };
 }

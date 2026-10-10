@@ -2,7 +2,17 @@ import { sql } from 'drizzle-orm';
 import { db } from '../client.js';
 import { brandBilling, creatorPayoutAccounts, users } from '../schema/index.js';
 import { BRAND_FIXTURES, CREATOR_FIXTURES } from './fixtures.js';
+import type { CompanyDetails } from '../../invoices/snapshot.js';
 import { insertDealAtCheckpoint, SEED_DEAL_STATUSES } from './dealMatrix.js';
+
+/** Seller details for the seeded invoices when the caller gives none (the CLI passes the real ones from env). */
+export const DEFAULT_SEED_COMPANY: CompanyDetails = {
+  legalName: 'Valueskins Private Limited',
+  address: '123 MG Road, Bengaluru',
+  state: 'Karnataka',
+  gstin: '29AAAAA0000A1Z5',
+  sacCode: '998311',
+};
 
 const TABLES_IN_DELETE_ORDER = [
   'deal_events',
@@ -31,7 +41,11 @@ async function truncateAll(): Promise<void> {
 const IG_TOKEN_PLACEHOLDER = 'seed-encrypted-token';
 const IG_TOKEN_EXPIRES_AT = new Date('2027-01-01T00:00:00.000Z');
 
-export async function seed(): Promise<void> {
+export interface SeedOptions {
+  company?: CompanyDetails;
+}
+
+export async function seed(options: SeedOptions = {}): Promise<void> {
   await truncateAll();
 
   const brandIds: string[] = [];
@@ -120,6 +134,7 @@ export async function seed(): Promise<void> {
       applicationDeadline: '2026-11-01',
       contentUploadDeadline: '2026-11-10',
       dealDeadline: '2026-11-20',
+      company: options.company ?? DEFAULT_SEED_COMPANY,
     });
   }
 }

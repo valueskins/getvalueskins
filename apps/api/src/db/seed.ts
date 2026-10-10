@@ -5,7 +5,9 @@ async function main(): Promise<void> {
   }
 
   const { seed } = await import('./seed/index.js');
-  await seed();
+  const { getEnv } = await import('../env/index.js');
+  const { companyFromEnv } = await import('../invoices/snapshot.js');
+  await seed({ company: companyFromEnv(getEnv()) });
   console.log('seed complete');
 }
 
