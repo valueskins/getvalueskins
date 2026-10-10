@@ -175,6 +175,7 @@ describe('POST /api/deals/:id/content', () => {
         enabled: false,
         reason: 'The limit of 20 content links for this deal has been reached',
       },
+      { action: 'RAISE_DISPUTE', enabled: true, reason: null },
     ]);
 
     const res = await upload(creator.cookie, deal.id);
@@ -273,6 +274,7 @@ describe('POST /api/deals/:id/approve', () => {
     expect(res.body.deal.allowedActions.map((a: { action: string }) => a.action)).toEqual([
       'PAY_FINAL',
       'CANCEL',
+      'RAISE_DISPUTE',
     ]);
     const emails = await sentEmails('CONTENT_APPROVED');
     expect(emails).toHaveLength(1);
@@ -322,15 +324,18 @@ describe('allowed actions for the delivery phase', () => {
       'SEND_FEEDBACK',
       'APPROVE',
       'CANCEL',
+      'RAISE_DISPUTE',
     ]);
-    expect(await actionsFor(creator.cookie, deal.id)).toEqual([]);
+    expect((await actionsFor(creator.cookie, deal.id)).map((a) => a.action)).toEqual([
+      'RAISE_DISPUTE',
+    ]);
     // An admin who is also a creator, but not this deal's creator, gets nothing.
     expect(await actionsFor(otherCreator.cookie, deal.id)).toEqual([]);
 
     const waiting = await setup('ADVANCE_PAID');
     expect(
       (await actionsFor(waiting.creator.cookie, waiting.deal.id)).map((a) => a.action),
-    ).toEqual(['UPLOAD_CONTENT']);
+    ).toEqual(['UPLOAD_CONTENT', 'RAISE_DISPUTE']);
     expect(await actionsFor(otherCreator.cookie, waiting.deal.id)).toEqual([]);
   });
 });

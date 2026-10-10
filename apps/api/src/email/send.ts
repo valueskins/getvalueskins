@@ -7,7 +7,8 @@ import { logger } from '../logging/logger.js';
 import { templateRegistry } from './templates/index.js';
 import { sendConsole } from './transports/consoleTransport.js';
 import { sendResend } from './transports/resendTransport.js';
-import type { EmailTemplateDataMap } from './types.js';
+import { escapeHtml, renderHtml } from './templates/layout.js';
+import type { EmailContent, EmailTemplateDataMap } from './types.js';
 
 export interface SendOptions {
   cc?: string[];
@@ -35,8 +36,56 @@ export async function send<T extends EmailTemplate>(
   env: Env,
   options: SendOptions = {},
 ): Promise<SendResult> {
-  const content = templateRegistry[template](data);
+  return deliver(templateRegistry[template](data), template, to, env, options);
+}
 
+/** What an admin resend sends: a stored email row (SPEC 12). The HTML was never stored, so it is made from the text. */
+export interface StoredEmail {
+  template: string;
+  subject: string;
+  bodyText: string;
+  toEmail: string;
+  cc: string[] | null;
+  dealId: string | null;
+  userId: string | null;
+}
+
+/**
+ * Sends a stored email again as a new email_log row (the original stays). The subject, text,
+ * recipient and CC list are the stored ones, so the resend reads exactly like the first send.
+ */
+export async function resendStored(
+  stored: StoredEmail,
+  env: Env,
+  attachments: { filename: string; content: Buffer }[] = [],
+): Promise<SendResult> {
+  const html = renderHtml(
+    stored.bodyText
+      .split(/\n{2,}/)
+      .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+      .join(''),
+  );
+  return deliver(
+    { subject: stored.subject, text: stored.bodyText, html },
+    stored.template,
+    stored.toEmail,
+    env,
+    {
+      cc: stored.cc ?? undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
+      dealId: stored.dealId ?? undefined,
+      userId: stored.userId ?? undefined,
+    },
+  );
+}
+
+async function deliver(
+  content: EmailContent,
+  template: string,
+  to: string,
+  env: Env,
+  options: SendOptions,
+): Promise<SendResult> {
   const [row] = await db
     .insert(emailLog)
     .values({

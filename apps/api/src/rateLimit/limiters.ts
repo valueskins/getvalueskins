@@ -51,3 +51,10 @@ export const consumeApplyLimit = createKeyedLimiter({
   duration: 24 * 60 * 60,
   keyPrefix: 'apply',
 });
+
+/** SPEC 13: dispute, 3 per deal per 24 hours per user. Key it `${userId}:${dealId}`. */
+export const consumeDisputeLimit = createKeyedLimiter({
+  points: 3,
+  duration: 24 * 60 * 60,
+  keyPrefix: 'dispute',
+});

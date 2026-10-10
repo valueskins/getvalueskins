@@ -72,6 +72,7 @@ describe('POST /api/applications/:id/confirm', () => {
     expect(res.body.deal.allowedActions).toEqual([
       { action: 'PAY_COMMISSION', enabled: true, reason: null },
       { action: 'CANCEL', enabled: true, reason: null },
+      { action: 'RAISE_DISPUTE', enabled: true, reason: null },
     ]);
 
     const after = await snapshot(deal.id);

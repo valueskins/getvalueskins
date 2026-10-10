@@ -260,7 +260,7 @@ describe('GET /api/deals/:id body', () => {
     const body = (await api.get(`/api/deals/${deal.id}`, creator.cookie)).body.deal;
     expect(body.creatorPayoutStatus).toBeNull();
     expect(body.applicationCount).toBeNull();
-    expect(body.allowedActions).toEqual([]);
+    expect(body.allowedActions).toEqual([{ action: 'RAISE_DISPUTE', enabled: true, reason: null }]);
   });
 
   it('shows a deleted brand as "Deleted user"', async () => {
@@ -383,6 +383,7 @@ describe('allowedActions through GET /api/deals/:id', () => {
         enabled: false,
         reason: 'Cancellation is not possible after the advance is paid',
       },
+      { action: 'RAISE_DISPUTE', enabled: true, reason: null },
     ]);
   });
 });

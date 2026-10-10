@@ -14,6 +14,7 @@ import { dealCancelledTemplate } from './dealCancelled.js';
 import { dealPublishedTemplate } from './dealPublished.js';
 import { dealReportReadyTemplate } from './dealReportReady.js';
 import { disputeRaisedTemplate } from './disputeRaised.js';
+import { disputeResolvedTemplate } from './disputeResolved.js';
 import { finalPaymentDoneTemplate } from './finalPaymentDone.js';
 import { newApplicationTemplate } from './newApplication.js';
 import { payoutAccountStatusTemplate } from './payoutAccountStatus.js';
@@ -45,6 +46,7 @@ export const templateRegistry: TemplateRegistry = {
   CONTENT_OVERDUE: contentOverdueTemplate,
   REVIEW_REMINDER: reviewReminderTemplate,
   DISPUTE_RAISED: disputeRaisedTemplate,
+  DISPUTE_RESOLVED: disputeResolvedTemplate,
   PAYOUT_ACCOUNT_STATUS: payoutAccountStatusTemplate,
   ADMIN_ALERT: adminAlertTemplate,
   SIGN_IN_CODE: signInCodeTemplate,
