@@ -15,10 +15,10 @@
 | 2 | Flat ₹750 + GST commission, Razorpay fees absorbed | Commission = `max(₹750, 5% of budget)` + 18% GST, minimum budget ₹5,000 **[CONFIRM]** | A flat ₹750 with about 2% fees absorbed loses money on every deal above about ₹37,500. The formula gives the same ₹885 on a ₹10,000 deal, so every v1 example still holds. |
 | 3 | "No escrow", but ValueSkins collects and pays out via Payouts | **Razorpay Route**: each creator is a Route linked account, and advance and final payments are transferred to it automatically | Moving third-party money through your own account with generic payouts is the wrong product. Route is Razorpay's product for marketplaces. | **Superseded by row 8.**
 | 4 | Bank details for everyone, "Razorpay stores" | Only creators give payout details, through Route linked-account onboarding (legal name, PAN, bank, IFSC). Brands give billing details for GST. We never store PAN or full bank numbers. | Brands pay by card/UPI/netbanking and never need a bank account on file. Creators need KYC to receive transfers. | **Superseded by row 8.**
-| 5 | Webhook events `payment.authorized` / `payment.failed` | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events. Idempotent processing. | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless. | Route and linked-account events are gone (row 8); transfer events stay until Prompt 13.
+| 5 | Webhook events `payment.authorized` / `payment.failed` | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events (all gone, row 8). Idempotent processing. | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless. | Route and linked-account events are gone (row 8); transfer events stay until Prompt 13.
 | 6 | "Production only, no test mode" | Build and test in **test mode**. Live keys exist only in the production environment. | Testing a 3-payment flow with real money creates real refunds and real GST invoices for every bug. |
 | 7 | Instagram type auto-detected from followers, immutable | User **chooses** Creator or Brand once at onboarding (pre-selected from Instagram `account_type`), then it is locked. A wrong choice is fixed by hand in the database on request. | Follower count cannot tell a brand from a creator. |
-| 8 | Route linked accounts for creator payouts (rows 3 to 5) | Razorpay Route is not available to ValueSkins (REPLACEMENT_PLAN 0). Only the fee goes through Razorpay. The creator's share is paid by the brand directly to the creator's **UPI ID**, which the creator saves with the name on the account and a consent (section 7.2). Prompt 12 replaced the payout setup; Prompt 13 replaces the advance and final payments and the transfers. | RBI's payment aggregator directions only allow paying out to third parties above a turnover ValueSkins does not have. |
+| 8 | Route linked accounts for creator payouts (rows 3 to 5) | Razorpay Route is not available to ValueSkins (REPLACEMENT_PLAN 0). Only the fee goes through Razorpay. The creator's share is paid by the brand directly to the creator's **UPI ID**, which the creator saves with the name on the account and a consent (section 7.2). Prompt 12 replaced the payout setup and Prompt 13 the advance and final payments (section 7.3); the `transfers` table and all Route code are gone. | RBI's payment aggregator directions only allow paying out to third parties above a turnover ValueSkins does not have. |
 | 8 | Instagram OAuth for everyone | **Instagram API with Instagram Login** (Business Login for Instagram). Only Professional (Business or Creator) accounts can sign in. Needs Meta app review. | The old Basic Display API is gone. Personal accounts are not supported by the current API. |
 | 9 | Status enum missing CANCELLED and CLOSED_FOR_APPLICATIONS | CANCELLED added. "Applications closed" is **derived** from `application_deadline`, not a status. | Fewer states, no cron needed to close applications. |
 | 10 | "Reject Deal" allowed at CONTENT_UPLOADED | Removed. After the advance is paid, only an **admin** can cancel, through dispute resolution. | Contradicted "no cancellation after advance". Also gives a way out when a creator disappears with the advance. |
@@ -34,7 +34,7 @@
 
 ## 1. Product in one paragraph
 
-A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators apply. The brand confirms one creator. The brand pays ValueSkins' commission (₹885). The brand pays the creator a 30% advance (₹2,734.50), which Razorpay Route transfers to the creator. The creator uploads the content as a Google Drive link. The brand requests changes or approves. The brand pays the remaining 70% (₹6,380.50), which Route transfers to the creator. Both parties get a Deal Report (ADP) PDF with all invoices and proof of delivery. The brand's total is exactly the budget. No chat, no negotiation.
+A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators apply. The brand confirms one creator. The brand pays ValueSkins' commission (₹885). The brand pays the creator a 30% advance (₹2,734.50), paid directly by UPI to the creator and confirmed by the creator. The creator uploads the content as a Google Drive link. The brand requests changes or approves. The brand pays the remaining 70% (₹6,380.50), paid directly by UPI to the creator and confirmed by the creator. Both parties get a Deal Report (ADP) PDF with all invoices and proof of delivery. The brand's total is exactly the budget. No chat, no negotiation.
 
 ---
 
@@ -141,12 +141,7 @@ Worked example at GST 0, budget ₹10,000: commission base ₹750, GST ₹0, tot
 
 ValueSkins absorbs Razorpay's fees. They are never shown to or charged to users, except as an informational line in the ADP.
 
-**[CONFIRM in test mode, Prompt 12]** Route rules say a transfer plus its fees cannot exceed the captured payment. If transferring the full advance/final to the creator fails because of this, choose one:
-- (A) Transfer from ValueSkins' Razorpay balance with a Direct Transfer, and keep a small float in the balance.
-- (B) Add the gateway fee to what the brand pays for Payments 2 and 3 (breaks "brand pays exactly the budget").
-Prompt 12 must test this with a real test-mode transaction and stop and report if the full transfer fails.
-
-Status: the code transfers the full advance and final amount (section 7.3) and does not choose A or B. Razorpay's Route docs say fees come out of the platform balance and a transfer happens only if that balance covers them, so the concern is real. The result of the staging run (`docs/DEPLOYMENT.md` section 13 step 12: transfer status, fees and tax, any error) is recorded here once it exists; this decision stays open until then.
+**Closed (Prompt 13).** Razorpay now charges a fee only on ValueSkins' commission. The advance and final are paid directly by the brand to the creator's UPI ID (section 7.3), so there is no Route transfer, no platform float and no gateway fee to add to what the brand pays. The brand's total is exactly the budget.
 
 ---
 
@@ -170,14 +165,14 @@ Derived flags (not statuses):
 | OPEN | CANCELLED | Brand | Cancel, free |
 | CONFIRMED | COMMISSION_PAID | System | Commission payment captured (webhook) |
 | CONFIRMED | CANCELLED | Brand | Cancel, free |
-| COMMISSION_PAID | ADVANCE_PAID | System | Advance payment captured and transfer created |
+| COMMISSION_PAID | ADVANCE_PAID | Creator | The confirmed creator confirms the brand's direct UPI advance payment arrived (`POST /direct-payments/:id/confirm`). The brand recording a payment never moves the deal. |
 | COMMISSION_PAID | CANCELLED | Brand | Cancel. Commission is kept. UI states this before confirming. |
 | ADVANCE_PAID | CONTENT_UPLOADED | Creator | Upload a Google Drive link |
 | CONTENT_UPLOADED | REVISION_REQUESTED | Brand | Send feedback |
 | CONTENT_UPLOADED | APPROVED | Brand | Final approval |
 | REVISION_REQUESTED | CONTENT_UPLOADED | Creator | Upload a new link |
-| APPROVED | COMPLETED | System | Final payment captured and transfer created |
-| ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED | Admin only | Dispute resolution (`POST /admin/deals/:id/cancel`). The note is required and becomes the cancellation reason; a manual refund reference is optional. Both are kept in the deal event (its note, and its metadata `refundReference`), because the deals table has no column for the reference. The commission is always kept. |
+| APPROVED | COMPLETED | Creator | The confirmed creator confirms the brand's direct UPI final payment arrived. |
+| COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED | Admin | Dispute resolution (`POST /admin/deals/:id/cancel`); the brand can also cancel from COMMISSION_PAID until Prompt 14. The note is required and becomes the cancellation reason; a manual refund reference is optional. Both are kept in the deal event (its note, and its metadata `refundReference`), because the deals table has no column for the reference. The commission is always kept. |
 
 Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cancel at any stage. The cancel button is not rendered from ADVANCE_PAID onward.
 
@@ -202,10 +197,10 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
 2. **Creators apply.** Feed shows brand name (hover for virtual resume), budget, creator amount, deadlines, description. Apply needs a saved UPI ID, name and consent (`403 PAYOUT_NOT_SET`). If it is missing, the button reads "Add your UPI ID to apply" and links to settings.
 3. **Brand confirms a creator.** Application list with hover resumes. Confirm on one creator, and the rest are auto-rejected.
 4. **Payment 1, commission.** "Pay commission: ₹885.00". Razorpay Checkout. On capture: COMMISSION_PAID, invoice issued (a tax invoice when GST is charged), Email 4 with it attached.
-5. **Payment 2, advance.** "Pay advance: ₹2,734.50". Until Prompt 13 the advance cannot be paid: the order endpoint answers `409 PAYMENT_RAIL_CHANGED`. Prompt 13 replaces it with a direct UPI payment the creator confirms (REPLACEMENT_PLAN 2.1).
+5. **Payment 2, advance, paid directly.** "Pay advance: ₹2,734.50". The brand pays the creator's UPI ID outside ValueSkins (a `upi://pay` link and QR code from `GET /deals/:id/direct-payment`) and records the UPI reference (`POST /deals/:id/direct-payment`); recording does not move the deal. The creator gets Email 17, checks their UPI app and confirms (`POST /direct-payments/:id/confirm`): ADVANCE_PAID, Email 5 to both with the payment record attached. If the money did not arrive the creator says so (`POST /direct-payments/:id/not-received`, Email 18 to both, alert A1 to the admin): the record is kept, marked not received, and the brand records again.
 6. **Creator uploads content.** Countdown to the upload deadline. Paste a Google Drive link (validated as `https://drive.google.com/...` or `https://docs.google.com/...`). CONTENT_UPLOADED, Email 6. Every link is kept in `content_uploads`, so a re-upload never erases the earlier ones; at most 20 links per deal. Uploading after the deadline is allowed (the deal is only flagged overdue).
 7. **Brand reviews.** Either "Suggest changes" (text, REVISION_REQUESTED, Email 7) or "Final approval" (APPROVED, Email 8). After 5 revisions, both see: "This deal has had 5 revisions. If you cannot agree, raise a dispute." The feedback text and its time are kept as the note of the deal event, and each round adds one to `revision_count`.
-8. **Payment 3, final.** "Pay final: ₹6,380.50". On capture: transfer, COMPLETED, Email 9, then ADP ready, Email 10.
+8. **Payment 3, final, paid directly.** "Pay final: ₹6,380.50". The same flow as the advance. When the creator confirms: COMPLETED, Email 9 with the payment record attached, then ADP ready, Email 10.
 9. **ADP.** Downloadable by both parties from the deal page at any time after completion, and attached to Email 10. Generated on demand.
 
 ---
@@ -283,36 +278,44 @@ Replaces the Route linked-account setup (REPLACEMENT_PLAN 2.1). Nothing is sent 
 - **Name:** 2 to 80 characters, letters in any script, spaces, dots, hyphens and apostrophes.
 - **Consent:** "I agree my UPI ID and name are shown to a brand that confirms me on a deal." Saving stamps `payout_vpa_consent_at`; saving again replaces everything. The page also says: "We do not verify UPI IDs. Enter yours carefully. A payment to a wrong UPI ID cannot be recalled."
 - **Storage:** `users.payout_vpa`, `payout_name`, `payout_vpa_consent_at`. Never PAN, bank account numbers or IFSC. Account deletion clears all three.
-- **Disclosure:** the full UPI ID is shown to nobody yet. Prompt 13 shows it to the brand confirmed on a deal, only when the creator consented and only while a direct payment is due. Everywhere else, including the creator's own settings, it is masked: `cr•••@okhdfcbank` (the first two characters before the @, or one if there are only two). `GET /me/payout-upi` answers `{ payoutUpi: { maskedVpa, name, consentAt } | null }`. It is never logged: the logger redacts UPI-shaped values and the keys `vpa`, `upi` and `payout`.
+- **Disclosure:** the full UPI ID goes only to the brand confirmed on a deal, only when the creator consented and only while a direct payment is due (`GET /deals/:id/direct-payment`, section 7.3a). Everywhere else, including the creator's own settings, it is masked: `cr•••@okhdfcbank` (the first two characters before the @, or one if there are only two). `GET /me/payout-upi` answers `{ payoutUpi: { maskedVpa, name, consentAt } | null }`. It is never logged: the logger redacts UPI-shaped values and the keys `vpa`, `upi` and `payout`.
 - **Endpoints:** `PUT /me/payout-upi` (creators only, 10 saves per hour per user) answers `{ payoutUpi, onboarding }`; `GET /me/payout-upi` (creators only).
 - **Gating:** applying needs all three (`403 PAYOUT_NOT_SET`, "Add your UPI ID to apply"); confirming an applicant needs them still saved (`409 CREATOR_PAYOUT_NOT_SET`).
 
 ### 7.3 Payments
 
-- For each of the 3 payments, the server creates a Razorpay Order: amount from the frozen breakdown, `currency: INR`, `receipt` = `<dealShortId>-<type>` (type as in the URL: `commission`, `advance`, `final`), notes `{ deal_id, type }`. Capture is automatic through the Razorpay account setting (the Orders API takes no per-order flag).
-- **Advance and final orders are not created** (`409 PAYMENT_RAIL_CHANGED`, for the deal's brand in every status) until Prompt 13 builds direct UPI payments. Orders that already exist can still be captured by verify or webhook; their Route transfer is matched by amount. The advance and final actions in `allowedActions` are listed disabled with the reason "Paying the creator directly is not available yet".
-- Only one open Order per deal per payment type (a partial unique index enforces it, and a lock stops two simultaneous requests creating two). If one exists and is unpaid, it is reused. A declined attempt does not close the order: `payment.failed` marks the payment FAILED with Razorpay's reason and leaves the deal untouched, and the next order request reuses the same Razorpay order and reopens it (CREATED). A late successful capture is accepted from CREATED or FAILED.
-- The endpoint checks: the caller is the deal's brand (anyone else gets 404), and the deal is in the correct status (CONFIRMED for commission, COMMISSION_PAID for advance, APPROVED for final; otherwise `409 WRONG_DEAL_STATUS`).
+- For the commission, the server creates a Razorpay Order: amount from the frozen breakdown, `currency: INR`, `receipt` = `<dealShortId>-<type>` (`commission` is the only type), notes `{ deal_id, type }`. Capture is automatic through the Razorpay account setting (the Orders API takes no per-order flag).
+- **The advance and final are not Razorpay payments.** They are direct brand-to-creator UPI payments (section 7.3a). `POST /deals/:id/payments/:type/order` accepts only `commission`; any other type is `400 VALIDATION_ERROR`.
+- Only one open Order per deal per deal for the commission (a partial unique index enforces it, and a lock stops two simultaneous requests creating two). If one exists and is unpaid, it is reused. A declined attempt does not close the order: `payment.failed` marks the payment FAILED with Razorpay's reason and leaves the deal untouched, and the next order request reuses the same Razorpay order and reopens it (CREATED). A late successful capture is accepted from CREATED or FAILED.
+- The endpoint checks: the caller is the deal's brand (anyone else gets 404), and the deal is in the correct status (CONFIRMED; otherwise `409 WRONG_DEAL_STATUS`).
 - Frontend opens Razorpay Checkout with the Order id. On the Checkout success handler it calls `POST /api/payments/verify` with `razorpay_order_id, razorpay_payment_id, razorpay_signature`. The server verifies the signature.
-- **Both** the verify endpoint and the webhook call the same idempotent function `markPaymentCaptured(orderId, paymentId)`. Whichever arrives first performs the transition. The second is a no-op. It does not trust the browser or the webhook body: it fetches the payment from Razorpay and requires status `captured`, the same order, the order's amount and `INR`; a mismatch records nothing, answers `409 PAYMENT_AMOUNT_MISMATCH` (or `PAYMENT_ORDER_MISMATCH`, `PAYMENT_NOT_CAPTURED`) and alerts the admin (A1). In one transaction it marks the payment CAPTURED, stores the transfer row (id and status from `GET /v1/payments/:id/transfers`, or PENDING without an id until the first transfer webhook), and transitions the deal with a SYSTEM actor (CONFIRMED to COMMISSION_PAID, COMMISSION_PAID to ADVANCE_PAID, APPROVED to COMPLETED). Emails 4, 5 and 9 go out after commit (attachments arrive with section 7.4). If the deal is no longer in the status the payment moves it from (for example the brand cancelled while Checkout was open), the payment is still recorded as CAPTURED, the deal is left alone, and the admin is alerted to refund it by hand (section 12). A second captured payment for the same deal and type is marked FAILED and flagged for refund.
+- **Both** the verify endpoint and the webhook call the same idempotent function `markPaymentCaptured(orderId, paymentId)`. Whichever arrives first performs the transition. The second is a no-op. It does not trust the browser or the webhook body: it fetches the payment from Razorpay and requires status `captured`, the same order, the order's amount and `INR`; a mismatch records nothing, answers `409 PAYMENT_AMOUNT_MISMATCH` (or `PAYMENT_ORDER_MISMATCH`, `PAYMENT_NOT_CAPTURED`) and alerts the admin (A1). In one transaction it marks the payment CAPTURED, issues the commission invoice and transitions the deal with a SYSTEM actor (CONFIRMED to COMMISSION_PAID). Email 4 goes out after commit, with the invoice attached (section 7.4). If the deal is no longer in the status the payment moves it from (for example the brand cancelled while Checkout was open), the payment is still recorded as CAPTURED, the deal is left alone, and the admin is alerted to refund it by hand (section 12). A second captured payment for the same deal is marked FAILED and flagged for refund.
 - `POST /payments/verify` checks the Checkout signature (HMAC-SHA256 of `order_id|payment_id` with the key secret, constant-time compare, `400 INVALID_SIGNATURE`), then calls `markPaymentCaptured`. Only the deal's brand can verify its payments.
 - Webhook endpoint `POST /api/webhooks/razorpay`:
   - Uses the raw body for HMAC-SHA256 signature verification with the webhook secret. Invalid signature returns 400.
   - Deduplicates on the `x-razorpay-event-id` header, stored in `webhook_events`. Duplicates return 200 immediately.
-  - Handles, by a registry keyed by event type: `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`; and the Route `transfer.processed`, `transfer.failed` and `transfer.reversed` events, which update the transfer row (status only moves forward; a transfer event that arrives before its payment was recorded records the payment first). `transfer.reversed` is not on Razorpay's Route payload page, so check the dashboard's event list for it. An event with no handler (for example `settlement.processed` or an old `product.route.*`) is stored and marked processed.
+  - Handles, by a registry keyed by event type: `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`. An event with no handler (for example `settlement.processed`, or an old `transfer.*` or `product.route.*`) is stored and marked processed.
   - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits, and the payer's email, contact, VPA, card, bank and wallet details removed). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
-- A failed transfer (after payment was captured) sets the transfer row to FAILED with Razorpay's reason, emails the admin once (A1), and leaves the admin two actions (section 12): retry, or mark it as paid by hand. The deal still advances, because the brand did pay.
-  - **Retry** (`POST /admin/transfers/:id/retry`) creates a Route transfer, which is not available (REPLACEMENT_PLAN 0), so it never calls Razorpay: an unknown id is `404`, any real transfer is `409 PAYMENT_RAIL_CHANGED`. Prompt 13 removes the route.
-  - **Mark manual** (`POST /admin/transfers/:id/mark-manual`, body `{ reference }`, required): for a FAILED or PENDING transfer the admin paid outside Razorpay Route. Sets PROCESSED with `manual_reference`, `manual_by_id`, `manual_at`; the same reference again is a no-op, anything else on a PROCESSED or REVERSED row is `409 TRANSFER_STATE_CONFLICT`. A later webhook cannot undo it, and retry refuses it, so the creator is never paid twice.
+
+### 7.3a Direct payments (advance and final)
+
+REPLACEMENT_PLAN 2.1. The brand pays the creator's UPI ID itself; ValueSkins never receives or holds that money. A `direct_payments` row records each attempt and is never edited or deleted once it is confirmed or disputed (a correction is a new row).
+
+- **What to pay** (`GET /deals/:id/direct-payment`, the deal's brand only, `Cache-Control: no-store`): the stage due (the advance in COMMISSION_PAID, the final in APPROVED), the amount from the frozen breakdown, the creator's full UPI ID and name, the `upi://pay` fields (`pa`, `pn`, `am` with two decimals built with integer math, `cu=INR`, `tn` = `ValueSkins <shortId> advance|final`) and the ready link. This is the only response that carries the full UPI ID, and only while a stage is due and the creator has saved all three payout details. Otherwise `blocked` is `no_creator`, `not_due`, `creator_has_no_upi` or `no_consent` and nothing about the creator comes back. While a record waits for the creator, `record` shows it and the details stay visible.
+- **Record** (`POST /deals/:id/direct-payment`, the deal's brand, body `{ stage, reference, note? }`): the reference is 6 to 40 characters from `A-Z a-z 0-9 - /`; the note is optional (500). The stage must be the one due (`409 WRONG_DEAL_STATUS`), the creator must have details (`409 CREATOR_PAYOUT_NOT_SET`). The amount is the frozen one; a client amount is rejected. The row snapshots the creator's UPI ID in `paid_to_vpa` and the amount. A partial unique index allows one live (not disputed) record per deal and stage, so a second record while one waits is `409 DIRECT_PAYMENT_ALREADY_RECORDED`. Recording never changes the deal status. Email 17 goes to the creator. 10 per hour per brand.
+- **Confirm** (`POST /direct-payments/:id/confirm`, the deal's confirmed creator only; the brand, other creators and admins cannot): one `transitionDeal` with a CREATOR actor (COMMISSION_PAID to ADVANCE_PAID, or APPROVED to COMPLETED, with `advance_paid_at` or `completed_at`) in the same transaction as the record's confirmation and the payment record document (section 7.4). Two confirms at once: one wins, the other is `409`. A deal cancelled in the meantime answers `409 INVALID_TRANSITION`. Emails 5 or 9 go to both with the payment record attached; on the final, email 10 follows. 20 an hour per creator, shared with not received.
+- **Not received** (`POST /direct-payments/:id/not-received`, the confirmed creator, body `{ reason }`): marks the record disputed (`disputed_at`, `dispute_reason`). The deal does not move. Email 18 goes to both and alert A1 to the admin. It is an alert, not a row in `disputes` (REPLACEMENT_PLAN 2.7). The brand can then record again. A confirmed or disputed record cannot be decided again (`409 DIRECT_PAYMENT_NOT_PENDING`).
+- **Database rules:** not both confirmed and disputed; `confirmed_by` set exactly when `confirmed_at` is; `dispute_reason` set exactly when `disputed_at` is.
+- **Privacy:** the UPI ID is masked everywhere else: the deal detail's `directPayments[]`, the creator's own views, documents, the report, emails, deal events and logs. It is never in `deal_events` metadata or an email body.
 
 ### 7.4 Invoices
 
 - **Commission invoice**, issued by Valueskins Private Limited to the brand when Payment 1 is captured. Number `VS/2026-27/000001`. Contents: ValueSkins legal name, address, GSTIN (when it has one), SAC code, brand billing name, address, state and GSTIN if any, place of supply (the brand's billing state), taxable value, tax, total, Razorpay payment id, date. **[CONFIRM format with the CA before go-live.]**
   - With GST charged, the document is titled "Tax Invoice" and splits the GST into CGST + SGST when the brand's billing state is the company's state (`COMPANY_STATE`), or IGST when it is not. The two states are compared as text, ignoring case and spacing, so a misspelled state is billed as IGST. The odd paisa of an odd GST amount goes to SGST so the halves add up.
   - With GST 0 (V0_LAUNCH 2.6) the document is titled "Invoice" and has no tax lines. The amounts always come from the deal's frozen breakdown, never from today's rate.
-- **Advance receipt** and **Final receipt**: non-GST payment receipts showing that the brand paid the creator's advance/final through ValueSkins via Razorpay. Creator name, Instagram username and Instagram user id, amount, Razorpay payment id and transfer id (or a note that Razorpay had not created the transfer yet), date. Both draw from one sequence, `VS-R/2026-27/000001`, `000002`, and so on.
-- Tax invoices and receipts are numbered in separate gapless sequences per financial year (April to March, in IST). One upsert on the counter row (`invoice_counters`) takes its lock and holds it until the transaction that issues the invoice ends, so concurrent captures queue up and a rollback leaves no hole. The receipt sequence is the `ADVANCE_RECEIPT` counter row; `FINAL_RECEIPT` uses the same one.
-- An invoice or receipt is issued inside the transaction that marks its payment captured (section 7.3), once per payment (unique on `payment_id`). A payment recorded on a deal that cannot take it (to be refunded by hand) gets none.
+- **Advance payment record** and **Final payment record** (REPLACEMENT_PLAN 2.1): issued when the creator confirms a direct payment. They are not receipts and not GST documents. They say: "Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money." Contents: the creator's name on the account, username, Instagram user id and masked UPI ID, the brand's billing name, the amount, the UPI reference and note, the time the brand recorded it and the time the creator confirmed it. Both stages share one gapless series, `VS-PR/2026-27/000001`, `000002`, and so on.
+- Tax invoices and payment records are numbered in separate gapless sequences per financial year (April to March, in IST). One upsert on the counter row (`invoice_counters`) takes its lock and holds it until the transaction that issues the invoice ends, so concurrent captures queue up and a rollback leaves no hole. The payment record sequence is the `ADVANCE_PAYMENT_RECORD` counter row; `FINAL_PAYMENT_RECORD` uses the same one.
+- The commission invoice is issued inside the transaction that marks its payment captured (section 7.3), once per payment (unique on `payment_id`; a payment recorded on a deal that cannot take it gets none). A payment record is issued inside the transaction that confirms its direct payment (section 7.3a), once per direct payment (unique on `direct_payment_id`). An invoice row belongs to exactly one of the two.
 - The invoice number and a JSON snapshot of all its data (company details from env at that moment included) are stored in `invoices` when issued, so re-rendering later always produces the same document, byte for byte. PDFs are rendered on demand with PDFKit and never stored, in an embedded DejaVu Sans font (the built-in fonts have no rupee sign), plain black on white.
 - Each document is downloaded from `GET /deals/:id/documents/:kind` (section 16) by the deal's brand, its confirmed creator or an admin, once its payment is captured; the deal report only when the deal is COMPLETED. They are also attached to emails 4 (brand), 5, 9 and 10 (section 8).
 
@@ -333,11 +336,11 @@ In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of se
 | 3 | You were selected | Creator | Brand confirms |
 | 3b | Application not selected | Other applicants | Brand confirms someone else |
 | 4 | Commission paid | Brand (invoice attached), Creator (notice only) | Payment 1 captured |
-| 5 | Advance paid | Creator and Brand (advance receipt attached) | Payment 2 captured |
+| 5 | Advance confirmed | Creator and Brand (advance payment record attached) | The creator confirms the direct UPI advance arrived |
 | 6 | Content uploaded | Brand | Creator uploads |
 | 7 | Changes requested | Creator | Brand sends feedback (feedback text included) |
 | 8 | Content approved | Creator | Brand approves ("waiting for final payment") |
-| 9 | Final payment done | Creator and Brand (final receipt attached) | Payment 3 captured |
+| 9 | Final payment confirmed | Creator and Brand (final payment record attached) | The creator confirms the direct UPI final arrived |
 | 10 | Deal report ready | Creator and Brand (ADP attached) | Deal COMPLETED |
 | 11 | Deal cancelled | Brand, and Creator if confirmed | Deal CANCELLED, by the brand or by an admin (includes reason, and whether commission was kept) |
 | 12 | Commission payment reminder | Brand | Daily while CONFIRMED |
@@ -346,7 +349,9 @@ In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of se
 | 15 | Dispute raised | valueskinsfounder@gmail.com (`DISPUTE_EMAIL`), CC both parties | Dispute form submitted |
 | 15b | Dispute resolved | Brand and Creator | Admin resolves a dispute (includes the resolution note and the refund reference when given) |
 | 16 | (retired) Payout account status | - | Removed with the Route linked account (section 7.2) |
-| A1 | Admin alert | Admin | Webhook processing error, transfer failed |
+| 17 | Payment recorded | Creator | The brand records a direct UPI payment: "Check your UPI app and confirm" (no UPI ID in it) |
+| 18 | Payment not received | Brand and Creator, plus the admin alert A1 | The creator says a direct payment did not arrive (includes the reason) |
+| A1 | Admin alert | Admin | Webhook processing error, a creator says a direct payment did not arrive |
 
 Settlement timing copy: "Razorpay will send this to your bank account on its settlement schedule." Never promise a number of days we do not control.
 
@@ -406,11 +411,11 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
     - All time: deals created, deals completed, active creators, active brands, total value transacted.
     - This week: deals created, completed, average deal value, average time from OPEN to COMPLETED.
     - This month: deals created, completed, commission revenue (base, excluding GST), creator payouts, completion rate.
-    - Charts: deals by status, daily deals created (30 days), daily commission revenue (30 days), histogram of hours from final payment to transfer processed.
-    - Tables: recent deals, recent transfers, open disputes. Every row links to a detail view.
+    - Charts: deals by status, daily deals created (30 days), daily commission revenue (30 days), histogram of hours from a direct payment being recorded to the creator confirming it.
+    - Tables: recent deals, recent direct payments, open disputes. Every row links to a detail view.
   - **Deal list** (`GET /admin/deals?status=&q=`): every deal including drafts, newest first, filtered by status and searched by short id (prefix, any case).
-  - **Deal detail** (`GET /admin/deals/:id`): full event log, payments (with the invoice number each produced), transfers, emails (with recipient addresses, the 200 newest), disputes. Actions: cancel deal (`POST /admin/deals/:id/cancel`, admin override from ADVANCE_PAID to APPROVED only, section 5.2: requires a resolution note, optional manual refund reference, sends email 11), retry failed transfer and mark a transfer paid by hand (section 7.3), resend any email.
-  - **Resend** (`POST /admin/emails/:id/resend`): sends the stored subject and text again to the stored address and CC list as a new `email_log` row (the original stays). Only the plain text is stored, so the HTML is rebuilt from it. Invoices, receipts and the deal report that the first email carried are rebuilt from their stored snapshots (the report from the database as it is now); an attachment that cannot be rebuilt is left off and named in `missingAttachments`.
+  - **Deal detail** (`GET /admin/deals/:id`): full event log, payments (with the invoice number each produced), direct payments (every record, disputed ones too, with the UPI ID masked), emails (with recipient addresses, the 200 newest), disputes. Actions: cancel deal (`POST /admin/deals/:id/cancel`, admin override from COMMISSION_PAID to APPROVED, section 5.2: requires a resolution note, optional manual refund reference, sends email 11), resend any email. There is no transfer to retry: the advance and final are paid by the brand directly (section 7.3a).
+  - **Resend** (`POST /admin/emails/:id/resend`): sends the stored subject and text again to the stored address and CC list as a new `email_log` row (the original stays). Only the plain text is stored, so the HTML is rebuilt from it. Invoices, payment records and the deal report that the first email carried are rebuilt from their stored snapshots (the report from the database as it is now); an attachment that cannot be rebuilt is left off and named in `missingAttachments`.
   - **Disputes** (`GET /admin/disputes?status=`, `POST /admin/disputes/:id/resolve`): list, mark resolved with a resolution note and an optional refund reference (a second resolve is `409 DISPUTE_ALREADY_RESOLVED`). Email 15b goes to both parties. Resolving does not change the deal; cancelling it is a separate action.
   - Every admin route answers 404 to signed-out users and non-admins alike. The analytics (`GET /admin/analytics`) and the admin screens are not built yet.
 - Refunds, when needed, are done manually in the Razorpay dashboard. The admin records the refund id in the resolution. No automated refunds in v1.
@@ -430,6 +435,8 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 | Email verification resend | 5 per hour | User |
 | Dispute | 3 per deal per 24h (counted once the request is valid and allowed) | User |
 | Save payout UPI details | 10 per hour | User |
+| Record a direct payment | 10 per hour | User (brand) |
+| Confirm a direct payment, or say it did not arrive | 20 per hour (both together) | User (creator) |
 
 Publish and apply are counted only once the request has passed validation (and, for apply, the UPI details and deadline checks), so a form full of errors does not use up the day's allowance.
 
@@ -471,7 +478,7 @@ Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` defau
 `id, email, code_hash, expires_at, attempts, used_at, created_at`, index on `email`
 
 **deals**
-`id, short_id (unique, 8 chars, for receipts), brand_id, creator_id (nullable), title, description, budget_paise, commission_base_paise, commission_gst_paise, commission_total_paise, creator_amount_paise, advance_paise, final_paise, application_deadline date, content_upload_deadline date, deal_deadline date, status, content_link, content_uploaded_at, upload_count, feedback, revision_count, published_at, confirmed_at, commission_paid_at, advance_paid_at, approved_at, completed_at, cancelled_at, cancelled_by_id, cancelled_by_role (BRAND | ADMIN), cancellation_reason, created_at, updated_at`
+`id, short_id (unique, 8 chars, for documents and UPI payment notes), brand_id, creator_id (nullable), title, description, budget_paise, commission_base_paise, commission_gst_paise, commission_total_paise, creator_amount_paise, advance_paise, final_paise, application_deadline date, content_upload_deadline date, deal_deadline date, status, content_link, content_uploaded_at, upload_count, feedback, revision_count, published_at, confirmed_at, commission_paid_at, advance_paid_at, approved_at, completed_at, cancelled_at, cancelled_by_id, cancelled_by_role (BRAND | ADMIN), cancellation_reason, created_at, updated_at`
 A draft is saved as typed: `title`, `description` and the three deadlines are nullable, and `budget_paise` holds the budget in paise. The six breakdown columns (`commission_base_paise`, `commission_gst_paise`, `commission_total_paise`, `creator_amount_paise`, `advance_paise`, `final_paise`) are null while DRAFT and set at publish. A CHECK constraint (`deals_published_fields_check`) requires all of them to be set once the status is anything but DRAFT.
 
 **content_uploads** (history, so an edited or deleted Drive link stays on record)
@@ -481,16 +488,17 @@ A draft is saved as typed: `title`, `description` and the three deadlines are nu
 `id, deal_id, creator_id, status (APPLIED | CONFIRMED | REJECTED), created_at, updated_at`, unique `(deal_id, creator_id)`
 
 **payments**
-`id, deal_id, type (COMMISSION | ADVANCE | FINAL), amount_paise, razorpay_order_id (unique), razorpay_payment_id (unique, nullable), status (CREATED | CAPTURED | FAILED), failure_reason, captured_at, razorpay_fee_paise (nullable), razorpay_tax_paise (nullable), created_at, updated_at`
+`id, deal_id, type (COMMISSION), amount_paise, razorpay_order_id (unique), razorpay_payment_id (unique, nullable), status (CREATED | CAPTURED | FAILED), failure_reason, captured_at, razorpay_fee_paise (nullable), razorpay_tax_paise (nullable), created_at, updated_at`
 The fee and tax are Razorpay's own, from its payment entity, for the deal report (section 17). Null when not recorded.
 Partial unique indexes: one CAPTURED payment per `(deal_id, type)`, and one open (CREATED or FAILED) payment per `(deal_id, type)`.
 
-**transfers**
-`id, deal_id, payment_id, creator_id, type (ADVANCE | FINAL), amount_paise, razorpay_transfer_id (unique, nullable), status (PENDING | PROCESSED | FAILED | REVERSED), failure_reason, processed_at, razorpay_fee_paise (nullable), razorpay_tax_paise (nullable), manual_reference (nullable), manual_by_id (nullable), manual_at (nullable), created_at, updated_at`
+**direct_payments** (REPLACEMENT_PLAN 2.1)
+`id, deal_id, stage (ADVANCE | FINAL), amount_paise, reference (the UPI reference, 6 to 40 characters), paid_to_vpa (the creator's UPI ID when the brand paid), note, recorded_by, recorded_at, confirmed_by (nullable), confirmed_at (nullable), disputed_at (nullable), dispute_reason (nullable), created_at`
+CHECKs: not both confirmed and disputed; `confirmed_by` is set exactly when `confirmed_at` is; `dispute_reason` exactly when `disputed_at` is. Partial unique index on `(deal_id, stage)` where `disputed_at` is null: one live record per stage. Rows are never edited or deleted once confirmed or disputed. `paid_to_vpa` is never returned in full.
 
 **invoices**
-`id, deal_id, payment_id, kind (COMMISSION_TAX_INVOICE | ADVANCE_RECEIPT | FINAL_RECEIPT), number (unique), financial_year, sequence, snapshot jsonb, issued_at`
-Unique on `payment_id` (one invoice or receipt per payment). Numbering uses a row lock on a per-financial-year counter table (`invoice_counters`), so numbers are gapless and never duplicated. The tax invoice has its own counter; advance and final receipts share the `ADVANCE_RECEIPT` row (section 7.4).
+`id, deal_id, payment_id (nullable), direct_payment_id (nullable), kind (COMMISSION_TAX_INVOICE | ADVANCE_PAYMENT_RECORD | FINAL_PAYMENT_RECORD), number (unique), financial_year, sequence, snapshot jsonb, issued_at`
+Exactly one of `payment_id` (the commission invoice) and `direct_payment_id` (a payment record) is set, each unique. Numbering uses a row lock on a per-financial-year counter table (`invoice_counters`), so numbers are gapless and never duplicated. The tax invoice has its own counter; advance and final payment records share the `ADVANCE_PAYMENT_RECORD` row (section 7.4).
 
 **deal_events**
 `id, deal_id, from_status, to_status, actor_id (nullable), actor_type (USER | SYSTEM | ADMIN), note, metadata jsonb, created_at`
@@ -541,14 +549,14 @@ Deals
 - `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
 - `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
 - `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
-- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` (disabled until the creator's payout account is ACTIVE), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`, `RAISE_DISPUTE` (the deal's brand and confirmed creator, once the deal allows a dispute, section 12); the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
+- `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` and `PAY_FINAL` (the brand pays by UPI and records it; disabled with a reason when the creator has no UPI ID or a record waits for them), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`, `CONFIRM_PAYMENT_RECEIVED` (the confirmed creator, enabled while the brand's payment waits for them), `RAISE_DISPUTE` (the deal's brand and confirmed creator, once the deal allows a dispute, section 12); the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
 - `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
 - `POST /deals/:id/content` (the confirmed creator, body `{ link }`, from ADVANCE_PAID or REVISION_REQUESTED; a Drive or Docs https link; `409 WRONG_DEAL_STATUS`, `429 UPLOAD_LIMIT_REACHED` after 20; email 6)
 - `POST /deals/:id/feedback` (brand, body `{ feedback }`, from CONTENT_UPLOADED; email 7)
 - `POST /deals/:id/approve` (brand, from CONTENT_UPLOADED; email 8)
 - `GET /deals/:id/emails` (communication history: the deal's emails to the brand and the creator, newest first, as `{ template, subject, bodyText, status, attachmentNames, recipient { role, username }, createdAt }`, without addresses; admins see every email logged for the deal; cursor pagination)
 - `GET /deals/:id/events` (status changes from `deal_events`, oldest first, as `{ fromStatus, toStatus, actor { type, username }, note, createdAt }`; cursor pagination)
-- `GET /deals/:id/documents/:kind` (PDF: `commission-invoice`, `advance-receipt`, `final-receipt`, `adp`; the deal's brand, its confirmed creator and admins, everyone else 404; `409 DOCUMENT_NOT_AVAILABLE` until the payment is captured, and for the report until COMPLETED)
+- `GET /deals/:id/documents/:kind` (PDF: `commission-invoice`, `advance-payment-record`, `final-payment-record`, `adp`; the deal's brand, its confirmed creator and admins, everyone else 404; `409 DOCUMENT_NOT_AVAILABLE` until the payment is captured or the direct payment is confirmed, and for the report until COMPLETED)
 - `POST /deals/:id/disputes` (the deal's brand or confirmed creator, body `{ subject, description }`, answers 201 `{ dispute }`; `409 DISPUTE_NOT_ALLOWED`, `429` over 3 per deal per day; email 15)
 
 Applications
@@ -558,16 +566,20 @@ Applications
 - `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator must still have a UPI ID, name and consent saved, `409 CREATOR_PAYOUT_NOT_SET`; sends emails 3 and 3b)
 
 Payments
-- `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS` for the commission; `advance` and `final` answer `409 PAYMENT_RAIL_CHANGED` until Prompt 13)
+- `POST /deals/:id/payments/:type/order` (type: `commission` only; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS`)
 - `POST /payments/verify` (the deal's brand; body `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`; answers `{ payment: { status }, deal }`)
 - `POST /webhooks/razorpay` (no auth, signature verified, raw body)
+
+Direct payments (section 7.3a)
+- `GET /deals/:id/direct-payment` (the deal's brand; the stage due, the amount, the creator's full UPI ID and name, the `upi://pay` fields and link, or `blocked`: `no_creator | creator_has_no_upi | no_consent | not_due`)
+- `POST /deals/:id/direct-payment` (the deal's brand; body `{ stage, reference, note? }`; `201 { directPayment }`; `409 WRONG_DEAL_STATUS`, `409 CREATOR_PAYOUT_NOT_SET`, `409 DIRECT_PAYMENT_ALREADY_RECORDED`; email 17)
+- `POST /direct-payments/:id/confirm` (the deal's confirmed creator; answers `{ directPayment, deal }`; `409 DIRECT_PAYMENT_NOT_PENDING`, `409 INVALID_TRANSITION`; emails 5 or 9, then 10)
+- `POST /direct-payments/:id/not-received` (the deal's confirmed creator; body `{ reason }`; emails 18 and alert A1)
 
 Admin (`/admin/*`, admin only)
 - `GET /admin/analytics` (not built yet)
 - `GET /admin/deals` (`?status=&q=&cursor=&limit=`), `GET /admin/deals/:id`
-- `POST /admin/deals/:id/cancel` (body `{ note, refundReference? }`; from ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED or APPROVED, otherwise `409 INVALID_TRANSITION`; email 11)
-- `POST /admin/transfers/:id/retry` (answers `404` for an unknown id and otherwise `409 PAYMENT_RAIL_CHANGED`; removed in Prompt 13)
-- `POST /admin/transfers/:id/mark-manual` (body `{ reference }`; `409 TRANSFER_STATE_CONFLICT`)
+- `POST /admin/deals/:id/cancel` (body `{ note, refundReference? }`; from COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED or APPROVED, otherwise `409 INVALID_TRANSITION`; email 11)
 - `POST /admin/emails/:id/resend` (answers `{ emailLogId, status, missingAttachments }`)
 - `GET /admin/disputes` (`?status=OPEN|RESOLVED`), `POST /admin/disputes/:id/resolve` (body `{ resolution, refundReference? }`; `409 DISPUTE_ALREADY_RESOLVED`; email 15b)
 - All admin routes: 404 for everyone who is not an admin.
@@ -586,11 +598,11 @@ Generated on demand with PDFKit, same document for both parties.
 3. Terms: title, full description, budget, the three deadlines, published and confirmed dates.
 4. Money: budget, commission base, GST, commission total, creator amount, advance, final.
 5. Commission tax invoice (full).
-6. Advance receipt (full).
-7. Final receipt (full).
+6. Advance payment record (full).
+7. Final payment record (full).
 8. Delivery proof: every content link uploaded with its timestamp, number of revisions, each feedback timestamp, final approval timestamp.
-9. Transfers: Razorpay transfer ids and statuses for advance and final.
-10. Razorpay fees absorbed by ValueSkins (from Razorpay payment and transfer entities, stored on `payments` and `transfers` when captured; "Not recorded" for older rows), for information.
+9. Direct payments: every record for the advance and final, disputed and waiting ones included, with stage, amount, UPI reference, masked payee UPI ID, recorded time and its status (confirmed time, or not received with the reason).
+10. Razorpay fees absorbed by ValueSkins (from the commission payment's Razorpay entity, stored on `payments` when captured; "Not recorded" for older rows), for information. Only the commission goes through Razorpay.
 11. Event timeline from `deal_events`.
 
 ---
@@ -650,7 +662,7 @@ Staging (V0_LAUNCH 2.7) runs on Render's free Postgres plan: it expires 30 days 
 ## 21. Open decisions (sign-off needed)
 
 1. **Commission formula and minimum budget** (section 4.2). Needed before Prompt 2.
-2. **Razorpay fee handling on Route transfers** (section 4.3). Moot: Route is not used (REPLACEMENT_PLAN 0); Prompt 13 closes it.
+2. **Razorpay fee handling on Route transfers** (section 4.3). Closed: Route is not used and there are no transfers (Prompt 13).
 3. **GST and tax.** ValueSkins must be GST registered to charge GST on commission. Have the CA confirm the invoice format and SAC code, and whether marketplace TDS (Income Tax section 194-O) or GST TCS obligations apply to ValueSkins. If they apply, they change the payout math. Needed before go-live.
 4. **Stuck deals.** v1 only sends reminders when a brand does not pay the commission or does not review content. Decide whether to auto-cancel after N days in v2.
 5. **Public deal amounts** in the virtual resume (section 11).

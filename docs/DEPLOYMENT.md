@@ -91,9 +91,8 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
    - **Webhook URL:** `https://api-staging.valueskins.com/api/webhooks/razorpay`
    - **Secret:** the value from step 3. Same value as the Render variable.
    - **Alert email:** `valueskinsfounder@gmail.com`
-   - **Active events** to tick: `payment.captured`, `payment.failed`, `order.paid`. Advance and final payments are not made through Razorpay any more, but until the direct payment prompt removes the old transfer code also tick `transfer.processed` and `transfer.failed` (and `transfer.reversed` if the dashboard offers it) so any payment already in flight still completes. Any other event is stored and ignored.
+   - **Active events** to tick: `payment.captured`, `payment.failed`, `order.paid`. Only the commission goes through Razorpay (the advance and final are direct UPI payments), so no transfer or Route events are needed. Any other event is stored and ignored.
    - In test mode Razorpay may ask for an OTP; its docs give `754081` for test mode.
-   - Razorpay's Route payload page lists only `transfer.processed`, `transfer.failed` and `settlement.processed` for transfers. A reversal event (`transfer.reversed`) appears in other Razorpay material but not on that page: the API handles it if it is ever sent, and you confirm in the dashboard's event list whether it exists.
 6. Payment capture must be **automatic** (**Accounts & Settings**, the payment capture setting). The API creates Orders without a capture flag; with manual capture, payments stop at `authorized` and the API answers "not captured" instead of moving the deal.
 
 The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on staging. Never put a live key on staging.
@@ -282,7 +281,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
     Expected: every call answers with JSON and no `error`; the deal ends `CONFIRMED`; emails 1, 2 and 3 arrive; a second `confirm` answers `409`. To cancel instead: `call POST /deals/$DEAL/cancel brand.jar '{"reason":"changed plans"}'` while the deal is `OPEN`, `CONFIRMED` or `COMMISSION_PAID`.
 
-12. **Payments: the commission (test mode).** Prerequisites: step 11 done so a deal is `CONFIRMED`; the webhook from section 6 step 4 registered with the payment events ticked; automatic capture on (section 6 step 6). Use a Razorpay test card or test UPI id from Razorpay's test-payment page. Nothing real is charged.
+12. **The three payments (test mode).** Prerequisites: step 11 done so a deal is `CONFIRMED` with a creator who has saved a UPI ID (step 9); the webhook from section 6 step 4 registered with the payment events ticked; automatic capture on (section 6 step 6). The commission uses a Razorpay test card or test UPI id from Razorpay's test-payment page; nothing real is charged. The advance and final are paid outside Razorpay and need no money to move.
 
     In a Render **Shell**, define a small query helper once:
 
@@ -292,12 +291,40 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     ```
 
     1. **Commission.** Signed in as the brand in a browser, open `https://staging.valueskins.com/deals/<DEAL>/pay`. Click **Pay commission: ...**, pay in Checkout. Expected: the page says "Payment recorded.", the deal moves to `COMMISSION_PAID`, and the brand and creator get an email. If the page shows an error, `q "select * from webhook_events order by received_at desc limit 5"` shows what Razorpay sent and any error.
-    2. **Advance and final cannot be paid yet.** Razorpay Route is not available, and the direct UPI payment (the brand pays the creator by UPI, the creator confirms) is built in the next prompt. Until then `POST /deals/$DEAL/payments/advance/order` and `.../final/order` answer `409 PAYMENT_RAIL_CHANGED`, and the pay page shows the advance button disabled with "Paying the creator directly is not available yet". Check it: `call POST /deals/$DEAL/payments/advance/order brand.jar '{}'` (the deal must be `COMMISSION_PAID`).
-    3. **Upload, approval, final payment and the four PDFs** need a deal that reached `ADVANCE_PAID`, which staging cannot do through the API until the next prompt. The curl calls in this step's earlier versions are removed; they return with the direct payment prompt.
+    2. **Advance: pay the creator by UPI, record it, the creator confirms.** The advance is not paid through Razorpay. The brand pays the creator's UPI ID itself, and the creator confirms the money arrived; that confirmation is what moves the deal. With the deal in `COMMISSION_PAID`:
 
-    The fee payment is captured in one place only: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"` shows the commission as `CAPTURED`, and the invoice is `GET /deals/$DEAL/documents/commission-invoice`. A tax invoice is issued only when GST is charged (`GST_RATE_BPS` above 0); with GST 0 it is titled "Invoice".
+       ```bash
+       call GET /deals/$DEAL/direct-payment brand.jar          # the amount, the creator's name and UPI ID, upiUri, "blocked" if not payable
+       call POST /deals/$DEAL/direct-payment brand.jar '{"stage":"ADVANCE","reference":"TEST12345678"}'   # records it; the deal does not move; email 17 to the creator
+       call GET /deals/$DEAL creator.jar                       # directPayments[0].id, status AWAITING_CONFIRMATION, action CONFIRM_PAYMENT_RECEIVED
+       DP=PASTE-THE-RECORD-ID
+       call POST /direct-payments/$DP/confirm creator.jar '{}' # ADVANCE_PAID, email 5 to both with the payment record PDF
+       ```
 
-13. **Disputes and the admin API (curl).** Needs a deal from step 12 (any status from `ADVANCE_PAID`), and your admin session: sign in at `https://staging.valueskins.com` with the Instagram account listed in `ADMIN_INSTAGRAM_USER_IDS` (section 14), then copy the value of the `vs_session_staging` cookie from the browser's developer tools (Application > Cookies). Admin accounts are Instagram accounts: an email-only account is never an admin. Every admin route answers 404 to anyone else, so a 404 on the first call means the cookie or the admin id is wrong.
+       To try the other path first, say it did not arrive: `call POST /direct-payments/$DP/not-received creator.jar '{"reason":"Nothing arrived"}'` (emails 18 and an admin alert; the deal stays in `COMMISSION_PAID`), then record again with another reference.
+    3. **Check the UPI link and QR code on a phone.** Open `https://staging.valueskins.com/deals/<DEAL>/pay` as the brand while the advance is due. It shows the payee name, the UPI ID, the amount, **Open in a UPI app** and a QR code. Scan the QR code, or open the link on a phone with a UPI app: the app must show the creator's name on the account and exactly the advance amount. **You do not need to send the money**: close the app, then record any reference (6 to 40 characters) and confirm as the creator.
+    4. **Upload and approve.** With the deal in `ADVANCE_PAID`:
+
+       ```bash
+       call POST /deals/$DEAL/content creator.jar '{"link":"https://drive.google.com/file/d/test/view"}'   # CONTENT_UPLOADED, email 6 to the brand
+       call POST /deals/$DEAL/approve brand.jar '{}'                                                        # APPROVED, email 8 to the creator
+       ```
+
+       To try a revision first: `call POST /deals/$DEAL/feedback brand.jar '{"feedback":"Please reshoot the intro"}'` (email 7), then upload again.
+    5. **Final: the same, with `"stage":"FINAL"`.** `GET /deals/$DEAL/direct-payment` now returns the final; record it and confirm as the creator. Expected: `COMPLETED`, email 9 to both with the final payment record attached, then email 10 with the deal report.
+    6. **The four PDFs.** Download them as the brand (or the creator) and open them:
+
+       ```bash
+       for kind in commission-invoice advance-payment-record final-payment-record adp; do curl -sS -b brand.jar -o "$kind.pdf" "$API/deals/$DEAL/documents/$kind"; done
+       ```
+
+       Expected: four PDFs with the rupee sign showing, the numbers `VS/...` on the invoice and `VS-PR/...` on the two payment records, and the wording "Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money." on the records. The creator's UPI ID is masked on every document, and the deal report lists every direct payment, a not-received one included. `call GET /deals/$DEAL/emails brand.jar` and `call GET /deals/$DEAL/events brand.jar` show the deal's communication history and timeline.
+
+    Deals paid through Route before Prompt 13 have no payment records: use a fresh deal. With GST 0 the commission document is titled "Invoice" with no tax lines.
+
+    The fee is the only Razorpay payment: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"` shows the commission as `CAPTURED`, and `direct_payments` holds the other two: `q "select stage, amount_paise, reference, confirmed_at, disputed_at from direct_payments where deal_id = '$DEAL' order by recorded_at"`. The three amounts add up to the budget.
+
+13. **Disputes and the admin API (curl).** Needs a deal from step 12 (any status from `COMMISSION_PAID`), and your admin session: sign in at `https://staging.valueskins.com` with the Instagram account listed in `ADMIN_INSTAGRAM_USER_IDS` (section 14), then copy the value of the `vs_session_staging` cookie from the browser's developer tools (Application > Cookies). Admin accounts are Instagram accounts: an email-only account is never an admin. Every admin route answers 404 to anyone else, so a 404 on the first call means the cookie or the admin id is wrong.
 
     ```bash
     ADMIN_SESSION=PASTE-THE-COOKIE-VALUE
@@ -317,16 +344,11 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     acall GET /admin/deals/$DEAL
     acall POST /admin/deals/$DEAL/cancel '{"note":"Creator unreachable; refunded in the Razorpay dashboard","refundReference":"rfnd_test_1"}'
 
-    # 4. Transfers: retry a failed one, or mark it paid by hand (reference required: where you paid it from).
-    TRANSFER=PASTE-THE-TRANSFER-ID                          # from /admin/deals/$DEAL, "transfers"
-    acall POST /admin/transfers/$TRANSFER/retry '{}'          # answers 409 PAYMENT_RAIL_CHANGED: Route is not available
-    acall POST /admin/transfers/$TRANSFER/mark-manual '{"reference":"UTR123456789"}'
-
-    # 5. Resend any email (the id is in /admin/deals/$DEAL, "emails"). Invoices and receipts are attached again.
+    # 4. Resend any email (the id is in /admin/deals/$DEAL, "emails"). Invoices and payment records are attached again.
     acall POST /admin/emails/PASTE-THE-EMAIL-ID/resend '{}'
     ```
 
-    Refunds are never moved by the API: refund in the Razorpay dashboard first, then record the refund id in the cancel or resolve call. **Retry** never calls Razorpay now (Route is not available) and answers `409 PAYMENT_RAIL_CHANGED`; pay the creator by UPI yourself and record it with **mark-manual**, after which the transfer is closed. The next prompt replaces transfers with direct payment records.
+    The API never moves money. The advance and final are paid by the brand directly to the creator, so an admin who cancels a deal records any refund the parties arranged in the cancel or resolve call (the optional reference); the commission is refunded by hand in the Razorpay dashboard, if at all. `/admin/deals/$DEAL` lists every direct payment, a not-received one included.
 
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
@@ -452,8 +474,8 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.
 - **Invoices for older payments:** payments captured before invoicing shipped have no invoice, receipt or deal report. Documents are rendered on demand and never stored.
+- **Migration 0008 is destructive on staging.** It deletes the old Route advance and final payments, their receipts and the receipt counter, drops the `transfers` table, and renumbers payment records from `VS-PR/.../000001`. Deals already past `COMMISSION_PAID` keep their status but have no direct payment records: use fresh deals.
 - **Migration 0007 is destructive on staging.** It drops the `creator_payout_accounts` table, so test creators' old Route linked-account rows are gone and every creator must save a UPI ID (section 13 step 9) before applying. Linked accounts in Razorpay's dashboard are not touched.
-- **Failed transfers** (old Route payments only) alert the admin by email; mark-manual is an API call (step 13 of section 13), retry answers 409. There is no admin screen yet (SPEC 12). The admin analytics are not built.
 - **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Re-trigger the delivery from Razorpay's dashboard to catch up.
 - **Deleting an account** does not yet remove brand billing rows (the creator's UPI details are cleared).
