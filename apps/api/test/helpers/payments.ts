@@ -121,19 +121,6 @@ export function paymentFailedEvent(
   };
 }
 
-export function transferEvent(
-  event: 'transfer.processed' | 'transfer.failed' | 'transfer.reversed',
-  transfer: Record<string, unknown>,
-) {
-  return {
-    entity: 'event',
-    event,
-    contains: ['transfer'],
-    created_at: 1_790_000_000,
-    payload: { transfer: { entity: { entity: 'transfer', ...transfer } } },
-  };
-}
-
 export async function paymentRow(orderId: string) {
   const [row] = await db.select().from(payments).where(eq(payments.razorpayOrderId, orderId));
   return row;

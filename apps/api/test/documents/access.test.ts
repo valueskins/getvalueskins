@@ -54,8 +54,8 @@ describe('GET /api/deals/:id/documents/:kind', () => {
     const admin = await createUserWithSession({ isAdmin: true });
     const expected = {
       'commission-invoice': 'VS-2026-27-000001.pdf',
-      'advance-receipt': 'VS-R-2026-27-000001.pdf',
-      'final-receipt': 'VS-R-2026-27-000002.pdf',
+      'advance-payment-record': 'VS-PR-2026-27-000001.pdf',
+      'final-payment-record': 'VS-PR-2026-27-000002.pdf',
       adp: `ValueSkins-Deal-Report-${deal.shortId}.pdf`,
     };
 
@@ -74,17 +74,19 @@ describe('GET /api/deals/:id/documents/:kind', () => {
   it('each document exists only once its payment is captured, and the report only when COMPLETED', async () => {
     const { brand, creator, deal } = await runDeal(call, razorpay, 'COMMISSION_PAID');
     expect((await doc(brand.cookie, deal.id, 'commission-invoice')).status).toBe(200);
-    for (const kind of ['advance-receipt', 'final-receipt', 'adp']) {
+    for (const kind of ['advance-payment-record', 'final-payment-record', 'adp']) {
       const res = await doc(creator.cookie, deal.id, kind);
       expect(res.status, kind).toBe(409);
       expect(res.body.error.code).toBe('DOCUMENT_NOT_AVAILABLE');
     }
 
     const advanced = await runDeal(call, razorpay, 'APPROVED');
-    expect((await doc(advanced.brand.cookie, advanced.deal.id, 'advance-receipt')).status).toBe(
-      200,
-    );
-    expect((await doc(advanced.brand.cookie, advanced.deal.id, 'final-receipt')).status).toBe(409);
+    expect(
+      (await doc(advanced.brand.cookie, advanced.deal.id, 'advance-payment-record')).status,
+    ).toBe(200);
+    expect(
+      (await doc(advanced.brand.cookie, advanced.deal.id, 'final-payment-record')).status,
+    ).toBe(409);
     // Approved is not completed: the deal report waits for the final payment.
     expect((await doc(advanced.brand.cookie, advanced.deal.id, 'adp')).status).toBe(409);
   });
@@ -93,7 +95,12 @@ describe('GET /api/deals/:id/documents/:kind', () => {
     const { deal } = await runDeal(call, razorpay, 'COMPLETED');
     const otherBrand = await brandWithBilling();
     const otherCreator = await creatorWithPayout();
-    for (const kind of ['commission-invoice', 'advance-receipt', 'final-receipt', 'adp']) {
+    for (const kind of [
+      'commission-invoice',
+      'advance-payment-record',
+      'final-payment-record',
+      'adp',
+    ]) {
       expect((await doc(otherBrand.cookie, deal.id, kind)).status, kind).toBe(404);
       expect((await doc(otherCreator.cookie, deal.id, kind)).status, kind).toBe(404);
       expect((await doc(undefined, deal.id, kind)).status, kind).toBe(401);
@@ -109,7 +116,7 @@ describe('GET /api/deals/:id/documents/:kind', () => {
   it('re-rendering from the stored snapshot gives the same bytes, even after the billing details and company env change', async () => {
     const { brand, deal } = await runDeal(call, razorpay, 'COMPLETED');
     const before = await doc(brand.cookie, deal.id, 'commission-invoice');
-    const beforeReceipt = await doc(brand.cookie, deal.id, 'advance-receipt');
+    const beforeReceipt = await doc(brand.cookie, deal.id, 'advance-payment-record');
 
     await db
       .update(brandBilling)
@@ -126,13 +133,13 @@ describe('GET /api/deals/:id/documents/:kind', () => {
       `/api/deals/${deal.id}/documents/commission-invoice`,
       brand.cookie,
     );
-    const afterReceipt = await otherEnvApp.get(
-      `/api/deals/${deal.id}/documents/advance-receipt`,
+    const afterRecord = await otherEnvApp.get(
+      `/api/deals/${deal.id}/documents/advance-payment-record`,
       brand.cookie,
     );
     expect(after.status).toBe(200);
     expect((after.body as Buffer).equals(before.body as Buffer)).toBe(true);
-    expect((afterReceipt.body as Buffer).equals(beforeReceipt.body as Buffer)).toBe(true);
+    expect((afterRecord.body as Buffer).equals(beforeReceipt.body as Buffer)).toBe(true);
   });
 
   it('a payment captured on a deal that cannot take it gets no invoice and no document', async () => {

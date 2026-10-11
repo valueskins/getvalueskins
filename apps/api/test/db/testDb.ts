@@ -10,7 +10,7 @@ const TABLES_IN_DELETE_ORDER = [
   'disputes',
   'invoices',
   'invoice_counters',
-  'transfers',
+  'direct_payments',
   'payments',
   'content_uploads',
   'applications',

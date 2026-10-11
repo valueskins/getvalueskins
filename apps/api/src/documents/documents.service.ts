@@ -15,8 +15,8 @@ export interface RenderedDocument {
 
 const KIND_BY_PARAM: Record<Exclude<DocumentKind, 'adp'>, InvoiceKind> = {
   'commission-invoice': 'COMMISSION_TAX_INVOICE',
-  'advance-receipt': 'ADVANCE_RECEIPT',
-  'final-receipt': 'FINAL_RECEIPT',
+  'advance-payment-record': 'ADVANCE_PAYMENT_RECORD',
+  'final-payment-record': 'FINAL_PAYMENT_RECORD',
 };
 
 function notAvailable(): AppError {
@@ -32,7 +32,19 @@ async function renderInvoiceRow(row: typeof invoices.$inferSelect): Promise<Rend
   return { filename: invoiceFilename(snapshot), content };
 }
 
-/** The invoice or receipt for one payment, rendered from its stored snapshot. Null if none was issued. */
+/** The payment record of one confirmed direct payment, from its stored snapshot. Null if none was issued. */
+export async function renderRecordForDirectPayment(
+  directPaymentId: string,
+): Promise<RenderedDocument | null> {
+  const [row] = await db
+    .select()
+    .from(invoices)
+    .where(eq(invoices.directPaymentId, directPaymentId))
+    .limit(1);
+  return row ? renderInvoiceRow(row) : null;
+}
+
+/** The commission invoice for one payment, rendered from its stored snapshot. Null if none was issued. */
 export async function renderInvoiceForPayment(paymentId: string): Promise<RenderedDocument | null> {
   const [row] = await db.select().from(invoices).where(eq(invoices.paymentId, paymentId)).limit(1);
   return row ? renderInvoiceRow(row) : null;

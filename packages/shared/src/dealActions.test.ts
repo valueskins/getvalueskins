@@ -4,7 +4,9 @@ import {
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
-  DIRECT_PAYMENT_NOT_AVAILABLE,
+  CREATOR_HAS_NO_UPI,
+  NO_PAYMENT_RECORDED_YET,
+  WAITING_FOR_CREATOR_TO_CONFIRM,
   UPLOAD_LIMIT_REACHED,
   NO_APPLICATIONS_YET,
   ADD_UPI_TO_APPLY,
@@ -22,6 +24,8 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     payoutSet: true,
     uploadCount: 1,
     hasCreator: true,
+    creatorPayoutSet: true,
+    pendingRecord: false,
     hasBilling: true,
     publishIssues: [],
     ...overrides,
@@ -71,17 +75,40 @@ describe('computeDealActions: brand owner', () => {
     ]);
   });
 
-  it('COMMISSION_PAID: the advance is disabled with a reason until direct payments exist, cancel stays', () => {
+  it('COMMISSION_PAID: pay the advance by UPI once the creator has a UPI ID, or cancel', () => {
     expect(summary({ status: 'COMMISSION_PAID' })).toEqual([
-      ['PAY_ADVANCE', false, DIRECT_PAYMENT_NOT_AVAILABLE],
+      ['PAY_ADVANCE', true, null],
       ['CANCEL', true, null],
       ['RAISE_DISPUTE', true, null],
     ]);
   });
 
-  it('APPROVED: the final is disabled with a reason; cancel is disabled with the SPEC reason', () => {
+  it.each([
+    ['COMMISSION_PAID', 'PAY_ADVANCE'],
+    ['APPROVED', 'PAY_FINAL'],
+  ] as const)('%s: %s says why it is disabled', (status, action) => {
+    const reasonOf = (overrides: Partial<DealActionsInput>) =>
+      computeDealActions(input({ status, ...overrides })).find((a) => a.action === action);
+
+    expect(reasonOf({ creatorPayoutSet: false })).toEqual({
+      action,
+      enabled: false,
+      reason: CREATOR_HAS_NO_UPI,
+    });
+    expect(reasonOf({ pendingRecord: true })).toEqual({
+      action,
+      enabled: false,
+      reason: WAITING_FOR_CREATOR_TO_CONFIRM,
+    });
+    // A record waiting for the creator wins over everything else.
+    expect(reasonOf({ pendingRecord: true, creatorPayoutSet: false })?.reason).toBe(
+      WAITING_FOR_CREATOR_TO_CONFIRM,
+    );
+  });
+
+  it('APPROVED: pay the final by UPI; cancel is disabled with the SPEC reason', () => {
     expect(summary({ status: 'APPROVED' })).toEqual([
-      ['PAY_FINAL', false, DIRECT_PAYMENT_NOT_AVAILABLE],
+      ['PAY_FINAL', true, null],
       ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
       ['RAISE_DISPUTE', true, null],
     ]);
@@ -192,11 +219,15 @@ describe('computeDealActions: confirmed creator', () => {
   });
 
   it.each(DEAL_STATUSES.filter((s) => s !== 'ADVANCE_PAID' && s !== 'REVISION_REQUESTED'))(
-    '%s: nothing but a dispute',
+    '%s: nothing but a dispute (and the payment confirmation)',
     (status) => {
       const early = status === 'DRAFT' || status === 'OPEN';
+      const confirm: Array<[string, boolean, string | null]> =
+        status === 'COMMISSION_PAID' || status === 'APPROVED'
+          ? [['CONFIRM_PAYMENT_RECEIVED', false, NO_PAYMENT_RECORDED_YET]]
+          : [];
       expect(summary({ viewer: 'CONFIRMED_CREATOR', status })).toEqual(
-        early ? [] : [['RAISE_DISPUTE', true, null]],
+        early ? [] : [...confirm, ['RAISE_DISPUTE', true, null]],
       );
     },
   );
@@ -204,6 +235,42 @@ describe('computeDealActions: confirmed creator', () => {
   it('other creators never get upload actions', () => {
     for (const status of DEAL_STATUSES.filter((s) => s !== 'OPEN')) {
       expect(summary({ viewer: 'CREATOR', status })).toEqual([]);
+    }
+  });
+});
+
+describe('computeDealActions: confirming a direct payment', () => {
+  it.each(['COMMISSION_PAID', 'APPROVED'] as DealStatus[])(
+    '%s: the confirmed creator can confirm only once a payment is recorded',
+    (status) => {
+      expect(
+        summary({ viewer: 'CONFIRMED_CREATOR', status, pendingRecord: true }).find(
+          ([a]) => a === 'CONFIRM_PAYMENT_RECEIVED',
+        ),
+      ).toEqual(['CONFIRM_PAYMENT_RECEIVED', true, null]);
+      expect(
+        summary({ viewer: 'CONFIRMED_CREATOR', status }).find(
+          ([a]) => a === 'CONFIRM_PAYMENT_RECEIVED',
+        ),
+      ).toEqual(['CONFIRM_PAYMENT_RECEIVED', false, NO_PAYMENT_RECORDED_YET]);
+    },
+  );
+
+  it.each(DEAL_STATUSES.filter((s) => s !== 'COMMISSION_PAID' && s !== 'APPROVED'))(
+    '%s: no confirm action',
+    (status) => {
+      const actions = summary({ viewer: 'CONFIRMED_CREATOR', status, pendingRecord: true });
+      expect(actions.map(([a]) => a)).not.toContain('CONFIRM_PAYMENT_RECEIVED');
+    },
+  );
+
+  it('nobody else is offered it, and the brand never gets it', () => {
+    for (const viewer of ['BRAND_OWNER', 'CREATOR', 'NONE'] as const) {
+      for (const status of ['COMMISSION_PAID', 'APPROVED'] as DealStatus[]) {
+        expect(summary({ viewer, status, pendingRecord: true }).map(([a]) => a)).not.toContain(
+          'CONFIRM_PAYMENT_RECEIVED',
+        );
+      }
     }
   });
 });

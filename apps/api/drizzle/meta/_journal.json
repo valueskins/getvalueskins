@@ -57,6 +57,13 @@
       "when": 1791656097946,
       "tag": "0007_yielding_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791722206912,
+      "tag": "0008_gifted_synch",
+      "breakpoints": true
     }
   ]
 }

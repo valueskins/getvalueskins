@@ -9,22 +9,21 @@ export type CancelledByRole = (typeof CANCELLED_BY_ROLES)[number];
 export const APPLICATION_STATUSES = ['APPLIED', 'CONFIRMED', 'REJECTED'] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
-export const PAYMENT_TYPES = ['COMMISSION', 'ADVANCE', 'FINAL'] as const;
+/** Only the ValueSkins fee goes through Razorpay; the creator's share is a direct payment. */
+export const PAYMENT_TYPES = ['COMMISSION'] as const;
 export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
 export const PAYMENT_STATUSES = ['CREATED', 'CAPTURED', 'FAILED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const TRANSFER_TYPES = ['ADVANCE', 'FINAL'] as const;
-export type TransferType = (typeof TRANSFER_TYPES)[number];
-
-export const TRANSFER_STATUSES = ['PENDING', 'PROCESSED', 'FAILED', 'REVERSED'] as const;
-export type TransferStatus = (typeof TRANSFER_STATUSES)[number];
+/** The two direct brand-to-creator UPI payments (REPLACEMENT_PLAN 2.1). */
+export const DIRECT_PAYMENT_STAGES = ['ADVANCE', 'FINAL'] as const;
+export type DirectPaymentStage = (typeof DIRECT_PAYMENT_STAGES)[number];
 
 export const INVOICE_KINDS = [
   'COMMISSION_TAX_INVOICE',
-  'ADVANCE_RECEIPT',
-  'FINAL_RECEIPT',
+  'ADVANCE_PAYMENT_RECORD',
+  'FINAL_PAYMENT_RECORD',
 ] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
@@ -58,6 +57,8 @@ export const EMAIL_TEMPLATES = [
   'REVIEW_REMINDER',
   'DISPUTE_RAISED',
   'DISPUTE_RESOLVED',
+  'DIRECT_PAYMENT_RECORDED',
+  'DIRECT_PAYMENT_NOT_RECEIVED',
   'ADMIN_ALERT',
   'SIGN_IN_CODE',
 ] as const;

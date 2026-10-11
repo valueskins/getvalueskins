@@ -134,17 +134,6 @@ describe('payments partial unique index: one CAPTURED per (deal_id, type)', () =
         status: 'CREATED',
       }),
     ).rejects.toMatchObject({ cause: { code: '23505' } });
-
-    // A different payment type on the same deal is independent.
-    await expect(
-      db.insert(payments).values({
-        dealId,
-        type: 'ADVANCE',
-        amountPaise: 277_500,
-        razorpayOrderId: 'order_unique_test_7',
-        status: 'CREATED',
-      }),
-    ).resolves.toBeDefined();
   });
 });
 

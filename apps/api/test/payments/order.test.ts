@@ -84,46 +84,18 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
     });
   });
 
-  describe('advance and final: the rail changed (REPLACEMENT_PLAN 2.1)', () => {
+  describe('advance and final are not Razorpay payments (REPLACEMENT_PLAN 2.1)', () => {
     it.each(['advance', 'final'])(
-      '%s answers 409 PAYMENT_RAIL_CHANGED to the deal brand in every status, and creates nothing',
+      '%s is not a payment type here: 400, no order, no payments row',
       async (type) => {
-        const brand = await brandWithBilling();
-        const creator = await creatorWithPayout();
-        for (const status of DEAL_STATUSES) {
-          const deal = await insertDeal(brand.user.id, status, { creatorId: creator.user.id });
-          const res = await order(brand.cookie, deal.id, type);
-          expect(res.status, `${type} in ${status}`).toBe(409);
-          expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
-        }
+        const { brand, deal } = await fixture('COMMISSION_PAID');
+        const res = await order(brand.cookie, deal.id, type);
+        expect(res.status).toBe(400);
+        expect(res.body.error.code).toBe('VALIDATION_ERROR');
         expect(razorpay.orderAttempts).toBe(0);
         expect(await db.select().from(payments)).toHaveLength(0);
       },
     );
-
-    it('does not reuse an advance or final order that already exists', async () => {
-      const { brand, deal } = await fixture('COMMISSION_PAID');
-      await db.insert(payments).values({
-        dealId: deal.id,
-        type: 'ADVANCE',
-        amountPaise: deal.advancePaise!,
-        razorpayOrderId: 'order_old_route',
-      });
-      const res = await order(brand.cookie, deal.id, 'advance');
-      expect(res.status).toBe(409);
-      expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
-      expect(razorpay.orderAttempts).toBe(0);
-    });
-
-    it('still answers 404 to anyone but the deal brand, 403 to a creator and 401 signed out', async () => {
-      const { deal, creator } = await fixture('COMMISSION_PAID');
-      const otherBrand = await brandWithBilling();
-      expect((await order(otherBrand.cookie, deal.id, 'advance')).status).toBe(404);
-      expect((await order(creator.cookie, deal.id, 'final')).status).toBe(403);
-      expect((await call.send('post', `/api/deals/${deal.id}/payments/advance/order`)).status).toBe(
-        401,
-      );
-    });
   });
 
   describe('one open order per deal and type', () => {

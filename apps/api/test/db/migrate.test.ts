@@ -13,7 +13,7 @@ const EXPECTED_TABLES = [
   'content_uploads',
   'applications',
   'payments',
-  'transfers',
+  'direct_payments',
   'invoices',
   'invoice_counters',
   'deal_events',

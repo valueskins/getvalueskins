@@ -6,8 +6,8 @@ import {
   disputes,
   emailLog,
   invoices,
+  directPayments,
   payments,
-  transfers,
   webhookEvents,
 } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
@@ -69,7 +69,7 @@ function expectNoSecrets(label: string, text: string, options: { nameAllowed?: b
   }
 }
 
-describe('the full UPI ID is shown to nobody yet (Prompt 13 adds the confirmed brand)', () => {
+describe('the full UPI ID is shown only to the confirmed brand while a payment is due (see directPayments tests)', () => {
   it('appears in no response, whoever asks', async () => {
     const creator = await creatorWhoSaved();
     const brand = await brandWithBilling();
@@ -101,6 +101,8 @@ describe('the full UPI ID is shown to nobody yet (Prompt 13 adds the confirmed b
         [who, `/api/deals/${advance.id}`, cookie],
         [who, `/api/deals/${advance.id}/emails`, cookie],
         [who, `/api/deals/${advance.id}/events`, cookie],
+        [who, `/api/deals/${confirmed.id}/direct-payment`, cookie],
+        [who, `/api/deals/${advance.id}/direct-payment`, cookie],
         [who, '/api/admin/deals', cookie],
         [who, `/api/admin/deals/${advance.id}`, cookie],
         [who, '/api/admin/disputes', cookie],
@@ -117,7 +119,7 @@ describe('the full UPI ID is shown to nobody yet (Prompt 13 adds the confirmed b
     expect(answered).toBeGreaterThan(30);
   });
 
-  it('appears in no stored email, event, payment, transfer, invoice, dispute or webhook row', async () => {
+  it('appears in no stored email, event, payment, direct payment, invoice, dispute or webhook row', async () => {
     const creator = await creatorWhoSaved();
     const brand = await brandWithBilling();
     const open = await insertDeal(brand.user.id, 'OPEN');
@@ -136,7 +138,7 @@ describe('the full UPI ID is shown to nobody yet (Prompt 13 adds the confirmed b
       emails: await db.select().from(emailLog),
       events: await db.select().from(dealEvents),
       payments: await db.select().from(payments),
-      transfers: await db.select().from(transfers),
+      directPayments: await db.select().from(directPayments),
       invoices: await db.select().from(invoices),
       disputes: await db.select().from(disputes),
       webhooks: await db.select().from(webhookEvents),

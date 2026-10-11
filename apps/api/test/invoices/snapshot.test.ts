@@ -5,7 +5,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
 import { brandBilling, invoices } from '../../src/db/schema/index.js';
-import { buildInvoiceSnapshot, type SnapshotInput } from '../../src/invoices/snapshot.js';
+import {
+  buildInvoiceSnapshot,
+  buildPaymentRecordSnapshot,
+  type CommissionSnapshotInput,
+} from '../../src/invoices/snapshot.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import {
   NOW,
@@ -31,10 +35,11 @@ const COMPANY = {
   sacCode: '998311',
 };
 
-function commissionInput(overrides: Partial<SnapshotInput> = {}): SnapshotInput {
+function commissionInput(
+  overrides: Partial<CommissionSnapshotInput> = {},
+): CommissionSnapshotInput {
   const b = computeBreakdown(10_000_00, 1800);
   return {
-    kind: 'COMMISSION_TAX_INVOICE',
     number: 'VS/2026-27/000001',
     financialYear: '2026-27',
     issuedAt: NOW,
@@ -53,14 +58,11 @@ function commissionInput(overrides: Partial<SnapshotInput> = {}): SnapshotInput 
       gstin: null,
     },
     payment: {
-      type: 'COMMISSION',
       amountPaise: b.commissionTotalPaise,
       razorpayOrderId: 'order_1',
       razorpayPaymentId: 'pay_1',
       capturedAt: NOW,
     },
-    creator: null,
-    transferId: null,
     ...overrides,
   };
 }
@@ -174,47 +176,60 @@ describe('buildInvoiceSnapshot: the commission invoice', () => {
   });
 });
 
-describe('buildInvoiceSnapshot: receipts', () => {
-  const receipt = (kind: 'ADVANCE_RECEIPT' | 'FINAL_RECEIPT', transferId: string | null) =>
-    buildInvoiceSnapshot(
-      commissionInput({
-        kind,
-        number: 'VS-R/2026-27/000001',
-        payment: {
-          type: kind === 'ADVANCE_RECEIPT' ? 'ADVANCE' : 'FINAL',
-          amountPaise: 277_500,
-          razorpayOrderId: 'order_2',
-          razorpayPaymentId: 'pay_2',
-          capturedAt: NOW,
-        },
-        creator: { name: 'Creator Name', username: 'creator_one', instagramUserId: 'ig_1' },
-        transferId,
-      }),
-    );
-
-  it('is a non-GST payment receipt naming the creator, the amount and the transfer', () => {
-    const s = receipt('ADVANCE_RECEIPT', 'trf_1');
-    expect(s).toMatchObject({
-      title: 'Payment Receipt',
-      totalPaise: 277_500,
-      gstRateBps: 0,
-      placeOfSupply: null,
-      tax: { kind: 'NONE' },
-      receipt: {
-        creatorUsername: 'creator_one',
-        creatorInstagramUserId: 'ig_1',
-        transferId: 'trf_1',
+describe('buildPaymentRecordSnapshot: the advance and final payment records', () => {
+  const record = (
+    kind: 'ADVANCE_PAYMENT_RECORD' | 'FINAL_PAYMENT_RECORD',
+    note: string | null = null,
+  ) =>
+    buildPaymentRecordSnapshot({
+      kind,
+      number: 'VS-PR/2026-27/000001',
+      financialYear: '2026-27',
+      issuedAt: NOW,
+      company: COMPANY,
+      deal: { shortId: 'ABCD2345', title: 'Summer reels' },
+      brandBillingName: 'Brand Pvt Ltd',
+      stage: kind === 'ADVANCE_PAYMENT_RECORD' ? 'ADVANCE' : 'FINAL',
+      amountPaise: 277_500,
+      reference: 'UTR123456789',
+      note,
+      payee: {
+        name: 'Creator Name',
+        maskedVpa: 'cr\u2022\u2022\u2022@okaxis',
+        username: 'creator_one',
+        instagramUserId: 'ig_1',
       },
+      recordedAt: new Date('2026-10-09T03:00:00Z'),
+      confirmedAt: NOW,
     });
-    expect(s.lines[0]!.description).toContain('Advance payment to Creator Name');
-    expect(receipt('FINAL_RECEIPT', null).lines[0]!.description).toContain('Final payment');
-    expect(receipt('FINAL_RECEIPT', null).receipt?.transferId).toBeNull();
+
+  it('names the creator, the amount, the reference and both times, with a masked UPI ID', () => {
+    const s = record('ADVANCE_PAYMENT_RECORD', 'paid at noon');
+    expect(s).toMatchObject({
+      kind: 'ADVANCE_PAYMENT_RECORD',
+      title: 'Payment Record',
+      stage: 'ADVANCE',
+      amountPaise: 277_500,
+      reference: 'UTR123456789',
+      note: 'paid at noon',
+      payee: {
+        username: 'creator_one',
+        instagramUserId: 'ig_1',
+        maskedVpa: 'cr\u2022\u2022\u2022@okaxis',
+      },
+      recordedAt: '2026-10-09T03:00:00.000Z',
+      confirmedAt: NOW.toISOString(),
+    });
+    expect(record('FINAL_PAYMENT_RECORD').stage).toBe('FINAL');
+    expect(record('FINAL_PAYMENT_RECORD').note).toBeNull();
   });
 
-  it('needs a creator', () => {
-    expect(() =>
-      buildInvoiceSnapshot(commissionInput({ kind: 'ADVANCE_RECEIPT', creator: null })),
-    ).toThrow(/needs a creator/);
+  it('has no tax, no Razorpay id and no transfer, and is valid against the shared schema', () => {
+    const s = record('FINAL_PAYMENT_RECORD');
+    expect(invoiceSnapshotSchema.safeParse(s).success).toBe(true);
+    for (const key of ['tax', 'payment', 'receipt', 'gstRateBps', 'placeOfSupply']) {
+      expect(s).not.toHaveProperty(key);
+    }
   });
 });
 

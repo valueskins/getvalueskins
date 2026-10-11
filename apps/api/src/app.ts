@@ -3,6 +3,7 @@ import './auth/types.js'; // Express.Request augmentation (req.user)
 import type { ApiContext } from './context.js';
 import { adminRoutes } from './admin/admin.routes.js';
 import { applicationRoutes } from './applications/applications.routes.js';
+import { directPaymentRoutes } from './directPayments/directPayments.routes.js';
 import { disputeRoutes } from './disputes/disputes.routes.js';
 import { documentRoutes } from './documents/documents.routes.js';
 import { configRoutes } from './config/config.routes.js';
@@ -78,6 +79,7 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(payoutRoutes(ctx));
   app.use(dealRoutes(ctx));
   app.use(reviewRoutes(ctx));
+  app.use(directPaymentRoutes(ctx));
   app.use(applicationRoutes(ctx));
   app.use(documentRoutes(ctx));
   app.use(disputeRoutes(ctx));

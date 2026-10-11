@@ -66,3 +66,19 @@ export const consumeDisputeLimit = createKeyedLimiter({
   duration: 24 * 60 * 60,
   keyPrefix: 'dispute',
 });
+
+/** SPEC 13: recording a direct payment, 10 per hour per brand. */
+export const directPaymentRecordLimiter = createRateLimiter({
+  points: 10,
+  duration: 60 * 60,
+  keyPrefix: 'direct-payment-record',
+  keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});
+
+/** SPEC 13: confirming a direct payment or saying it did not arrive, 20 per hour per creator. */
+export const directPaymentDecisionLimiter = createRateLimiter({
+  points: 20,
+  duration: 60 * 60,
+  keyPrefix: 'direct-payment-decision',
+  keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});

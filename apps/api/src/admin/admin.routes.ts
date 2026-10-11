@@ -3,7 +3,6 @@ import {
   adminDealListQuerySchema,
   disputeListQuerySchema,
   disputeResolveSchema,
-  markManualSchema,
 } from '@valueskins/shared';
 import { Router } from 'express';
 import { requireAdmin } from '../auth/guards.js';
@@ -12,7 +11,6 @@ import { buildDealDetail } from '../deals/dealDetail.js';
 import { listDisputes, resolveDispute } from '../disputes/disputes.service.js';
 import { adminCancelDeal, getAdminDealDetail, listAdminDeals } from './adminDeals.service.js';
 import { resendEmail } from './adminEmails.service.js';
-import { markTransferManual, retryTransfer } from './adminTransfers.service.js';
 
 /**
  * SPEC 12, 16: the admin API. Every route is behind requireAdmin, which answers 404 to
@@ -43,25 +41,6 @@ export function adminRoutes(ctx: ApiContext): Router {
       const input = adminCancelSchema.parse(req.body);
       const deal = await adminCancelDeal(ctx, req.user!, req.params.id, input);
       res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/api/admin/transfers/:id/retry', async (req, res, next) => {
-    try {
-      await retryTransfer(req.params.id);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/api/admin/transfers/:id/mark-manual', async (req, res, next) => {
-    try {
-      const input = markManualSchema.parse(req.body);
-      res.json({
-        transfer: await markTransferManual(req.user!, req.params.id, input, ctx.now()),
-      });
     } catch (error) {
       next(error);
     }

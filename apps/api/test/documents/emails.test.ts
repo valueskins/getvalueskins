@@ -57,10 +57,10 @@ describe('payment emails carry their PDFs (SPEC 8)', () => {
 
     for (const who of [brand, creator]) {
       expect(find('ADVANCE_PAID', who.user.id)?.attachmentNames).toEqual([
-        'VS-R-2026-27-000001.pdf',
+        'VS-PR-2026-27-000001.pdf',
       ]);
       expect(find('FINAL_PAYMENT_DONE', who.user.id)?.attachmentNames).toEqual([
-        'VS-R-2026-27-000002.pdf',
+        'VS-PR-2026-27-000002.pdf',
       ]);
       expect(find('DEAL_REPORT_READY', who.user.id)?.attachmentNames).toEqual([
         `ValueSkins-Deal-Report-${deal.shortId}.pdf`,

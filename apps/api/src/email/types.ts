@@ -15,6 +15,21 @@ export interface EmailTemplateDataMap {
   COMMISSION_PAID_BRAND: { dealShortId: string; dealTitle: string; commissionTotalPaise: number };
   COMMISSION_PAID_CREATOR: { dealShortId: string; dealTitle: string };
   ADVANCE_PAID: { dealShortId: string; dealTitle: string; advancePaise: number };
+  DIRECT_PAYMENT_RECORDED: {
+    dealShortId: string;
+    dealTitle: string;
+    stage: 'ADVANCE' | 'FINAL';
+    amountPaise: number;
+    reference: string;
+  };
+  DIRECT_PAYMENT_NOT_RECEIVED: {
+    dealShortId: string;
+    dealTitle: string;
+    stage: 'ADVANCE' | 'FINAL';
+    amountPaise: number;
+    reference: string;
+    reason: string;
+  };
   CONTENT_UPLOADED: { dealShortId: string; dealTitle: string; contentLink: string };
   CHANGES_REQUESTED: { dealShortId: string; dealTitle: string; feedback: string };
   CONTENT_APPROVED: { dealShortId: string; dealTitle: string };

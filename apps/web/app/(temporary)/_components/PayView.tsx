@@ -4,18 +4,17 @@ import {
   appConfigResponseSchema,
   dealDetailResponseSchema,
   formatInr,
-  payAdvanceLabel,
   payCommissionLabel,
-  payFinalLabel,
   paymentOrderResponseSchema,
   type DealDetail,
   type DealActionState,
   type PaymentOrderResponse,
-  type PaymentTypeParam,
 } from '@valueskins/shared';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { apiErrorMessage, apiFetch } from '../../../lib/temporary/api';
+import { ConfirmPaymentPanel } from './ConfirmPaymentPanel';
+import { DirectPaymentPanel } from './DirectPaymentPanel';
 import { errorClass, headingClass, hintClass, primaryButton } from './styles';
 import { useAction } from './useAction';
 
@@ -63,23 +62,21 @@ function loadCheckout(): Promise<void> {
   });
 }
 
-type PayActionName = 'PAY_COMMISSION' | 'PAY_ADVANCE' | 'PAY_FINAL';
+/** Only the fee goes through Razorpay Checkout. The advance and final are direct UPI payments. */
+const COMMISSION_ACTION = 'PAY_COMMISSION';
 
-const PAY_TYPE: Record<PayActionName, PaymentTypeParam> = {
-  PAY_COMMISSION: 'commission',
-  PAY_ADVANCE: 'advance',
-  PAY_FINAL: 'final',
-};
-
-function payLabel(action: PayActionName, deal: DealDetail): string {
-  if (action === 'PAY_COMMISSION') return payCommissionLabel(deal.commissionTotalPaise ?? 0);
-  if (action === 'PAY_ADVANCE') return payAdvanceLabel(deal.advancePaise ?? 0);
-  return payFinalLabel(deal.finalPaise ?? 0);
+function commissionAction(deal: DealDetail): DealActionState | null {
+  return deal.allowedActions.find((a) => a.action === COMMISSION_ACTION) ?? null;
 }
 
-function findPayAction(deal: DealDetail): (DealActionState & { action: PayActionName }) | null {
-  const found = deal.allowedActions.find((a) => a.action in PAY_TYPE);
-  return found ? (found as DealActionState & { action: PayActionName }) : null;
+function directAction(deal: DealDetail): DealActionState | null {
+  return (
+    deal.allowedActions.find((a) => a.action === 'PAY_ADVANCE' || a.action === 'PAY_FINAL') ?? null
+  );
+}
+
+function confirmAction(deal: DealDetail): DealActionState | null {
+  return deal.allowedActions.find((a) => a.action === 'CONFIRM_PAYMENT_RECEIVED') ?? null;
 }
 
 type State =
@@ -98,8 +95,9 @@ function Row({ label, value }: { label: string; value: number | null }) {
 }
 
 /**
- * Temporary payment page for the staging run (SPEC 7.3). Opens Razorpay Standard
- * Checkout for whichever payment is due and confirms it with /api/payments/verify.
+ * Temporary payment page for the staging run (SPEC 7.3). The fee opens Razorpay Standard Checkout
+ * and is confirmed with /api/payments/verify. The advance and final are direct UPI payments: the
+ * brand sees the payee, a link and a QR code and records the reference; the creator confirms.
  */
 export function PayView() {
   const { id } = useParams<{ id: string }>();
@@ -156,16 +154,13 @@ export function PayView() {
     return null;
   }
 
-  function startPayment(action: PayActionName, deal: DealDetail) {
+  function startPayment(deal: DealDetail) {
     setNotice(null);
     void pay.run(async () => {
-      const orderResponse = await apiFetch(
-        `/api/deals/${deal.id}/payments/${PAY_TYPE[action]}/order`,
-        {
-          method: 'POST',
-          body: JSON.stringify({}),
-        },
-      );
+      const orderResponse = await apiFetch(`/api/deals/${deal.id}/payments/commission/order`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
       if (!orderResponse.ok) {
         return await apiErrorMessage(orderResponse, 'Could not start the payment.');
       }
@@ -201,7 +196,9 @@ export function PayView() {
   if (state.kind === 'error') return <p className={errorClass}>{state.message}</p>;
 
   const { deal } = state;
-  const action = findPayAction(deal);
+  const fee = commissionAction(deal);
+  const direct = directAction(deal);
+  const confirmation = confirmAction(deal);
 
   return (
     <div className="space-y-6">
@@ -218,26 +215,32 @@ export function PayView() {
         <Row label="Final" value={deal.finalPaise} />
       </dl>
 
-      {action ? (
+      {fee ? (
         <div className="space-y-2">
           <button
             type="button"
             className={primaryButton}
-            disabled={!action.enabled || pay.busy || confirm.busy}
-            onClick={() => startPayment(action.action, deal)}
+            disabled={!fee.enabled || pay.busy || confirm.busy}
+            onClick={() => startPayment(deal)}
           >
-            {payLabel(action.action, deal)}
+            {payCommissionLabel(deal.commissionTotalPaise ?? 0)}
           </button>
-          {!action.enabled && action.reason ? <p className={hintClass}>{action.reason}</p> : null}
+          {!fee.enabled && fee.reason ? <p className={hintClass}>{fee.reason}</p> : null}
           {testMode ? (
             <p className={hintClass}>
               Razorpay test mode: use a Razorpay test card, no real money moves.
             </p>
           ) : null}
         </div>
-      ) : (
+      ) : null}
+
+      {direct ? <DirectPaymentPanel dealId={deal.id} action={direct} onRecorded={load} /> : null}
+      {confirmation ? (
+        <ConfirmPaymentPanel deal={deal} action={confirmation} onDone={load} />
+      ) : null}
+      {!fee && !direct && !confirmation ? (
         <p className={hintClass}>No payment is due on this deal.</p>
-      )}
+      ) : null}
 
       {pay.error ? <p className={errorClass}>{pay.error}</p> : null}
       {confirm.error ? <p className={errorClass}>{confirm.error}</p> : null}

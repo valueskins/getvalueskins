@@ -15,7 +15,10 @@ export const CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE =
 
 export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
 export const NO_APPLICATIONS_YET = 'No applications yet';
-export const DIRECT_PAYMENT_NOT_AVAILABLE = 'Paying the creator directly is not available yet';
+export const CREATOR_HAS_NO_UPI = 'The creator has not added a UPI ID yet';
+export const WAITING_FOR_CREATOR_TO_CONFIRM =
+  'Waiting for the creator to confirm the payment you recorded';
+export const NO_PAYMENT_RECORDED_YET = 'The brand has not recorded a payment yet';
 export const UPLOAD_LIMIT_REACHED = 'The limit of 20 content links for this deal has been reached';
 export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 
@@ -23,8 +26,6 @@ export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 export const DISPUTE_NOT_ALLOWED =
   'A dispute can be raised once a creator has been confirmed for the deal';
 export const DISPUTE_ALREADY_RESOLVED = 'This dispute is already resolved';
-export const TRANSFER_STATE_CONFLICT =
-  'This transfer is already paid out or reversed, so it cannot be changed';
 
 // Revision limit notice (SPEC 5.5)
 export const FIVE_REVISIONS_WARNING =
@@ -44,12 +45,15 @@ export const UPI_NOT_VERIFIED_WARNING =
   'We do not verify UPI IDs. Enter yours carefully. A payment to a wrong UPI ID cannot be recalled.';
 export const CREATOR_PAYOUT_NOT_SET =
   'This creator has not added a UPI ID, so the deal cannot be confirmed with them';
-export const PAYMENT_RAIL_CHANGED =
-  'Paying the creator is moving to direct UPI payments and is not available right now';
 
-// Settlement timing (SPEC 8) — reused across advance/final/payout-status emails.
-export const SETTLEMENT_TIMING_NOTE =
-  'Razorpay will send this to your bank account on its settlement schedule.';
+// Direct payments (REPLACEMENT_PLAN 2.1)
+export const PAYMENT_RECORD_DISCLAIMER =
+  'Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money.';
+export const DIRECT_PAYMENT_ALREADY_RECORDED =
+  'A payment is already recorded for this stage and is waiting for the creator to confirm';
+export const DIRECT_PAYMENT_NOT_PENDING =
+  'This payment was already confirmed or marked as not received';
+export const CHECK_YOUR_UPI_APP = 'Check your UPI app and confirm if the money arrived.';
 
 // Payment CTAs (SPEC 5.5) — the amount varies per deal, so these are functions, not fixed strings.
 export function payCommissionLabel(commissionTotalPaise: number): string {

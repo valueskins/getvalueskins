@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DEAL_ACTIONS } from '../dealActions.js';
+import { directPaymentViewSchema } from './directPayment.js';
 import { DEAL_STATUSES } from '../dealStateMachine.js';
 import { CANCELLED_BY_ROLES } from '../enums.js';
 import { dateStringSchema } from './common.js';
@@ -111,6 +112,8 @@ export const dealDetailSchema = dealSummarySchema.extend({
   creator: dealPartySchema.nullable(),
   /** Only for the deal's brand and admins. */
   creatorPayoutSet: z.boolean().nullable(),
+  /** The direct UPI payment records (REPLACEMENT_PLAN 2.1), newest last. Masked UPI IDs. Empty for anyone but the brand, the confirmed creator and admins. */
+  directPayments: z.array(directPaymentViewSchema),
   /** Only for the deal's brand and admins; null for everyone else. */
   applicationCount: z.number().int().nullable(),
   /** SPEC 5.1 derived flags. */

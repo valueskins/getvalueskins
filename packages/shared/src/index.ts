@@ -8,6 +8,7 @@ export * from './dealActions.js';
 export * from './copy.js';
 export * from './onboarding.js';
 export * from './payoutUpi.js';
+export * from './upiPay.js';
 export * from './invoices.js';
 export * from './schemas/index.js';
 
@@ -25,10 +26,8 @@ export {
   type PaymentType,
   PAYMENT_STATUSES,
   type PaymentStatus,
-  TRANSFER_TYPES,
-  type TransferType,
-  TRANSFER_STATUSES,
-  type TransferStatus,
+  DIRECT_PAYMENT_STAGES,
+  type DirectPaymentStage,
   INVOICE_KINDS,
   type InvoiceKind,
   DEAL_EVENT_ACTOR_TYPES,

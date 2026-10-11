@@ -10,7 +10,6 @@ import {
   emailLog,
   invoices,
   payments,
-  transfers,
   users,
 } from '../db/schema/index.js';
 import { findDeal, notFound, parseId } from '../deals/access.js';
@@ -20,10 +19,12 @@ import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { cancellationEmailTasks } from '../deals/lifecycle.service.js';
 import { transitionDeal, type Deal } from '../deals/stateMachine.js';
 import { disputeView } from '../disputes/disputes.service.js';
+import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
 import { AppError } from '../errors/AppError.js';
 
 /** SPEC 5.2: the only statuses an admin can cancel from. Earlier stages are the brand's to cancel. */
 const ADMIN_CANCELLABLE: readonly DealStatus[] = [
+  'COMMISSION_PAID',
   'ADVANCE_PAID',
   'CONTENT_UPLOADED',
   'REVISION_REQUESTED',
@@ -81,34 +82,35 @@ export async function getAdminDealDetail(
   const deal = await findDeal(parseId(rawId));
   if (!deal) throw notFound();
 
-  const [detail, events, paymentRows, transferRows, emailRows, disputeRows] = await Promise.all([
-    buildDealDetail(deal, admin, ctx.now()),
-    db
-      .select({ event: dealEvents, username: users.username })
-      .from(dealEvents)
-      .leftJoin(users, eq(users.id, dealEvents.actorId))
-      .where(eq(dealEvents.dealId, deal.id))
-      .orderBy(asc(dealEvents.id)),
-    db
-      .select({ payment: payments, invoiceNumber: invoices.number })
-      .from(payments)
-      .leftJoin(invoices, eq(invoices.paymentId, payments.id))
-      .where(eq(payments.dealId, deal.id))
-      .orderBy(asc(payments.id)),
-    db.select().from(transfers).where(eq(transfers.dealId, deal.id)).orderBy(asc(transfers.id)),
-    db
-      .select()
-      .from(emailLog)
-      .where(eq(emailLog.dealId, deal.id))
-      .orderBy(desc(emailLog.id))
-      .limit(DETAIL_EMAIL_LIMIT),
-    db
-      .select({ dispute: disputes, username: users.username, deletedAt: users.deletedAt })
-      .from(disputes)
-      .innerJoin(users, eq(users.id, disputes.raisedById))
-      .where(eq(disputes.dealId, deal.id))
-      .orderBy(desc(disputes.id)),
-  ]);
+  const [detail, events, paymentRows, directPaymentRows, emailRows, disputeRows] =
+    await Promise.all([
+      buildDealDetail(deal, admin, ctx.now()),
+      db
+        .select({ event: dealEvents, username: users.username })
+        .from(dealEvents)
+        .leftJoin(users, eq(users.id, dealEvents.actorId))
+        .where(eq(dealEvents.dealId, deal.id))
+        .orderBy(asc(dealEvents.id)),
+      db
+        .select({ payment: payments, invoiceNumber: invoices.number })
+        .from(payments)
+        .leftJoin(invoices, eq(invoices.paymentId, payments.id))
+        .where(eq(payments.dealId, deal.id))
+        .orderBy(asc(payments.id)),
+      listDirectPaymentRows(deal.id),
+      db
+        .select()
+        .from(emailLog)
+        .where(eq(emailLog.dealId, deal.id))
+        .orderBy(desc(emailLog.id))
+        .limit(DETAIL_EMAIL_LIMIT),
+      db
+        .select({ dispute: disputes, username: users.username, deletedAt: users.deletedAt })
+        .from(disputes)
+        .innerJoin(users, eq(users.id, disputes.raisedById))
+        .where(eq(disputes.dealId, deal.id))
+        .orderBy(desc(disputes.id)),
+    ]);
 
   return {
     deal: detail,
@@ -135,7 +137,7 @@ export async function getAdminDealDetail(
       invoiceNumber,
       createdAt: p.createdAt.toISOString(),
     })),
-    transfers: transferRows.map(transferView),
+    directPayments: directPaymentRows.map(toDirectPaymentView),
     emails: emailRows.map((e) => ({
       id: e.id,
       template: e.template,
@@ -159,29 +161,11 @@ export async function getAdminDealDetail(
   };
 }
 
-export function transferView(t: typeof transfers.$inferSelect) {
-  return {
-    id: t.id,
-    dealId: t.dealId,
-    paymentId: t.paymentId,
-    type: t.type,
-    status: t.status,
-    amountPaise: t.amountPaise,
-    razorpayTransferId: t.razorpayTransferId,
-    failureReason: t.failureReason,
-    processedAt: t.processedAt?.toISOString() ?? null,
-    razorpayFeePaise: t.razorpayFeePaise,
-    razorpayTaxPaise: t.razorpayTaxPaise,
-    manualReference: t.manualReference,
-    manualAt: t.manualAt?.toISOString() ?? null,
-    updatedAt: t.updatedAt.toISOString(),
-  };
-}
-
 /**
- * POST /admin/deals/:id/cancel (SPEC 5.2, 12): the admin override from ADVANCE_PAID to APPROVED.
+ * POST /admin/deals/:id/cancel (SPEC 5.2, 12): the admin override from COMMISSION_PAID to APPROVED.
  * The note is the cancellation reason; the optional refund reference goes in the deal event
- * (its note and its metadata). No money moves here: refunds are done in the Razorpay dashboard.
+ * (its note and its metadata). No money moves here: the advance and final were paid directly by
+ * UPI outside ValueSkins, and the fee is refunded by hand in the Razorpay dashboard if at all.
  */
 export async function adminCancelDeal(
   ctx: ApiContext,
@@ -195,7 +179,7 @@ export async function adminCancelDeal(
     throw new AppError(
       'INVALID_TRANSITION',
       409,
-      `An admin can cancel a deal from ADVANCE_PAID to APPROVED. This deal is ${deal.status}.`,
+      `An admin can cancel a deal from COMMISSION_PAID to APPROVED. This deal is ${deal.status}.`,
     );
   }
 

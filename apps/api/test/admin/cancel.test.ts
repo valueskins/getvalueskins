@@ -29,6 +29,8 @@ const POST_ADVANCE: DealStatus[] = [
   'REVISION_REQUESTED',
   'APPROVED',
 ];
+/** An admin can cancel from COMMISSION_PAID on (SPEC 5.2); the brand only until then. */
+const ADMIN_CANCELLABLE: DealStatus[] = ['COMMISSION_PAID', ...POST_ADVANCE];
 const NOTE = 'Creator stopped responding; refunding the brand';
 
 const adminCancel = (cookie: string, dealId: string, body: object = { note: NOTE }) =>
@@ -51,7 +53,7 @@ describe('POST /api/admin/deals/:id/cancel', () => {
     const res = await adminCancel(admin.cookie, deal.id);
     const [after] = await db.select().from(deals).where(eq(deals.id, deal.id));
 
-    if (POST_ADVANCE.includes(status)) {
+    if (ADMIN_CANCELLABLE.includes(status)) {
       expect(res.status).toBe(200);
       expect(res.body.deal).toMatchObject({
         status: 'CANCELLED',

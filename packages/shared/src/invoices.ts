@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { INVOICE_KINDS, type InvoiceKind } from './enums.js';
+import { DIRECT_PAYMENT_STAGES, type InvoiceKind } from './enums.js';
 
 /**
- * SPEC 7.4 numbering. Tax invoices have their own series; advance and final receipts share
- * one (`VS-R/<FY>/NNNNNN`), counted on the ADVANCE_RECEIPT row of invoice_counters.
+ * SPEC 7.4 numbering. Tax invoices have their own series (`VS/<FY>/NNNNNN`). The advance and
+ * final payment records share one (`VS-PR/<FY>/NNNNNN`), counted on the ADVANCE_PAYMENT_RECORD
+ * row of invoice_counters.
  */
 export function invoiceSeries(kind: InvoiceKind): { counterKind: InvoiceKind; prefix: string } {
   if (kind === 'COMMISSION_TAX_INVOICE') return { counterKind: kind, prefix: 'VS' };
-  return { counterKind: 'ADVANCE_RECEIPT', prefix: 'VS-R' };
+  return { counterKind: 'ADVANCE_PAYMENT_RECORD', prefix: 'VS-PR' };
 }
 
 export function invoiceNumber(kind: InvoiceKind, financialYear: string, sequence: number): string {
@@ -58,26 +59,29 @@ export const INVOICE_SNAPSHOT_VERSION = 1 as const;
 export const TAX_KINDS = ['NONE', 'CGST_SGST', 'IGST'] as const;
 export type TaxKind = (typeof TAX_KINDS)[number];
 
-export const INVOICE_TITLES = ['Tax Invoice', 'Invoice', 'Payment Receipt'] as const;
+export const INVOICE_TITLES = ['Tax Invoice', 'Invoice'] as const;
+export const PAYMENT_RECORD_TITLE = 'Payment Record' as const;
+
+const sellerSchema = z.object({
+  legalName: z.string(),
+  address: z.string(),
+  state: z.string(),
+  gstin: z.string().nullable(),
+  sacCode: z.string().nullable(),
+});
 
 /**
- * Everything on an invoice or receipt, frozen when it is issued and stored whole in
- * invoices.snapshot (SPEC 7.4). Renderers read only this, so a re-render is identical.
+ * The commission invoice, frozen when it is issued and stored whole in invoices.snapshot
+ * (SPEC 7.4). Renderers read only this, so a re-render is identical.
  */
-export const invoiceSnapshotSchema = z.object({
+export const commissionSnapshotSchema = z.object({
   version: z.literal(INVOICE_SNAPSHOT_VERSION),
-  kind: z.enum(INVOICE_KINDS),
+  kind: z.literal('COMMISSION_TAX_INVOICE'),
   number: z.string(),
   financialYear: z.string(),
   issuedAt: z.string(),
   title: z.enum(INVOICE_TITLES),
-  seller: z.object({
-    legalName: z.string(),
-    address: z.string(),
-    state: z.string(),
-    gstin: z.string().nullable(),
-    sacCode: z.string().nullable(),
-  }),
+  seller: sellerSchema,
   buyer: z.object({
     billingName: z.string(),
     billingAddress: z.string(),
@@ -100,15 +104,42 @@ export const invoiceSnapshotSchema = z.object({
     razorpayPaymentId: z.string(),
     capturedAt: z.string(),
   }),
-  /** Receipts only: who was paid and through which transfer. */
-  receipt: z
-    .object({
-      creatorName: z.string(),
-      creatorUsername: z.string(),
-      creatorInstagramUserId: z.string().nullable(),
-      transferId: z.string().nullable(),
-    })
-    .nullable(),
 });
 
+/**
+ * A payment record (REPLACEMENT_PLAN 2.1): not a receipt and not a GST document. The brand paid
+ * the creator directly by UPI; ValueSkins did not receive or hold that money. The payee's UPI ID
+ * is stored masked, never in full.
+ */
+export const paymentRecordSnapshotSchema = z.object({
+  version: z.literal(INVOICE_SNAPSHOT_VERSION),
+  kind: z.enum(['ADVANCE_PAYMENT_RECORD', 'FINAL_PAYMENT_RECORD']),
+  number: z.string(),
+  financialYear: z.string(),
+  issuedAt: z.string(),
+  title: z.literal(PAYMENT_RECORD_TITLE),
+  seller: sellerSchema,
+  brandBillingName: z.string(),
+  deal: z.object({ shortId: z.string(), title: z.string() }),
+  stage: z.enum(DIRECT_PAYMENT_STAGES),
+  amountPaise: z.number().int().positive(),
+  reference: z.string(),
+  note: z.string().nullable(),
+  payee: z.object({
+    name: z.string(),
+    maskedVpa: z.string(),
+    username: z.string(),
+    instagramUserId: z.string().nullable(),
+  }),
+  recordedAt: z.string(),
+  confirmedAt: z.string(),
+});
+
+export const invoiceSnapshotSchema = z.discriminatedUnion('kind', [
+  commissionSnapshotSchema,
+  paymentRecordSnapshotSchema,
+]);
+
+export type CommissionSnapshot = z.infer<typeof commissionSnapshotSchema>;
+export type PaymentRecordSnapshot = z.infer<typeof paymentRecordSnapshotSchema>;
 export type InvoiceSnapshot = z.infer<typeof invoiceSnapshotSchema>;

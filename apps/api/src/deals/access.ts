@@ -65,3 +65,13 @@ export async function loadParticipantDeal(
   if (!participant) throw notFound();
   return deal;
 }
+
+/**
+ * The deal if `creatorId` is its confirmed creator, else a 404 that does not reveal it exists.
+ * The brand, other creators and admins are all "else": only the confirmed creator may confirm.
+ */
+export async function loadConfirmedCreatorDeal(rawId: unknown, creatorId: string): Promise<Deal> {
+  const deal = await findDeal(parseId(rawId));
+  if (!deal || deal.creatorId === null || deal.creatorId !== creatorId) throw notFound();
+  return deal;
+}

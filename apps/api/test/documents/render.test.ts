@@ -1,4 +1,4 @@
-import { SETTLEMENT_TIMING_NOTE, formatInr } from '@valueskins/shared';
+import { PAYMENT_RECORD_DISCLAIMER, formatInr } from '@valueskins/shared';
 import { eq } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -8,11 +8,19 @@ import { deals, invoices } from '../../src/db/schema/index.js';
 import { adpBlocks } from '../../src/documents/adpBlocks.js';
 import { loadAdpData } from '../../src/documents/adpData.js';
 import type { Block } from '../../src/documents/blocks.js';
-import { renderAdp, renderInvoiceForPayment } from '../../src/documents/documents.service.js';
+import {
+  renderAdp,
+  renderInvoiceForPayment,
+  renderRecordForDirectPayment,
+} from '../../src/documents/documents.service.js';
 import { FONT_REGULAR_PATH } from '../../src/documents/fonts.js';
 import { invoiceBlocks } from '../../src/documents/invoiceBlocks.js';
 import { renderPdf } from '../../src/documents/render.js';
-import { buildInvoiceSnapshot, type SnapshotInput } from '../../src/invoices/snapshot.js';
+import {
+  buildInvoiceSnapshot,
+  buildPaymentRecordSnapshot,
+  type CommissionSnapshotInput,
+} from '../../src/invoices/snapshot.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 
 beforeAll(resetDb);
@@ -47,9 +55,11 @@ function textOf(blocks: Block[]): string[] {
   });
 }
 
-function commission(overrides: Partial<SnapshotInput> = {}, gst = { base: 75_000, gst: 13_500 }) {
+function commission(
+  overrides: Partial<CommissionSnapshotInput> = {},
+  gst = { base: 75_000, gst: 13_500 },
+) {
   return buildInvoiceSnapshot({
-    kind: 'COMMISSION_TAX_INVOICE',
     number: 'VS/2026-27/000001',
     financialYear: '2026-27',
     issuedAt: ISSUED,
@@ -68,47 +78,36 @@ function commission(overrides: Partial<SnapshotInput> = {}, gst = { base: 75_000
       gstin: null,
     },
     payment: {
-      type: 'COMMISSION',
       amountPaise: gst.base + gst.gst,
       razorpayOrderId: 'order_1',
       razorpayPaymentId: 'pay_1',
       capturedAt: ISSUED,
     },
-    creator: null,
-    transferId: null,
     ...overrides,
   });
 }
 
-function receipt(transferId: string | null, name = 'Creator Name') {
-  return buildInvoiceSnapshot({
-    kind: 'ADVANCE_RECEIPT',
-    number: 'VS-R/2026-27/000001',
+function paymentRecord(name = 'Creator Name', note: string | null = null) {
+  return buildPaymentRecordSnapshot({
+    kind: 'ADVANCE_PAYMENT_RECORD',
+    number: 'VS-PR/2026-27/000001',
     financialYear: '2026-27',
     issuedAt: ISSUED,
     company: COMPANY,
-    deal: {
-      shortId: 'ABCD2345',
-      title: 'Summer reels',
-      commissionBasePaise: 0,
-      commissionGstPaise: 0,
-      commissionTotalPaise: 0,
+    deal: { shortId: 'ABCD2345', title: 'Summer reels' },
+    brandBillingName: 'Brand Pvt Ltd',
+    stage: 'ADVANCE',
+    amountPaise: 277_500,
+    reference: 'UTR123456789',
+    note,
+    payee: {
+      name,
+      maskedVpa: 'cr\u2022\u2022\u2022@okaxis',
+      username: 'creator_one',
+      instagramUserId: 'ig_1',
     },
-    billing: {
-      billingName: 'Brand Pvt Ltd',
-      billingAddress: '1 Main Road',
-      billingState: 'Karnataka',
-      gstin: null,
-    },
-    payment: {
-      type: 'ADVANCE',
-      amountPaise: 277_500,
-      razorpayOrderId: 'order_2',
-      razorpayPaymentId: 'pay_2',
-      capturedAt: ISSUED,
-    },
-    creator: { name, username: 'creator_one', instagramUserId: 'ig_1' },
-    transferId,
+    recordedAt: new Date('2026-10-09T03:00:00Z'),
+    confirmedAt: ISSUED,
   });
 }
 
@@ -173,23 +172,36 @@ describe('invoice blocks', () => {
     expect(text).not.toContain('GSTIN');
   });
 
-  it('a receipt names the creator, the amount, the transfer and the settlement note', () => {
-    const text = textOf(invoiceBlocks(receipt('trf_9')));
+  it('a payment record says it is not a receipt: paid directly by UPI, never held by ValueSkins', () => {
+    const text = textOf(invoiceBlocks(paymentRecord('Creator Name', 'paid at noon')));
     expect(text).toEqual(
       expect.arrayContaining([
-        'Payment Receipt',
-        'VS-R/2026-27/000001',
+        'Payment Record',
+        'VS-PR/2026-27/000001',
+        'Paid by',
+        'Brand Pvt Ltd',
         'Paid to',
         'Creator Name (@creator_one)',
         'ig_1',
+        'cr\u2022\u2022\u2022@okaxis',
         formatInr(277_500),
-        'trf_9',
-        SETTLEMENT_TIMING_NOTE,
+        PAYMENT_RECORD_DISCLAIMER,
+        'UTR123456789',
+        'paid at noon',
+        'Recorded by the brand',
+        '9 Oct 2026, 08:30 IST',
+        'Confirmed by the creator',
+        '9 Oct 2026, 10:00 IST',
       ]),
     );
-    expect(textOf(invoiceBlocks(receipt(null)))).toContain(
-      'Not created yet when this receipt was issued',
-    );
+    // Not a receipt, not a GST document, and nothing from Razorpay.
+    expect(text.join(' ')).not.toMatch(/receipt|Razorpay|transfer|settlement/i);
+  });
+
+  it('a payment record has no note row when there is no note, and never the full UPI ID', () => {
+    const text = textOf(invoiceBlocks(paymentRecord()));
+    expect(text).not.toContain('Note');
+    expect(JSON.stringify(paymentRecord())).not.toContain('paidToVpa');
   });
 });
 
@@ -208,7 +220,7 @@ describe('PDF output', () => {
   const render = (blocks: Block[]) => renderPdf(blocks, { title: 'Test', createdAt: ISSUED });
 
   it('is a valid PDF, including rupee amounts and non-Latin names', async () => {
-    const pdf = await render(invoiceBlocks(receipt('trf_1', 'अनन्या शर्मा')));
+    const pdf = await render(invoiceBlocks(paymentRecord('अनन्या शर्मा')));
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     expect(pdf.subarray(-6).toString()).toContain('%%EOF');
     expect(pdf.length).toBeGreaterThan(2_000);
@@ -244,9 +256,11 @@ describe('every seeded deal renders its documents', () => {
     await seed({ company: COMPANY });
 
     const stored = await db.select().from(invoices);
-    expect(stored).toHaveLength(12); // 6 commission, 5 advance, 1 final
+    expect(stored).toHaveLength(12); // 6 commission invoices, 5 advance and 1 final payment record
     for (const row of stored) {
-      const pdf = await renderInvoiceForPayment(row.paymentId);
+      const pdf = row.paymentId
+        ? await renderInvoiceForPayment(row.paymentId)
+        : await renderRecordForDirectPayment(row.directPaymentId as string);
       expect(pdf?.content.subarray(0, 5).toString(), row.number).toBe('%PDF-');
     }
 
@@ -276,10 +290,10 @@ describe('the deal report covers every section of SPEC 17', () => {
       'Terms',
       'Money',
       'Commission tax invoice',
-      'Advance receipt',
-      'Final receipt',
+      'Advance payment record',
+      'Final payment record',
       'Delivery proof',
-      'Transfers',
+      'Direct payments (brand to creator, by UPI)',
       'Razorpay fees absorbed by ValueSkins (for information)',
       'Event timeline',
     ]) {
@@ -317,7 +331,7 @@ describe('the deal report covers every section of SPEC 17', () => {
     );
     // 5 to 7 the three full documents
     expect(text.filter((t) => /^VS\/2026-27\/\d{6}$/.test(t))).toHaveLength(1);
-    expect(text.filter((t) => /^VS-R\/2026-27\/\d{6}$/.test(t))).toHaveLength(2);
+    expect(text.filter((t) => /^VS-PR\/2026-27\/\d{6}$/.test(t))).toHaveLength(2);
     // 8 delivery proof
     expect(text).toEqual(
       expect.arrayContaining([
@@ -326,18 +340,28 @@ describe('the deal report covers every section of SPEC 17', () => {
         'Final approval',
       ]),
     );
-    // 9 transfers
+    // 9 direct payments, with the creator's UPI ID masked
     expect(text).toEqual(
-      expect.arrayContaining(['trf_seed_8_advance', 'trf_seed_8_final', 'PROCESSED']),
+      expect.arrayContaining([
+        PAYMENT_RECORD_DISCLAIMER,
+        'ADVANCE',
+        'FINAL',
+        'se\u2022\u2022\u2022@okaxis',
+      ]),
     );
+    expect(text.join(' ')).not.toContain('seedcreator');
+    expect(text.some((t) => t.startsWith('Confirmed '))).toBe(true);
     // 10 fees
-    expect(text).toEqual(
-      expect.arrayContaining(['Payment: COMMISSION', 'Transfer: FINAL', 'Total absorbed']),
-    );
+    expect(text).toEqual(expect.arrayContaining(['Payment: COMMISSION', 'Total absorbed']));
     expect(text).not.toContain('Not recorded');
     // 11 timeline
     expect(text).toEqual(
-      expect.arrayContaining(['DRAFT to OPEN', 'APPROVED to COMPLETED', 'System']),
+      expect.arrayContaining([
+        'DRAFT to OPEN',
+        'APPROVED to COMPLETED',
+        'System',
+        '@creator_three',
+      ]),
     );
   });
 
@@ -350,7 +374,7 @@ describe('the deal report covers every section of SPEC 17', () => {
         'No creator confirmed',
         'Not issued.',
         'Content links: None yet',
-        'Transfers: None yet',
+        'Direct payments: None yet',
         'Fees: None yet',
       ]),
     );

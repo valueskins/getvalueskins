@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../auth/types.js';
 import { db } from '../db/client.js';
 import { applications, brandBilling, contentUploads } from '../db/schema/index.js';
 import { iso, loadParties, toSummary } from './dealView.js';
+import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
 import { hasPayoutDetails } from './payoutDetails.js';
 import type { Deal } from './stateMachine.js';
 
@@ -103,6 +104,17 @@ export async function buildDealDetail(
     payoutSet = await hasPayoutDetails(viewer.id);
   }
 
+  // The direct UPI payment records (REPLACEMENT_PLAN 2.1), masked. A record that awaits the
+  // creator's confirmation for the stage that is due drives PAY_* and CONFIRM_PAYMENT_RECEIVED.
+  const records = seesDelivery
+    ? (await listDirectPaymentRows(deal.id)).map(toDirectPaymentView)
+    : [];
+  const dueStage =
+    deal.status === 'COMMISSION_PAID' ? 'ADVANCE' : deal.status === 'APPROVED' ? 'FINAL' : null;
+  const pendingRecord = records.some(
+    (r) => r.stage === dueStage && r.status === 'AWAITING_CONFIRMATION',
+  );
+
   const hasBilling = viewerKind === 'BRAND_OWNER' ? await hasBillingDetails(viewer.id) : false;
   const publishIssues =
     viewerKind === 'BRAND_OWNER' && deal.status === 'DRAFT' ? publishIssueMessages(deal, now) : [];
@@ -131,6 +143,7 @@ export async function buildDealDetail(
     revisionNotice: deal.revisionCount >= 5 ? FIVE_REVISIONS_WARNING : null,
     creator,
     creatorPayoutSet,
+    directPayments: records,
     applicationCount,
     applicationsOpen: open,
     contentOverdue: overdue,
@@ -143,6 +156,8 @@ export async function buildDealDetail(
       payoutSet,
       uploadCount: deal.uploadCount,
       hasCreator: deal.creatorId !== null,
+      creatorPayoutSet: creatorPayoutSet === true,
+      pendingRecord,
       hasBilling,
       publishIssues,
     }),

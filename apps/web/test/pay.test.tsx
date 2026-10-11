@@ -11,7 +11,9 @@ vi.mock('next/navigation', async (importOriginal) => ({
 
 type Action = { action: string; enabled: boolean; reason: string | null };
 
-function deal(overrides: { status?: string; allowedActions?: Action[] } = {}) {
+function deal(
+  overrides: { status?: string; allowedActions?: Action[]; directPayments?: unknown[] } = {},
+) {
   return {
     deal: {
       id: DEAL_ID,
@@ -49,6 +51,7 @@ function deal(overrides: { status?: string; allowedActions?: Action[] } = {}) {
       cancellationReason: null,
       creator: null,
       creatorPayoutSet: true,
+      directPayments: overrides.directPayments ?? [],
       applicationCount: 1,
       applicationsOpen: false,
       contentOverdue: false,
@@ -164,29 +167,232 @@ describe('/deals/[id]/pay', () => {
     expect(await screen.findByText('No payment is due on this deal.')).toBeInTheDocument();
   });
 
-  it('disables the button and says why when the payment cannot be made yet', async () => {
-    mockApi({
-      [`GET /api/deals/${DEAL_ID}`]: json(
-        deal({
-          status: 'COMMISSION_PAID',
-          allowedActions: [
-            {
-              action: 'PAY_ADVANCE',
-              enabled: false,
-              reason: 'Paying the creator directly is not available yet',
-            },
-          ],
-        }),
-      ),
-      'GET /api/config': json(CONFIG),
+  describe('the advance and final are direct UPI payments', () => {
+    const INFO = {
+      blocked: null,
+      stage: 'ADVANCE',
+      amountPaise: 277_500,
+      payee: { vpa: 'raj.kumar@okaxis', name: 'Raj Kumar' },
+      upi: {
+        pa: 'raj.kumar@okaxis',
+        pn: 'Raj Kumar',
+        am: '2775.00',
+        cu: 'INR',
+        tn: 'ValueSkins ABCD2345 advance',
+      },
+      upiUri:
+        'upi://pay?pa=raj.kumar%40okaxis&pn=Raj%20Kumar&am=2775.00&cu=INR&tn=ValueSkins%20ABCD2345%20advance',
+      record: null,
+    };
+    const PENDING = {
+      id: 'dp1',
+      stage: 'ADVANCE',
+      amountPaise: 277_500,
+      reference: 'UTR123456789',
+      note: null,
+      maskedVpa: 'ra\u2022\u2022\u2022@okaxis',
+      recordedAt: '2026-10-09T04:30:00.000Z',
+      confirmedAt: null,
+      disputedAt: null,
+      disputeReason: null,
+      status: 'AWAITING_CONFIRMATION',
+    };
+    const payAdvance = (overrides: Partial<Action> = {}) => ({
+      action: 'PAY_ADVANCE',
+      enabled: true,
+      reason: null,
+      ...overrides,
     });
-    render(<PayPage />);
 
-    const button = await screen.findByRole('button', { name: 'Pay advance: ₹2,775.00' });
-    expect(button).toBeDisabled();
-    expect(
-      screen.getByText('Paying the creator directly is not available yet'),
-    ).toBeInTheDocument();
+    it('shows the brand the payee, the amount, a UPI link and a QR code, then records the reference', async () => {
+      const calls = mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: json(
+          deal({ status: 'COMMISSION_PAID', allowedActions: [payAdvance()] }),
+        ),
+        [`GET /api/deals/${DEAL_ID}/direct-payment`]: json(INFO),
+        [`POST /api/deals/${DEAL_ID}/direct-payment`]: json({ directPayment: { id: 'dp1' } }, 201),
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+
+      expect(await screen.findByText('Pay the advance by UPI: ₹2,775.00')).toBeInTheDocument();
+      expect(screen.getByText('Raj Kumar')).toBeInTheDocument();
+      expect(screen.getByText('raj.kumar@okaxis')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open in a UPI app' })).toHaveAttribute(
+        'href',
+        INFO.upiUri,
+      );
+      expect(screen.getByRole('img', { name: 'QR code for the UPI payment' }).innerHTML).toContain(
+        '<svg',
+      );
+      expect(
+        screen.getByText(/ValueSkins does not receive or hold this money/),
+      ).toBeInTheDocument();
+
+      const submit = screen.getByRole('button', { name: 'I have paid: record it' });
+      expect(submit).toBeDisabled();
+      fireEvent.change(screen.getByLabelText(/UPI reference/), { target: { value: 'short' } });
+      expect(submit).toBeDisabled();
+      expect(screen.getByText(/6 to 40 letters, digits, hyphens or slashes/)).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText(/UPI reference/), {
+        target: { value: ' 4312/AB-12 ' },
+      });
+      fireEvent.change(screen.getByLabelText(/Note/), { target: { value: 'paid at noon' } });
+      fireEvent.click(submit);
+
+      await waitFor(() =>
+        expect(calls.some((c) => c.key === `POST /api/deals/${DEAL_ID}/direct-payment`)).toBe(true),
+      );
+      const post = calls.find((c) => c.key === `POST /api/deals/${DEAL_ID}/direct-payment`)!;
+      // No amount is ever sent: the server uses the frozen one.
+      expect(JSON.parse(String(post.init.body))).toEqual({
+        stage: 'ADVANCE',
+        reference: '4312/AB-12',
+        note: 'paid at noon',
+      });
+    });
+
+    it('says why nothing can be paid, and shows no UPI ID', async () => {
+      mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: json(
+          deal({
+            status: 'COMMISSION_PAID',
+            allowedActions: [
+              payAdvance({ enabled: false, reason: 'The creator has not added a UPI ID yet' }),
+            ],
+          }),
+        ),
+        [`GET /api/deals/${DEAL_ID}/direct-payment`]: json({
+          ...INFO,
+          blocked: 'creator_has_no_upi',
+          stage: null,
+          amountPaise: null,
+          payee: null,
+          upi: null,
+          upiUri: null,
+        }),
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+
+      expect(await screen.findByText(/The creator has not added a UPI ID yet/)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Open in a UPI app' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'I have paid: record it' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows a recorded payment as waiting for the creator, with no form', async () => {
+      mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: json(
+          deal({
+            status: 'COMMISSION_PAID',
+            allowedActions: [
+              payAdvance({
+                enabled: false,
+                reason: 'Waiting for the creator to confirm the payment you recorded',
+              }),
+            ],
+          }),
+        ),
+        [`GET /api/deals/${DEAL_ID}/direct-payment`]: json({
+          ...INFO,
+          record: { ...PENDING, status: 'AWAITING_CONFIRMATION' },
+        }),
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+
+      expect(
+        await screen.findByText(/UPI reference UTR123456789\. Waiting for the creator/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'I have paid: record it' }),
+      ).not.toBeInTheDocument();
+    });
+
+    const confirmable = () =>
+      deal({
+        status: 'COMMISSION_PAID',
+        allowedActions: [{ action: 'CONFIRM_PAYMENT_RECEIVED', enabled: true, reason: null }],
+        directPayments: [PENDING],
+      });
+
+    it('lets the creator confirm that the money arrived', async () => {
+      let current = confirmable();
+      const calls = mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: () => json(current),
+        'POST /api/direct-payments/dp1/confirm': () => {
+          current = deal({ status: 'ADVANCE_PAID', allowedActions: [] });
+          return json({ directPayment: { id: 'dp1' }, deal: current.deal });
+        },
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+
+      expect(
+        await screen.findByText('The brand says it paid the advance: ₹2,775.00'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('UPI reference: UTR123456789')).toBeInTheDocument();
+      // The creator sees the masked ID only.
+      expect(screen.getByText(/Paid to ra\u2022\u2022\u2022@okaxis/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'I received it' }));
+
+      expect(await screen.findByText('No payment is due on this deal.')).toBeInTheDocument();
+      expect(calls.some((c) => c.key === 'POST /api/direct-payments/dp1/confirm')).toBe(true);
+    });
+
+    it('lets the creator say the money did not arrive, with a reason', async () => {
+      const calls = mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: json(confirmable()),
+        'POST /api/direct-payments/dp1/not-received': json({
+          directPayment: { id: 'dp1' },
+          deal: confirmable().deal,
+        }),
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+
+      await screen.findByText('The brand says it paid the advance: ₹2,775.00');
+      fireEvent.click(screen.getByRole('button', { name: 'Not received' }));
+      const send = screen.getByRole('button', { name: 'Send: the money did not arrive' });
+      expect(send).toBeDisabled();
+      fireEvent.change(screen.getByLabelText('What happened?'), {
+        target: { value: 'Nothing in my account' },
+      });
+      fireEvent.click(send);
+
+      await waitFor(() =>
+        expect(calls.some((c) => c.key === 'POST /api/direct-payments/dp1/not-received')).toBe(
+          true,
+        ),
+      );
+      const post = calls.find((c) => c.key === 'POST /api/direct-payments/dp1/not-received')!;
+      expect(JSON.parse(String(post.init.body))).toEqual({ reason: 'Nothing in my account' });
+    });
+
+    it('tells the creator why there is nothing to confirm yet', async () => {
+      mockApi({
+        [`GET /api/deals/${DEAL_ID}`]: json(
+          deal({
+            status: 'COMMISSION_PAID',
+            allowedActions: [
+              {
+                action: 'CONFIRM_PAYMENT_RECEIVED',
+                enabled: false,
+                reason: 'The brand has not recorded a payment yet',
+              },
+            ],
+          }),
+        ),
+        'GET /api/config': json(CONFIG),
+      });
+      render(<PayPage />);
+      expect(
+        await screen.findByText('The brand has not recorded a payment yet'),
+      ).toBeInTheDocument();
+    });
   });
 
   it('offers to check again when Razorpay took the payment but confirming failed', async () => {

@@ -1,12 +1,7 @@
 import type { z } from 'zod';
 import type { Env } from '../env/index.js';
 import { RazorpayApiError } from './errors.js';
-import {
-  razorpayErrorBodySchema,
-  razorpayOrderSchema,
-  razorpayPaymentSchema,
-  razorpayTransferListSchema,
-} from './schemas.js';
+import { razorpayErrorBodySchema, razorpayOrderSchema, razorpayPaymentSchema } from './schemas.js';
 
 const BASE_URL = 'https://api.razorpay.com';
 
@@ -114,9 +109,6 @@ export function createRazorpayClient(
 
     fetchPayment: (paymentId: string) =>
       request('GET', `/v1/payments/${paymentId}`, razorpayPaymentSchema),
-
-    fetchPaymentTransfers: (paymentId: string) =>
-      request('GET', `/v1/payments/${paymentId}/transfers`, razorpayTransferListSchema),
   };
 }
 
