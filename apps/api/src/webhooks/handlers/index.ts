@@ -8,23 +8,17 @@ import {
   createPaymentFailedHandler,
   createTransferHandler,
 } from './payments.js';
-import { createProductStatusHandler } from './productStatus.js';
 
 /**
- * Handlers by Razorpay event type (SPEC 7.3): the linked-account product status events and
- * the payment and transfer events. Events with no handler are stored and marked processed.
+ * Handlers by Razorpay event type (SPEC 7.3): the payment and transfer events. Events with no handler are stored and marked processed.
  */
 export function createWebhookHandlers(
   env: Env,
   payments: PaymentsDeps = { env, razorpay: createRazorpayClient(env), now: () => new Date() },
 ): WebhookHandlerRegistry {
-  const productStatus = createProductStatusHandler(env);
   const transfer = createTransferHandler(payments);
 
   return {
-    'product.route.under_review': productStatus,
-    'product.route.needs_clarification': productStatus,
-    'product.route.activated': productStatus,
     'payment.captured': createPaymentCapturedHandler(payments),
     'order.paid': createOrderPaidHandler(payments),
     'payment.failed': createPaymentFailedHandler(),

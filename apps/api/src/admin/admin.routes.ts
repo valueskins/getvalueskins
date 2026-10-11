@@ -10,7 +10,6 @@ import { requireAdmin } from '../auth/guards.js';
 import type { ApiContext } from '../context.js';
 import { buildDealDetail } from '../deals/dealDetail.js';
 import { listDisputes, resolveDispute } from '../disputes/disputes.service.js';
-import type { PaymentsDeps } from '../payments/types.js';
 import { adminCancelDeal, getAdminDealDetail, listAdminDeals } from './adminDeals.service.js';
 import { resendEmail } from './adminEmails.service.js';
 import { markTransferManual, retryTransfer } from './adminTransfers.service.js';
@@ -19,7 +18,7 @@ import { markTransferManual, retryTransfer } from './adminTransfers.service.js';
  * SPEC 12, 16: the admin API. Every route is behind requireAdmin, which answers 404 to
  * signed-out users and non-admins alike, so the routes cannot be told apart from missing ones.
  */
-export function adminRoutes(ctx: ApiContext, payments: PaymentsDeps): Router {
+export function adminRoutes(ctx: ApiContext): Router {
   const router = Router();
   router.use('/api/admin', requireAdmin);
 
@@ -51,7 +50,7 @@ export function adminRoutes(ctx: ApiContext, payments: PaymentsDeps): Router {
 
   router.post('/api/admin/transfers/:id/retry', async (req, res, next) => {
     try {
-      res.json(await retryTransfer(payments, req.params.id));
+      await retryTransfer(req.params.id);
     } catch (error) {
       next(error);
     }

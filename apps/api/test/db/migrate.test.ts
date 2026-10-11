@@ -6,7 +6,6 @@ import { closeDb, db } from './testDb.js';
 const EXPECTED_TABLES = [
   'users',
   'brand_billing',
-  'creator_payout_accounts',
   'sessions',
   'email_verification_tokens',
   'email_login_codes',

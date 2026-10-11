@@ -12,11 +12,8 @@ export interface CreatorFixture {
   instagramUserId: string;
   username: string;
   name: string;
-  payoutAccount?: {
-    razorpayAccountId: string;
-    razorpayStakeholderId: string;
-    razorpayProductId: string;
-  };
+  /** Obviously fake UPI details (REPLACEMENT_PLAN 2.1). Absent for the creator who has not added any. */
+  payout?: { vpa: string; name: string };
 }
 
 export const BRAND_FIXTURES: BrandFixture[] = [
@@ -44,35 +41,23 @@ export const CREATOR_FIXTURES: CreatorFixture[] = [
     instagramUserId: 'ig_creator_1',
     username: 'creator_one',
     name: 'Creator One',
-    payoutAccount: {
-      razorpayAccountId: 'acc_seed_creator_1',
-      razorpayStakeholderId: 'sth_seed_creator_1',
-      razorpayProductId: 'prd_seed_creator_1',
-    },
+    payout: { vpa: 'seedcreator1@okaxis', name: 'Seed Creator One' },
   },
   {
     instagramUserId: 'ig_creator_2',
     username: 'creator_two',
     name: 'Creator Two',
-    payoutAccount: {
-      razorpayAccountId: 'acc_seed_creator_2',
-      razorpayStakeholderId: 'sth_seed_creator_2',
-      razorpayProductId: 'prd_seed_creator_2',
-    },
+    payout: { vpa: 'seedcreator2@okaxis', name: 'Seed Creator Two' },
   },
   {
     instagramUserId: 'ig_creator_3',
     username: 'creator_three',
     name: 'Creator Three',
-    payoutAccount: {
-      razorpayAccountId: 'acc_seed_creator_3',
-      razorpayStakeholderId: 'sth_seed_creator_3',
-      razorpayProductId: 'prd_seed_creator_3',
-    },
+    payout: { vpa: 'seedcreator3@okaxis', name: 'Seed Creator Three' },
   },
   {
-    // No payout account: applied to a deal but never confirmed, since
-    // confirming requires an ACTIVE payout account (SPEC 5.2).
+    // No UPI details: applied to a deal but never confirmed, since
+    // confirming requires them (REPLACEMENT_PLAN 2.1).
     instagramUserId: 'ig_creator_4',
     username: 'creator_four',
     name: 'Creator Four',

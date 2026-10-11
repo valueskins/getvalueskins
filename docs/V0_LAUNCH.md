@@ -22,7 +22,7 @@ An email-only account (V0_LAUNCH 2.1) has no fetched Instagram profile, so onboa
 - Its email is already verified by the sign-in code, so the email step is done and `POST /api/me/email` is for Instagram accounts only.
 - Step order: `instagram_username`, `role`, `email`, then `billing` (brands) or `payout` (creators, not required to complete onboarding).
 - `onboarding_completed_at` is set once, never unset, when role and verified email are done, plus billing for brands, plus the Instagram username for email-only accounts. Connecting Instagram later removes the username step.
-- **Payout gating.** A creator can apply to a deal only when their payout account is ACTIVE (`403 PAYOUT_NOT_ACTIVE`, "Set up payouts to apply"), and a brand can confirm an applicant only while that applicant's payout account is still ACTIVE (`409 CREATOR_PAYOUT_NOT_ACTIVE`). Payout setup stays optional for finishing onboarding. On staging this means a test creator needs a Razorpay test-mode linked account that reaches ACTIVE; `docs/DEPLOYMENT.md` section 13 step 11 has a manual fallback for test accounts.
+- **Payout gating.** *Replaced by REPLACEMENT_PLAN 2.1: a creator applies only with a saved UPI ID, name and consent (`403 PAYOUT_NOT_SET`, "Add your UPI ID to apply"), and a brand can confirm an applicant only while they still have them (`409 CREATOR_PAYOUT_NOT_SET`). The Route linked-account text that stood here is retired. Payout details stay optional for finishing onboarding.*
 - **Resume.** `GET /api/users/:id/resume` takes the user id, because email-only usernames are not unique. For an account without a linked Instagram profile it returns `instagramVerified: false`, the typed username, and null Instagram fields.
 
 ### 2.6 Configurable GST

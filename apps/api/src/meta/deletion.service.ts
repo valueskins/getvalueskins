@@ -32,6 +32,9 @@ export async function softDeleteAndAnonymizeUser(userId: string): Promise<void> 
         followsCount: null,
         mediaCount: null,
         engagementRate: null,
+        payoutVpa: null,
+        payoutName: null,
+        payoutVpaConsentAt: null,
       })
       .where(eq(users.id, userId));
 

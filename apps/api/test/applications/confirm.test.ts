@@ -3,13 +3,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import {
-  applications,
-  creatorPayoutAccounts,
-  dealEvents,
-  deals,
-  users,
-} from '../../src/db/schema/index.js';
+import { applications, dealEvents, deals, users } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import {
   NOW,
@@ -66,7 +60,7 @@ describe('POST /api/applications/:id/confirm', () => {
       id: deal.id,
       status: 'CONFIRMED',
       creator: { id: creators[1]!.user.id },
-      creatorPayoutStatus: 'ACTIVE',
+      creatorPayoutSet: true,
       applicationCount: 3,
     });
     expect(res.body.deal.allowedActions).toEqual([
@@ -110,23 +104,27 @@ describe('POST /api/applications/:id/confirm', () => {
     expect((await confirm(brand.cookie, apps[0]!.id)).status).toBe(200);
   });
 
-  it('refuses a creator whose payout account is no longer ACTIVE, and changes nothing', async () => {
-    const { brand, deal, creators, apps } = await openDealWithApplicants(2);
-    await db
-      .update(creatorPayoutAccounts)
-      .set({ status: 'SUSPENDED' })
-      .where(eq(creatorPayoutAccounts.userId, creators[0]!.user.id));
+  it.each([
+    ['UPI ID', { payoutVpa: null }],
+    ['name', { payoutName: null }],
+    ['consent', { payoutVpaConsentAt: null }],
+  ] as const)(
+    'refuses a creator who no longer has their %s, and changes nothing',
+    async (_label, cleared) => {
+      const { brand, deal, creators, apps } = await openDealWithApplicants(2);
+      await db.update(users).set(cleared).where(eq(users.id, creators[0]!.user.id));
 
-    const res = await confirm(brand.cookie, apps[0]!.id);
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('CREATOR_PAYOUT_NOT_ACTIVE');
+      const res = await confirm(brand.cookie, apps[0]!.id);
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('CREATOR_PAYOUT_NOT_SET');
 
-    const after = await snapshot(deal.id);
-    expect(after.deal).toMatchObject({ status: 'OPEN', creatorId: null });
-    expect(after.apps.every((a) => a.status === 'APPLIED')).toBe(true);
-    expect(after.events).toHaveLength(0);
-    expect(await sentEmails()).toHaveLength(0);
-  });
+      const after = await snapshot(deal.id);
+      expect(after.deal).toMatchObject({ status: 'OPEN', creatorId: null });
+      expect(after.apps.every((a) => a.status === 'APPLIED')).toBe(true);
+      expect(after.events).toHaveLength(0);
+      expect(await sentEmails()).toHaveLength(0);
+    },
+  );
 
   it('refuses a creator who deleted their account', async () => {
     const { brand, deal, creators, apps } = await openDealWithApplicants(1);

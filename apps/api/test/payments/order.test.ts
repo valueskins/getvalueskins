@@ -5,7 +5,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { creatorPayoutAccounts, payments } from '../../src/db/schema/index.js';
+import { payments } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { createUserWithSession } from '../helpers/auth.js';
 import {
@@ -45,22 +45,15 @@ afterAll(async () => {
 const order = (cookie: string, dealId: string, type: string) =>
   call.send('post', `/api/deals/${dealId}/payments/${type}/order`, cookie, {});
 
-async function fixture(
-  status: Parameters<typeof insertDeal>[1],
-  payout: Parameters<typeof creatorWithPayout>[0] = 'ACTIVE',
-) {
+async function fixture(status: Parameters<typeof insertDeal>[1]) {
   const brand = await brandWithBilling();
-  const creator = await creatorWithPayout(payout);
+  const creator = await creatorWithPayout();
   const deal = await insertDeal(brand.user.id, status, { creatorId: creator.user.id });
-  const [account] = await db
-    .select()
-    .from(creatorPayoutAccounts)
-    .where(eq(creatorPayoutAccounts.userId, creator.user.id));
-  return { brand, creator, deal, accountId: account?.razorpayAccountId };
+  return { brand, creator, deal };
 }
 
 describe('POST /api/deals/:id/payments/:type/order', () => {
-  it('commission: an order for the commission total with no transfers', async () => {
+  it('commission: an order for the commission total, with no transfers array', async () => {
     const { brand, deal } = await fixture('CONFIRMED');
     const res = await order(brand.cookie, deal.id, 'commission');
 
@@ -80,6 +73,7 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
         notes: { deal_id: deal.id, type: 'commission' },
       },
     ]);
+    expect(razorpay.orderCalls[0]).not.toHaveProperty('transfers');
     const [row] = await db.select().from(payments).where(eq(payments.dealId, deal.id));
     expect(row).toMatchObject({
       type: 'COMMISSION',
@@ -90,37 +84,47 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
     });
   });
 
-  it.each([
-    ['advance', 'COMMISSION_PAID', 'advancePaise'],
-    ['final', 'APPROVED', 'finalPaise'],
-  ] as const)(
-    '%s: the full amount goes to the creator linked account in the transfers array',
-    async (type, status, column) => {
-      const { brand, deal, accountId } = await fixture(status);
-      const res = await order(brand.cookie, deal.id, type);
+  describe('advance and final: the rail changed (REPLACEMENT_PLAN 2.1)', () => {
+    it.each(['advance', 'final'])(
+      '%s answers 409 PAYMENT_RAIL_CHANGED to the deal brand in every status, and creates nothing',
+      async (type) => {
+        const brand = await brandWithBilling();
+        const creator = await creatorWithPayout();
+        for (const status of DEAL_STATUSES) {
+          const deal = await insertDeal(brand.user.id, status, { creatorId: creator.user.id });
+          const res = await order(brand.cookie, deal.id, type);
+          expect(res.status, `${type} in ${status}`).toBe(409);
+          expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
+        }
+        expect(razorpay.orderAttempts).toBe(0);
+        expect(await db.select().from(payments)).toHaveLength(0);
+      },
+    );
 
-      expect(res.status).toBe(200);
-      const amount = deal[column];
-      expect(res.body.amountPaise).toBe(amount);
-      expect(razorpay.orderCalls).toEqual([
-        {
-          amount,
-          currency: 'INR',
-          receipt: `${deal.shortId}-${type}`,
-          notes: { deal_id: deal.id, type },
-          transfers: [
-            {
-              account: accountId,
-              amount,
-              currency: 'INR',
-              notes: { deal_id: deal.id, type },
-              on_hold: false,
-            },
-          ],
-        },
-      ]);
-    },
-  );
+    it('does not reuse an advance or final order that already exists', async () => {
+      const { brand, deal } = await fixture('COMMISSION_PAID');
+      await db.insert(payments).values({
+        dealId: deal.id,
+        type: 'ADVANCE',
+        amountPaise: deal.advancePaise!,
+        razorpayOrderId: 'order_old_route',
+      });
+      const res = await order(brand.cookie, deal.id, 'advance');
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('PAYMENT_RAIL_CHANGED');
+      expect(razorpay.orderAttempts).toBe(0);
+    });
+
+    it('still answers 404 to anyone but the deal brand, 403 to a creator and 401 signed out', async () => {
+      const { deal, creator } = await fixture('COMMISSION_PAID');
+      const otherBrand = await brandWithBilling();
+      expect((await order(otherBrand.cookie, deal.id, 'advance')).status).toBe(404);
+      expect((await order(creator.cookie, deal.id, 'final')).status).toBe(403);
+      expect((await call.send('post', `/api/deals/${deal.id}/payments/advance/order`)).status).toBe(
+        401,
+      );
+    });
+  });
 
   describe('one open order per deal and type', () => {
     it('reuses an unpaid order', async () => {
@@ -162,45 +166,21 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
   });
 
   describe('status checks', () => {
-    const DUE = { commission: 'CONFIRMED', advance: 'COMMISSION_PAID', final: 'APPROVED' } as const;
-
-    it.each(Object.entries(DUE))('%s is refused in every status except %s', async (type, due) => {
+    it('commission is refused in every status except CONFIRMED', async () => {
       const brand = await brandWithBilling();
       const creator = await creatorWithPayout();
       for (const status of DEAL_STATUSES) {
         const deal = await insertDeal(brand.user.id, status, { creatorId: creator.user.id });
-        const res = await order(brand.cookie, deal.id, type);
-        if (status === due) {
-          expect(res.status, `${type} in ${status}`).toBe(200);
+        const res = await order(brand.cookie, deal.id, 'commission');
+        if (status === 'CONFIRMED') {
+          expect(res.status, `commission in ${status}`).toBe(200);
         } else {
-          expect(res.status, `${type} in ${status}`).toBe(409);
+          expect(res.status, `commission in ${status}`).toBe(409);
           expect(res.body.error.code).toBe('WRONG_DEAL_STATUS');
         }
       }
       // One order only, for the deal that was in the due status.
       expect(razorpay.orderCalls).toHaveLength(1);
-    });
-  });
-
-  describe('advance needs the creator payout account ACTIVE', () => {
-    it.each([null, 'PENDING', 'NEEDS_CLARIFICATION', 'SUSPENDED'] as const)(
-      'refuses it when the account is %s',
-      async (payout) => {
-        const { brand, deal } = await fixture('COMMISSION_PAID', payout);
-        const res = await order(brand.cookie, deal.id, 'advance');
-        expect(res.status).toBe(409);
-        expect(res.body.error).toMatchObject({
-          code: 'CREATOR_PAYOUT_NOT_ACTIVE',
-          message: 'The creator has not finished payout setup',
-        });
-        expect(razorpay.orderCalls).toHaveLength(0);
-        expect(await db.select().from(payments)).toHaveLength(0);
-      },
-    );
-
-    it('the final does not require ACTIVE: a bad account fails at the transfer, not at the order', async () => {
-      const { brand, deal } = await fixture('APPROVED', 'SUSPENDED');
-      expect((await order(brand.cookie, deal.id, 'final')).status).toBe(200);
     });
   });
 
@@ -237,6 +217,29 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
       expect(razorpay.orderCalls).toHaveLength(1);
     });
 
+    it('retries a network error and then succeeds', async () => {
+      const { brand, deal } = await fixture('CONFIRMED');
+      razorpay.orderNetworkError = { times: 2 };
+      const res = await order(brand.cookie, deal.id, 'commission');
+      expect(res.status).toBe(200);
+      expect(razorpay.orderAttempts).toBe(3);
+      expect(razorpay.orderCalls).toHaveLength(1);
+    });
+
+    it('gives up after 4 attempts in all, for a network error and for a 5xx', async () => {
+      const { brand, deal } = await fixture('CONFIRMED');
+      razorpay.orderNetworkError = { times: 99 };
+      expect((await order(brand.cookie, deal.id, 'commission')).status).toBe(502);
+      expect(razorpay.orderAttempts).toBe(4);
+
+      razorpay.orderNetworkError = null;
+      razorpay.orderAttempts = 0;
+      razorpay.orderFailure = { status: 503, times: 99 };
+      expect((await order(brand.cookie, deal.id, 'commission')).status).toBe(502);
+      expect(razorpay.orderAttempts).toBe(4);
+      expect(await db.select().from(payments)).toHaveLength(0);
+    });
+
     it('answers 502 and stores nothing when Razorpay stays down', async () => {
       const { brand, deal } = await fixture('CONFIRMED');
       razorpay.orderFailure = { status: 503, times: 99 };
@@ -247,7 +250,7 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
     });
 
     it('answers 422 when Razorpay rejects the order and never retries it', async () => {
-      const { brand, deal } = await fixture('COMMISSION_PAID');
+      const { brand, deal } = await fixture('CONFIRMED');
       let calls = 0;
       server.use(
         http.post('https://api.razorpay.com/v1/orders', () => {
@@ -258,7 +261,7 @@ describe('POST /api/deals/:id/payments/:type/order', () => {
           );
         }),
       );
-      const res = await order(brand.cookie, deal.id, 'advance');
+      const res = await order(brand.cookie, deal.id, 'commission');
       expect(res.status).toBe(422);
       expect(res.body.error.code).toBe('PAYMENT_REJECTED');
       expect(calls).toBe(1);

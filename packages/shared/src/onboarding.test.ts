@@ -7,7 +7,7 @@ const instagramUser: OnboardingInput = {
   emailVerified: false,
   hasBilling: false,
   instagramUsernameSet: false,
-  payoutStatus: null,
+  hasPayoutDetails: false,
 };
 
 const emailUser: OnboardingInput = {
@@ -16,7 +16,7 @@ const emailUser: OnboardingInput = {
   emailVerified: true,
   hasBilling: false,
   instagramUsernameSet: false,
-  payoutStatus: null,
+  hasPayoutDetails: false,
 };
 
 const ids = (input: OnboardingInput) => computeOnboarding(input).steps.map((s) => s.id);
@@ -86,16 +86,14 @@ describe('computeOnboarding: email sign-in', () => {
 });
 
 describe('computeOnboarding: payout step', () => {
-  it('is done only when the payout account is ACTIVE', () => {
+  it('is done once the UPI ID, name and consent are saved, and never required', () => {
     const base = { ...instagramUser, role: 'CREATOR' as const, emailVerified: true };
-    const done = (payoutStatus: OnboardingInput['payoutStatus']) =>
-      computeOnboarding({ ...base, payoutStatus }).steps.find((s) => s.id === 'payout')?.done;
+    const step = (hasPayoutDetails: OnboardingInput['hasPayoutDetails']) =>
+      computeOnboarding({ ...base, hasPayoutDetails }).steps.find((s) => s.id === 'payout');
 
-    expect(done(null)).toBe(false);
-    expect(done('PENDING')).toBe(false);
-    expect(done('NEEDS_CLARIFICATION')).toBe(false);
-    expect(done('SUSPENDED')).toBe(false);
-    expect(done('ACTIVE')).toBe(true);
+    expect(step(false)).toEqual({ id: 'payout', done: false, required: false });
+    expect(step(true)).toEqual({ id: 'payout', done: true, required: false });
+    expect(computeOnboarding({ ...base, hasPayoutDetails: false }).completed).toBe(true);
   });
 
   it('never appears for a brand or before a role is chosen', () => {

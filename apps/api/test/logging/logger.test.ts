@@ -70,3 +70,33 @@ describe('deepRedact', () => {
     expect(result.self).toBe('[Circular]');
   });
 });
+
+describe('deepRedact: UPI IDs', () => {
+  it('redacts keys that name a UPI ID or payout details', () => {
+    const result = deepRedact({
+      vpa: 'raj@okaxis',
+      payoutVpa: 'raj@okaxis',
+      payout_name: 'Raj Kumar',
+      upiId: 'raj@okaxis',
+    }) as Record<string, unknown>;
+    expect(Object.values(result)).toEqual(['[REDACTED]', '[REDACTED]', '[REDACTED]', '[REDACTED]']);
+  });
+
+  it('redacts a UPI-shaped value under any key and at any depth, which is not email-shaped', () => {
+    const result = deepRedact({
+      note: 'raj.kumar@okhdfcbank',
+      nested: { list: ['plain', 'cr@ybl'] },
+    }) as { note: string; nested: { list: string[] } };
+    expect(result.note).toBe('[REDACTED_UPI]');
+    expect(result.nested.list).toEqual(['plain', '[REDACTED_UPI]']);
+    expect(deepRedact('raj@okaxis')).toBe('[REDACTED_UPI]');
+  });
+
+  it('still redacts emails as emails and leaves ordinary text alone', () => {
+    expect(deepRedact({ a: 'someone@example.com', b: 'hello world', c: 'a@b' })).toEqual({
+      a: '[REDACTED_EMAIL]',
+      b: 'hello world',
+      c: 'a@b',
+    });
+  });
+});

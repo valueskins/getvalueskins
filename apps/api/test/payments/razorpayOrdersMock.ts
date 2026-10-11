@@ -39,6 +39,10 @@ export interface OrdersMockState {
   fetchTransfersCalls: string[];
   /** Make the next `times` POST /v1/orders answer with this status. */
   orderFailure: { status: number; times: number } | null;
+  /** Make the next `times` POST /v1/orders fail at the network level (no response). */
+  orderNetworkError: { times: number } | null;
+  /** Every POST /v1/orders attempt, including the ones that failed. */
+  orderAttempts: number;
   /** Make GET /v1/payments/:id/transfers answer 500 (the capture must still be recorded). */
   transfersListDown: boolean;
   /** POST /v1/payments/:id/transfers calls (the admin retry), with the payment id and the body. */
@@ -58,6 +62,8 @@ export function newOrdersState(): OrdersMockState {
     fetchPaymentCalls: [],
     fetchTransfersCalls: [],
     orderFailure: null,
+    orderNetworkError: null,
+    orderAttempts: 0,
     transfersListDown: false,
     createTransferCalls: [],
     createTransferRejection: null,
@@ -69,6 +75,11 @@ export function ordersHandlers(state: OrdersMockState) {
   let counter = 0;
   return [
     http.post(`${BASE}/v1/orders`, async ({ request }) => {
+      state.orderAttempts += 1;
+      if (state.orderNetworkError && state.orderNetworkError.times > 0) {
+        state.orderNetworkError.times -= 1;
+        return HttpResponse.error();
+      }
       if (state.orderFailure && state.orderFailure.times > 0) {
         state.orderFailure.times -= 1;
         return HttpResponse.json(

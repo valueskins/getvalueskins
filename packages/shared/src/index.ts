@@ -7,6 +7,7 @@ export * from './dealPublish.js';
 export * from './dealActions.js';
 export * from './copy.js';
 export * from './onboarding.js';
+export * from './payoutUpi.js';
 export * from './invoices.js';
 export * from './schemas/index.js';
 
@@ -16,8 +17,6 @@ export * from './schemas/index.js';
 export {
   USER_ROLES,
   type UserRole,
-  PAYOUT_ACCOUNT_STATUSES,
-  type PayoutAccountStatus,
   CANCELLED_BY_ROLES,
   type CancelledByRole,
   APPLICATION_STATUSES,

@@ -1,9 +1,10 @@
+import { UPI_VPA_PATTERN_SOURCE } from '@valueskins/shared';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   integer,
-  jsonb,
   numeric,
   pgTable,
   text,
@@ -13,7 +14,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
-import { payoutAccountStatusEnum, userRoleEnum } from './enums.js';
+import { userRoleEnum } from './enums.js';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -64,6 +65,11 @@ export const users = pgTable(
       mode: 'date',
     }),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true, mode: 'date' }),
+    // Creator payout details (REPLACEMENT_PLAN 2.1): where a brand pays the creator's share.
+    // The UPI ID is shown in full only to the brand confirmed on a deal; masked everywhere else.
+    payoutVpa: text('payout_vpa'),
+    payoutName: text('payout_name'),
+    payoutVpaConsentAt: timestamp('payout_vpa_consent_at', { withTimezone: true, mode: 'date' }),
     ...timestamps,
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
@@ -75,6 +81,10 @@ export const users = pgTable(
     uniqueIndex('users_username_unique_idx')
       .on(t.username)
       .where(sql`${t.instagramUserId} is not null`),
+    check(
+      'users_payout_vpa_check',
+      sql`${t.payoutVpa} is null or ${t.payoutVpa} ~ ${sql.raw(`'${UPI_VPA_PATTERN_SOURCE}'`)}`,
+    ),
   ],
 );
 
@@ -88,30 +98,6 @@ export const brandBilling = pgTable('brand_billing', {
   gstin: varchar('gstin', { length: 15 }),
   ...timestamps,
 });
-
-export const creatorPayoutAccounts = pgTable(
-  'creator_payout_accounts',
-  {
-    userId: uuid('user_id')
-      .primaryKey()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    razorpayAccountId: varchar('razorpay_account_id', { length: 255 }).notNull().unique(),
-    // Nullable: the row is written as soon as the linked account exists, so an
-    // interrupted setup resumes instead of creating duplicates (SPEC 7.2).
-    razorpayStakeholderId: varchar('razorpay_stakeholder_id', { length: 255 }),
-    razorpayProductId: varchar('razorpay_product_id', { length: 255 }),
-    status: payoutAccountStatusEnum('status').notNull(),
-    bankLast4: varchar('bank_last4', { length: 4 }),
-    ifsc: varchar('ifsc', { length: 11 }),
-    requirements: jsonb('requirements').$type<Record<string, unknown>>(),
-    consentAt: timestamp('consent_at', { withTimezone: true, mode: 'date' }),
-    // When `status` was last confirmed by Razorpay (a webhook's created_at, or
-    // a refresh). A webhook older than this is stale and ignored.
-    statusSyncedAt: timestamp('status_synced_at', { withTimezone: true, mode: 'date' }),
-    ...timestamps,
-  },
-  (t) => [index('creator_payout_accounts_status_idx').on(t.status)],
-);
 
 export const sessions = pgTable(
   'sessions',

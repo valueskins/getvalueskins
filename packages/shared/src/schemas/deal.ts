@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DEAL_ACTIONS } from '../dealActions.js';
 import { DEAL_STATUSES } from '../dealStateMachine.js';
-import { CANCELLED_BY_ROLES, PAYOUT_ACCOUNT_STATUSES } from '../enums.js';
+import { CANCELLED_BY_ROLES } from '../enums.js';
 import { dateStringSchema } from './common.js';
 import { cursorPageQuerySchema } from './pagination.js';
 
@@ -110,7 +110,7 @@ export const dealDetailSchema = dealSummarySchema.extend({
   revisionNotice: z.string().nullable(),
   creator: dealPartySchema.nullable(),
   /** Only for the deal's brand and admins. */
-  creatorPayoutStatus: z.enum(PAYOUT_ACCOUNT_STATUSES).nullable(),
+  creatorPayoutSet: z.boolean().nullable(),
   /** Only for the deal's brand and admins; null for everyone else. */
   applicationCount: z.number().int().nullable(),
   /** SPEC 5.1 derived flags. */

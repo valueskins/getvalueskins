@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OnboardingPage from '../app/(temporary)/onboarding/page';
 import VerifyEmailPage from '../app/(temporary)/verify-email/page';
@@ -230,159 +230,122 @@ describe('/onboarding payout section (creators)', () => {
       ],
     });
 
-  const account = (overrides: object = {}) => ({
-    payoutAccount: {
-      status: 'PENDING',
-      setupComplete: true,
-      bankLast4: '9012',
-      ifsc: 'HDFC0001234',
-      requirements: [],
-      ...overrides,
-    },
-  });
+  const saved = {
+    maskedVpa: 'ra\u2022\u2022\u2022@okhdfcbank',
+    name: 'Raj Kumar',
+    consentAt: '2026-10-09T04:30:00.000Z',
+  };
 
-  function fillForm() {
-    fireEvent.change(screen.getByLabelText(/Legal name/), { target: { value: 'Jane Doe' } });
-    fireEvent.change(screen.getByLabelText('PAN'), { target: { value: 'abcpe1234f' } });
-    fireEvent.change(screen.getByLabelText(/Mobile number/), { target: { value: '9876543210' } });
-    fireEvent.change(screen.getByLabelText('Bank account number'), {
-      target: { value: '123456789012' },
-    });
-    fireEvent.change(screen.getByLabelText('IFSC'), { target: { value: 'hdfc0001234' } });
-    fireEvent.change(screen.getByLabelText('Account holder name'), {
-      target: { value: 'Jane Doe' },
-    });
+  function fillForm(vpa = 'raj.creator@okhdfcbank', name = 'Raj Kumar') {
+    fireEvent.change(screen.getByLabelText('UPI ID'), { target: { value: vpa } });
+    fireEvent.change(screen.getByLabelText(/Name on the account/), { target: { value: name } });
   }
 
-  it('shows the form with the consent text, disabled with a reason until complete', async () => {
+  const consentBox = () => screen.getByLabelText(/I agree my UPI ID and name are shown/);
+
+  it('shows the form with the warning and the consent text, disabled with a reason until complete', async () => {
     mockApi({
       'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json({ payoutAccount: null }),
+      'GET /api/me/payout-upi': json({ payoutUpi: null }),
     });
     render(<OnboardingPage />);
 
-    const submit = await screen.findByRole('button', { name: 'Submit payout details' });
+    const submit = await screen.findByRole('button', { name: 'Save UPI details' });
     expect(submit).toBeDisabled();
-    expect(screen.getByText(/Fill in every field correctly/)).toBeInTheDocument();
     expect(
-      screen.getByText('I agree that Razorpay will store my bank and KYC details to pay me.'),
+      screen.getByText(/Enter your UPI ID and the name on the account, and accept the consent/),
     ).toBeInTheDocument();
-    expect(screen.getByText('Your account is set up.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'We do not verify UPI IDs. Enter yours carefully. A payment to a wrong UPI ID cannot be recalled.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'I agree my UPI ID and name are shown to a brand that confirms me on a deal.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Add your UPI ID to apply to deals.')).toBeInTheDocument();
   });
 
-  it('submits the details, shows the status and clears the personal details from the page', async () => {
-    const calls = mockApi({
+  it('says why a bank account number is not accepted, and keeps the button disabled', async () => {
+    mockApi({
       'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json({ payoutAccount: null }),
-      'POST /api/me/payout-account': json(account()),
+      'GET /api/me/payout-upi': json({ payoutUpi: null }),
     });
     render(<OnboardingPage />);
 
-    await screen.findByRole('button', { name: 'Submit payout details' });
-    fillForm();
-    fireEvent.click(screen.getByLabelText(/I agree that Razorpay/));
-    fireEvent.click(screen.getByRole('button', { name: 'Submit payout details' }));
+    await screen.findByRole('button', { name: 'Save UPI details' });
+    fillForm('123456789012');
+    fireEvent.click(consentBox());
 
-    expect(await screen.findByText('PENDING')).toBeInTheDocument();
-    expect(screen.getByText(/Bank account ending 9012, IFSC HDFC0001234/)).toBeInTheDocument();
-    const post = calls.find((c) => c.key === 'POST /api/me/payout-account')!;
-    expect(JSON.parse(post.init.body as string)).toEqual({
-      legalName: 'Jane Doe',
-      pan: 'ABCPE1234F',
-      phone: '9876543210',
-      bankAccountNumber: '123456789012',
-      ifsc: 'HDFC0001234',
-      accountHolderName: 'Jane Doe',
+    expect(screen.getByText(/looks like a bank account number/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save UPI details' })).toBeDisabled();
+  });
+
+  it('saves the details, shows only the masked ID and clears the form', async () => {
+    const calls = mockApi({
+      'GET /api/me': json(completeCreator()),
+      'GET /api/me/payout-upi': json({ payoutUpi: null }),
+      'PUT /api/me/payout-upi': json({
+        payoutUpi: saved,
+        onboarding: completeCreator().onboarding,
+      }),
+    });
+    render(<OnboardingPage />);
+
+    await screen.findByRole('button', { name: 'Save UPI details' });
+    fillForm();
+    fireEvent.click(consentBox());
+    fireEvent.click(screen.getByRole('button', { name: 'Save UPI details' }));
+
+    expect(await screen.findByText('ra\u2022\u2022\u2022@okhdfcbank')).toBeInTheDocument();
+    expect(screen.getByText('Name on the account: Raj Kumar')).toBeInTheDocument();
+    expect(screen.getByText('Consent given on 9 Oct 2026.')).toBeInTheDocument();
+    const put = calls.find((c) => c.key === 'PUT /api/me/payout-upi')!;
+    expect(JSON.parse(put.init.body as string)).toEqual({
+      vpa: 'raj.creator@okhdfcbank',
+      name: 'Raj Kumar',
       consent: true,
     });
-    expect(screen.queryByText('123456789012')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Submit payout details' })).not.toBeInTheDocument();
+    // The full ID is not kept on the page, and the form is closed.
+    expect(screen.queryByText('raj.creator@okhdfcbank')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('raj.creator@okhdfcbank')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save UPI details' })).not.toBeInTheDocument();
   });
 
-  it('shows what Razorpay rejected, using the API message', async () => {
+  it('shows the saved details masked, with the form only after Change', async () => {
     mockApi({
       'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json({ payoutAccount: null }),
-      'POST /api/me/payout-account': json(
-        {
-          error: { message: 'Razorpay could not accept these details. Check them and try again.' },
-        },
-        422,
-      ),
+      'GET /api/me/payout-upi': json({ payoutUpi: saved }),
     });
     render(<OnboardingPage />);
 
-    await screen.findByRole('button', { name: 'Submit payout details' });
+    expect(await screen.findByText('ra\u2022\u2022\u2022@okhdfcbank')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save UPI details' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change UPI details' }));
+    expect(screen.getByRole('button', { name: 'Save UPI details' })).toBeInTheDocument();
+    expect(screen.getByLabelText('UPI ID')).toHaveValue('');
+  });
+
+  it('shows what the API says when saving is refused', async () => {
+    mockApi({
+      'GET /api/me': json(completeCreator()),
+      'GET /api/me/payout-upi': json({ payoutUpi: null }),
+      'PUT /api/me/payout-upi': json({ error: { message: 'Too many requests' } }, 429),
+    });
+    render(<OnboardingPage />);
+
+    await screen.findByRole('button', { name: 'Save UPI details' });
     fillForm();
-    fireEvent.click(screen.getByLabelText(/I agree that Razorpay/));
-    fireEvent.click(screen.getByRole('button', { name: 'Submit payout details' }));
+    fireEvent.click(consentBox());
+    fireEvent.click(screen.getByRole('button', { name: 'Save UPI details' }));
 
-    expect(
-      await screen.findByText('Razorpay could not accept these details. Check them and try again.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Too many requests')).toBeInTheDocument();
   });
 
-  it('Refresh status fetches the status from the API and shows it', async () => {
-    const calls = mockApi({
-      'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json(account()),
-      'POST /api/me/payout-account/refresh': json(account({ status: 'ACTIVE' })),
-    });
-    render(<OnboardingPage />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Refresh status' }));
-
-    expect(await screen.findByText('ACTIVE')).toBeInTheDocument();
-    expect(
-      screen.getByText('Your payout account is active. You can apply to deals.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Razorpay will send this to your bank account on its settlement schedule.'),
-    ).toBeInTheDocument();
-    expect(calls.some((c) => c.key === 'POST /api/me/payout-account/refresh')).toBe(true);
-  });
-
-  it('NEEDS_CLARIFICATION lists the reasons and offers the form again', async () => {
-    mockApi({
-      'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json(
-        account({
-          status: 'NEEDS_CLARIFICATION',
-          requirements: [
-            {
-              fieldReference: 'settlements.beneficiary_name',
-              reasonCode: 'needs_clarification',
-              status: 'required',
-            },
-          ],
-        }),
-      ),
-    });
-    render(<OnboardingPage />);
-
-    const list = await screen.findByRole('list', { name: '' });
-    expect(
-      within(list).getByText(/settlements.beneficiary_name: needs clarification/),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Submit payout details' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh status' })).toBeInTheDocument();
-  });
-
-  it('an interrupted setup says so and offers the form to resume', async () => {
-    mockApi({
-      'GET /api/me': json(completeCreator()),
-      'GET /api/me/payout-account': json(
-        account({ setupComplete: false, bankLast4: null, ifsc: null }),
-      ),
-    });
-    render(<OnboardingPage />);
-
-    expect(await screen.findByText(/Setup was interrupted/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Submit payout details' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Refresh status' })).not.toBeInTheDocument();
-  });
-
-  it('does not show payout setup to a brand', async () => {
+  it('does not show payout details to a brand', async () => {
     mockApi({
       'GET /api/me': json(me({ role: 'BRAND', nextStep: null })),
     });

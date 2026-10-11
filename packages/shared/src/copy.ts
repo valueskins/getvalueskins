@@ -9,13 +9,13 @@ export const SIGN_IN_WITH_EMAIL = 'Sign in with email';
 
 // Disabled-button reasons (SPEC 18)
 export const APPLICATIONS_CLOSED = 'Applications closed';
-export const SET_UP_PAYOUTS_TO_APPLY = 'Set up payouts to apply';
+export const ADD_UPI_TO_APPLY = 'Add your UPI ID to apply';
 export const CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE =
   'Cancellation is not possible after the advance is paid';
 
 export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
 export const NO_APPLICATIONS_YET = 'No applications yet';
-export const CREATOR_PAYOUT_NOT_READY = 'The creator has not finished payout setup';
+export const DIRECT_PAYMENT_NOT_AVAILABLE = 'Paying the creator directly is not available yet';
 export const UPLOAD_LIMIT_REACHED = 'The limit of 20 content links for this deal has been reached';
 export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 
@@ -37,9 +37,15 @@ export const INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED =
 // Onboarding (SPEC 6.4)
 export const ROLE_CANNOT_CHANGE_WARNING = 'You cannot change this later.';
 
-// Payout consent (SPEC 7.2)
+// Creator payout details (SPEC 7.2, REPLACEMENT_PLAN 2.1)
 export const PAYOUT_CONSENT_TEXT =
-  'I agree that Razorpay will store my bank and KYC details to pay me.';
+  'I agree my UPI ID and name are shown to a brand that confirms me on a deal.';
+export const UPI_NOT_VERIFIED_WARNING =
+  'We do not verify UPI IDs. Enter yours carefully. A payment to a wrong UPI ID cannot be recalled.';
+export const CREATOR_PAYOUT_NOT_SET =
+  'This creator has not added a UPI ID, so the deal cannot be confirmed with them';
+export const PAYMENT_RAIL_CHANGED =
+  'Paying the creator is moving to direct UPI payments and is not available right now';
 
 // Settlement timing (SPEC 8) — reused across advance/final/payout-status emails.
 export const SETTLEMENT_TIMING_NOTE =

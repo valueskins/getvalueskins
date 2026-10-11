@@ -22,7 +22,7 @@ const STEP_LABEL: Record<OnboardingStep, string> = {
   role: 'Account type',
   email: 'Verified email',
   billing: 'Billing details',
-  payout: 'Payout setup',
+  payout: 'UPI payout details',
 };
 
 /** Temporary onboarding page (SPEC 6.4): shows the step the API says is next. */

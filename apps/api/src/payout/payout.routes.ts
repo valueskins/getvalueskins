@@ -1,39 +1,28 @@
-import { mePayoutAccountSchema } from '@valueskins/shared';
+import { mePayoutUpiSchema } from '@valueskins/shared';
 import { Router } from 'express';
 import { requireRole } from '../auth/guards.js';
-import type { Env } from '../env/index.js';
-import { type RazorpayClient } from '../razorpay/client.js';
-import {
-  createOrResumePayoutAccount,
-  getPayoutAccount,
-  refreshPayoutAccount,
-} from './payoutAccount.service.js';
+import type { ApiContext } from '../context.js';
+import { completeOnboardingIfReady } from '../onboarding/onboarding.service.js';
+import { payoutUpiLimiter } from '../rateLimit/limiters.js';
+import { getPayoutUpi, savePayoutUpi } from './payoutUpi.service.js';
 
-/** SPEC 7.2 and 16. Creators only. */
-export function payoutRoutes(env: Env, razorpay: RazorpayClient): Router {
+/** SPEC 7.2 and 16. Creators only. The UPI ID in a response is always masked. */
+export function payoutRoutes(ctx: ApiContext): Router {
   const router = Router();
-  const deps = { env, razorpay };
 
-  router.post('/api/me/payout-account', requireRole('CREATOR'), async (req, res, next) => {
+  router.put('/api/me/payout-upi', requireRole('CREATOR'), payoutUpiLimiter, async (req, res, next) => {
     try {
-      const input = mePayoutAccountSchema.parse(req.body);
-      res.json(await createOrResumePayoutAccount(deps, req.user!, input));
+      const input = mePayoutUpiSchema.parse(req.body);
+      const payoutUpi = await savePayoutUpi(req.user!.id, input, ctx.now());
+      res.json({ payoutUpi, onboarding: await completeOnboardingIfReady(req.user!.id) });
     } catch (error) {
       next(error);
     }
   });
 
-  router.get('/api/me/payout-account', requireRole('CREATOR'), async (req, res, next) => {
+  router.get('/api/me/payout-upi', requireRole('CREATOR'), async (req, res, next) => {
     try {
-      res.json(await getPayoutAccount(req.user!.id));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.post('/api/me/payout-account/refresh', requireRole('CREATOR'), async (req, res, next) => {
-    try {
-      res.json(await refreshPayoutAccount(deps, req.user!));
+      res.json({ payoutUpi: await getPayoutUpi(req.user!.id) });
     } catch (error) {
       next(error);
     }

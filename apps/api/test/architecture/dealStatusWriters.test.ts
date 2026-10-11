@@ -41,3 +41,31 @@ describe('who may write the deals table', () => {
     ]);
   });
 });
+
+/**
+ * REPLACEMENT_PLAN 2.1: a creator's UPI ID is shown in full only to the brand confirmed on a deal,
+ * so only the code that saves it, the one gate that checks it, the seed and account deletion may
+ * touch the column. Anything else that needs it goes through those.
+ */
+describe('who may touch users.payout_vpa', () => {
+  const writers = (pattern: RegExp) =>
+    sourceFiles(SRC)
+      .filter((file) => pattern.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(SRC, file))
+      .sort();
+
+  it('only the payout module, the payout gate, the seed, deletion and the schema read or write it', () => {
+    expect(writers(/payoutVpa\b/)).toEqual([
+      'db/schema/users.ts',
+      'db/seed/index.ts',
+      'deals/payoutDetails.ts',
+      'meta/deletion.service.ts',
+      'onboarding/onboarding.service.ts',
+      'payout/payoutUpi.service.ts',
+    ]);
+  });
+
+  it('no route file touches it', () => {
+    expect(writers(/payoutVpa\b/).filter((file) => file.endsWith('.routes.ts'))).toEqual([]);
+  });
+});

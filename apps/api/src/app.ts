@@ -75,13 +75,13 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(configRoutes(ctx));
   app.use(meRoutes(env));
   app.use(onboardingRoutes(env));
-  app.use(payoutRoutes(env, razorpay));
+  app.use(payoutRoutes(ctx));
   app.use(dealRoutes(ctx));
   app.use(reviewRoutes(ctx));
   app.use(applicationRoutes(ctx));
   app.use(documentRoutes(ctx));
   app.use(disputeRoutes(ctx));
-  app.use(adminRoutes(ctx, paymentsDeps));
+  app.use(adminRoutes(ctx));
   app.use(resumeRoutes(ctx));
   app.use(paymentRoutes(paymentsDeps));
   app.use(razorpayWebhookRoutes(env, createWebhookHandlers(env, paymentsDeps)));

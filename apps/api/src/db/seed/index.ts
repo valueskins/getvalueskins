@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { db } from '../client.js';
-import { brandBilling, creatorPayoutAccounts, users } from '../schema/index.js';
+import { brandBilling, users } from '../schema/index.js';
 import { BRAND_FIXTURES, CREATOR_FIXTURES } from './fixtures.js';
 import type { CompanyDetails } from '../../invoices/snapshot.js';
 import { insertDealAtCheckpoint, SEED_DEAL_STATUSES } from './dealMatrix.js';
@@ -27,7 +27,6 @@ const TABLES_IN_DELETE_ORDER = [
   'deals',
   'sessions',
   'email_verification_tokens',
-  'creator_payout_accounts',
   'brand_billing',
   'meta_deletion_requests',
   'webhook_events',
@@ -95,29 +94,19 @@ export async function seed(options: SeedOptions = {}): Promise<void> {
         email: `${creator.username}@example.com`,
         emailVerifiedAt: new Date(),
         onboardingCompletedAt: new Date(),
+        payoutVpa: creator.payout?.vpa ?? null,
+        payoutName: creator.payout?.name ?? null,
+        payoutVpaConsentAt: creator.payout ? new Date() : null,
       })
       .returning();
     if (!row) throw new Error(`failed to insert creator ${creator.username}`);
-
-    if (creator.payoutAccount) {
-      await db.insert(creatorPayoutAccounts).values({
-        userId: row.id,
-        razorpayAccountId: creator.payoutAccount.razorpayAccountId,
-        razorpayStakeholderId: creator.payoutAccount.razorpayStakeholderId,
-        razorpayProductId: creator.payoutAccount.razorpayProductId,
-        status: 'ACTIVE',
-        bankLast4: '1234',
-        ifsc: 'HDFC0001234',
-        consentAt: new Date(),
-      });
-    }
 
     creatorIds.push(row.id);
   }
 
   const activeCreatorIds = creatorIds.slice(0, 3);
   const applicantCreatorId = creatorIds[3];
-  if (!applicantCreatorId) throw new Error('expected a 4th creator with no payout account');
+  if (!applicantCreatorId) throw new Error('expected a 4th creator with no UPI details');
 
   for (const [index, status] of SEED_DEAL_STATUSES.entries()) {
     const brandId = brandIds[index % brandIds.length];

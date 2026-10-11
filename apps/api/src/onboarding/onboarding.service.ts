@@ -1,7 +1,7 @@
 import { type OnboardingState, computeOnboarding } from '@valueskins/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { brandBilling, creatorPayoutAccounts, users } from '../db/schema/index.js';
+import { brandBilling, users } from '../db/schema/index.js';
 
 /** The onboarding state for a user, read from the database. */
 export async function loadOnboardingState(userId: string): Promise<OnboardingState> {
@@ -13,11 +13,6 @@ export async function loadOnboardingState(userId: string): Promise<OnboardingSta
     .from(brandBilling)
     .where(eq(brandBilling.userId, userId))
     .limit(1);
-  const [payout] = await db
-    .select({ status: creatorPayoutAccounts.status })
-    .from(creatorPayoutAccounts)
-    .where(eq(creatorPayoutAccounts.userId, userId))
-    .limit(1);
 
   return computeOnboarding({
     hasInstagram: user.instagramUserId !== null,
@@ -25,7 +20,8 @@ export async function loadOnboardingState(userId: string): Promise<OnboardingSta
     emailVerified: user.email !== null && user.emailVerifiedAt !== null,
     hasBilling: billing !== undefined,
     instagramUsernameSet: user.instagramUsernameSetAt !== null,
-    payoutStatus: payout?.status ?? null,
+    hasPayoutDetails:
+      user.payoutVpa !== null && user.payoutName !== null && user.payoutVpaConsentAt !== null,
   });
 }
 

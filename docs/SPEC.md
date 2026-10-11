@@ -13,11 +13,12 @@
 |---|---|---|---|
 | 1 | `amount INT` in rupees | All money is integer **paise** (`BIGINT`) | ₹2,734.50 cannot be stored as an INT. Razorpay works in paise. |
 | 2 | Flat ₹750 + GST commission, Razorpay fees absorbed | Commission = `max(₹750, 5% of budget)` + 18% GST, minimum budget ₹5,000 **[CONFIRM]** | A flat ₹750 with about 2% fees absorbed loses money on every deal above about ₹37,500. The formula gives the same ₹885 on a ₹10,000 deal, so every v1 example still holds. |
-| 3 | "No escrow", but ValueSkins collects and pays out via Payouts | **Razorpay Route**: each creator is a Route linked account, and advance and final payments are transferred to it automatically | Moving third-party money through your own account with generic payouts is the wrong product. Route is Razorpay's product for marketplaces. |
-| 4 | Bank details for everyone, "Razorpay stores" | Only creators give payout details, through Route linked-account onboarding (legal name, PAN, bank, IFSC). Brands give billing details for GST. We never store PAN or full bank numbers. | Brands pay by card/UPI/netbanking and never need a bank account on file. Creators need KYC to receive transfers. |
-| 5 | Webhook events `payment.authorized` / `payment.failed` | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events. Idempotent processing. | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless. |
+| 3 | "No escrow", but ValueSkins collects and pays out via Payouts | **Razorpay Route**: each creator is a Route linked account, and advance and final payments are transferred to it automatically | Moving third-party money through your own account with generic payouts is the wrong product. Route is Razorpay's product for marketplaces. | **Superseded by row 8.**
+| 4 | Bank details for everyone, "Razorpay stores" | Only creators give payout details, through Route linked-account onboarding (legal name, PAN, bank, IFSC). Brands give billing details for GST. We never store PAN or full bank numbers. | Brands pay by card/UPI/netbanking and never need a bank account on file. Creators need KYC to receive transfers. | **Superseded by row 8.**
+| 5 | Webhook events `payment.authorized` / `payment.failed` | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events. Idempotent processing. | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless. | Route and linked-account events are gone (row 8); transfer events stay until Prompt 13.
 | 6 | "Production only, no test mode" | Build and test in **test mode**. Live keys exist only in the production environment. | Testing a 3-payment flow with real money creates real refunds and real GST invoices for every bug. |
 | 7 | Instagram type auto-detected from followers, immutable | User **chooses** Creator or Brand once at onboarding (pre-selected from Instagram `account_type`), then it is locked. A wrong choice is fixed by hand in the database on request. | Follower count cannot tell a brand from a creator. |
+| 8 | Route linked accounts for creator payouts (rows 3 to 5) | Razorpay Route is not available to ValueSkins (REPLACEMENT_PLAN 0). Only the fee goes through Razorpay. The creator's share is paid by the brand directly to the creator's **UPI ID**, which the creator saves with the name on the account and a consent (section 7.2). Prompt 12 replaced the payout setup; Prompt 13 replaces the advance and final payments and the transfers. | RBI's payment aggregator directions only allow paying out to third parties above a turnover ValueSkins does not have. |
 | 8 | Instagram OAuth for everyone | **Instagram API with Instagram Login** (Business Login for Instagram). Only Professional (Business or Creator) accounts can sign in. Needs Meta app review. | The old Basic Display API is gone. Personal accounts are not supported by the current API. |
 | 9 | Status enum missing CANCELLED and CLOSED_FOR_APPLICATIONS | CANCELLED added. "Applications closed" is **derived** from `application_deadline`, not a status. | Fewer states, no cron needed to close applications. |
 | 10 | "Reject Deal" allowed at CONTENT_UPLOADED | Removed. After the advance is paid, only an **admin** can cancel, through dispute resolution. | Contradicted "no cancellation after advance". Also gives a way out when a creator disappears with the advance. |
@@ -46,7 +47,7 @@ A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators a
 | Frontend | Next.js (App Router, current stable), React, Tailwind CSS, TanStack Query, socket.io-client. Hosted on **Vercel** at `https://valueskins.com` |
 | Backend | Node.js 22 LTS, Express 5, Socket.io, Zod, pino. Hosted on **Render** (paid, always-on, single instance) at `https://api.valueskins.com` |
 | Database | PostgreSQL on **Render** (paid plan with backups). Drizzle ORM + drizzle-kit migrations |
-| Payments | Razorpay: Standard Checkout + Orders + **Route** (linked accounts, transfers) |
+| Payments | Razorpay: Standard Checkout + Orders (the commission only; the creator is paid directly by UPI, REPLACEMENT_PLAN 2.1) |
 | Auth | Instagram API with Instagram Login. Server-side sessions in Postgres, httpOnly cookie |
 | Email | Resend, sending from `notifications@valueskins.com` (SPF + DKIM on the domain) |
 | PDF | PDFKit, generated on demand, never stored |
@@ -67,10 +68,10 @@ A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators a
 3. No niches, no categories, no filtering. All open deals are visible to all creators.
 4. No negotiation. The budget is final.
 5. No chat. The only brand-to-creator text is revision feedback.
-6. Money moves brand -> Razorpay -> creator via Route. ValueSkins keeps only the commission.
+6. The ValueSkins fee goes brand -> Razorpay -> ValueSkins. The creator's share is paid by the brand directly to the creator's UPI ID and never passes through ValueSkins (REPLACEMENT_PLAN 2.1).
 7. Account type (Creator or Brand) is chosen once at onboarding and is locked.
 8. Instagram is the profile. It is fetched automatically and refreshed daily.
-9. Creators set up payouts once (Route linked account). Brands set up billing details once.
+9. Creators save their UPI ID and the name on the account once. Brands set up billing details once.
 10. A verified email is required before using the marketplace.
 11. The virtual resume is visible on hover over any user, everywhere.
 12. Everyone is equal: no tiers, no levels, no badges.
@@ -165,7 +166,7 @@ Derived flags (not statuses):
 |---|---|---|---|
 | DRAFT | OPEN | Brand | Publish (validates fields, computes and freezes money breakdown) |
 | DRAFT | (deleted) | Brand | Delete draft |
-| OPEN | CONFIRMED | Brand | Confirm one application. All other applications become REJECTED in the same transaction. Creator must have an ACTIVE payout account. |
+| OPEN | CONFIRMED | Brand | Confirm one application. All other applications become REJECTED in the same transaction. Creator must have a UPI ID, a name and consent saved (`409 CREATOR_PAYOUT_NOT_SET`). |
 | OPEN | CANCELLED | Brand | Cancel, free |
 | CONFIRMED | COMMISSION_PAID | System | Commission payment captured (webhook) |
 | CONFIRMED | CANCELLED | Brand | Cancel, free |
@@ -198,10 +199,10 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
 ### 5.5 Phases (user-facing)
 
 1. **Brand posts deal.** Form: title, description (with template, see section 9), budget in rupees, the three deadlines. Brand sees the full payment breakdown before publishing. Publish sets status OPEN, broadcasts `deal:new` to all connected creators, sends Email 1.
-2. **Creators apply.** Feed shows brand name (hover for virtual resume), budget, creator amount, deadlines, description. Apply needs an ACTIVE payout account. If it is missing, the button reads "Set up payouts to apply" and links to settings.
+2. **Creators apply.** Feed shows brand name (hover for virtual resume), budget, creator amount, deadlines, description. Apply needs a saved UPI ID, name and consent (`403 PAYOUT_NOT_SET`). If it is missing, the button reads "Add your UPI ID to apply" and links to settings.
 3. **Brand confirms a creator.** Application list with hover resumes. Confirm on one creator, and the rest are auto-rejected.
 4. **Payment 1, commission.** "Pay commission: ₹885.00". Razorpay Checkout. On capture: COMMISSION_PAID, invoice issued (a tax invoice when GST is charged), Email 4 with it attached.
-5. **Payment 2, advance.** "Pay advance: ₹2,734.50". On capture: transfer to the creator's linked account, ADVANCE_PAID, Email 5.
+5. **Payment 2, advance.** "Pay advance: ₹2,734.50". Until Prompt 13 the advance cannot be paid: the order endpoint answers `409 PAYMENT_RAIL_CHANGED`. Prompt 13 replaces it with a direct UPI payment the creator confirms (REPLACEMENT_PLAN 2.1).
 6. **Creator uploads content.** Countdown to the upload deadline. Paste a Google Drive link (validated as `https://drive.google.com/...` or `https://docs.google.com/...`). CONTENT_UPLOADED, Email 6. Every link is kept in `content_uploads`, so a re-upload never erases the earlier ones; at most 20 links per deal. Uploading after the deadline is allowed (the deal is only flagged overdue).
 7. **Brand reviews.** Either "Suggest changes" (text, REVISION_REQUESTED, Email 7) or "Final approval" (APPROVED, Email 8). After 5 revisions, both see: "This deal has had 5 revisions. If you cannot agree, raise a dispute." The feedback text and its time are kept as the note of the deal event, and each round adds one to `revision_count`.
 8. **Payment 3, final.** "Pay final: ₹6,380.50". On capture: transfer, COMPLETED, Email 9, then ADP ready, Email 10.
@@ -243,13 +244,13 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
 2. **Choose account type.** Creator or Brand. Pre-selected: Instagram `MEDIA_CREATOR` means Creator, `BUSINESS` means Brand. Warning: "You cannot change this later." Stored once, locked.
 3. **Email.** Required. The server sends a verification link (token valid 24 hours, single use, only the hash stored). The user must click it before continuing. Changing email later re-runs verification.
 4. **Type-specific setup.**
-   - Creator: **Payout setup** (section 7.2). Creators may browse deals before finishing, but cannot apply until the payout account is ACTIVE.
+   - Creator: **UPI payout details** (section 7.2). Creators may browse deals before finishing, but cannot apply until they have saved a UPI ID, the name on the account and consent.
    - Brand: **Billing details**: billing name, billing state (for GST place of supply), billing address, GSTIN (optional, validated format). Required before publishing a deal.
 5. **Marketplace.**
 
 Which steps apply, which are done and which is next is returned by `GET /me` as `onboarding` (`{ completed, nextStep, steps: [{ id, done, required }] }`, step ids `instagram_username`, `role`, `email`, `billing`, `payout`), computed by `computeOnboarding` in `packages/shared`. Confirm profile and Marketplace are UI-only and not tracked.
 
-- **Completion.** `onboarding_completed_at` is set, once and never unset, when the role is chosen and the email is verified, plus billing details for a brand, plus the Instagram username for an email-only account (V0_LAUNCH 2.2). Payout setup is a step but not required to complete: creators may browse before finishing it.
+- **Completion.** `onboarding_completed_at` is set, once and never unset, when the role is chosen and the email is verified, plus billing details for a brand, plus the Instagram username for an email-only account (V0_LAUNCH 2.2). The UPI payout step is not required to complete: creators may browse before finishing it. It is done when the UPI ID, name and consent are all saved, and it gates applying and being confirmed, not onboarding.
 - **Role** (`POST /me/role`): once only. A second call answers `409 ROLE_ALREADY_SET` and never overwrites.
 - **Email for Instagram accounts** (`POST /me/email`, `/me/email/verify`, `/me/email/resend`). `users.email` changes only when the new address is verified, so a changed address leaves the old verified one in place until then. The link is `WEB_ORIGIN/verify-email?token=...`, valid 24 hours, single use, only the hash stored, bound to the signed-in user; every bad token is the same `400 INVALID_TOKEN`. `POST /me/email` always answers 200 whether or not another account uses the address; a clash is reported at verify time as `409 EMAIL_TAKEN`. Email-only accounts cannot use these routes (`409 EMAIL_IS_SIGN_IN`): their email is their sign-in. Resend is rate limited (section 13).
 - **Brand billing** (`PUT /me/billing`): brands only, GSTIN format-validated.
@@ -271,34 +272,37 @@ Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code l
 
 - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` come from env.
 - Local and staging use **test keys**. Production uses live keys. The API logs the mode (`test` or `live`) at startup, and refuses to start if `NODE_ENV=production` with a test key, or non-production with a live key.
-- Route must be enabled on the ValueSkins Razorpay account (request it from Razorpay) in both test and live mode.
+- Route is not used (REPLACEMENT_PLAN 0). Only the commission is paid through Razorpay.
 
-### 7.2 Creator payout setup (Route linked account)
+### 7.2 Creator payout details (UPI)
 
-- Form fields: legal name, PAN, phone, bank account number, IFSC, account holder name. Razorpay's create-linked-account API requires a phone number (checked against Razorpay's docs, October 2026), so it is on the form; it is sent to Razorpay and never stored by us, never shown or used anywhere else. The PAN must be an individual's (4th character `P`, Razorpay's stakeholder rule), the legal name at least 4 characters, the account number 5 to 20 digits, the phone a 10 digit Indian mobile number.
-- Server calls, in order: create linked account (`POST /v2/accounts`: `type` `route`, `business_type` `individual`, `profile.category`/`subcategory` from one constant in the code, `profile.addresses.registered` = `{ country: "IN" }` because the form collects no address, `notes.user_id` = our user id), create stakeholder (name, email, phone, `kyc.pan`), request the Route product (`product_name` `route`), update it with the settlement bank details and `tnc_accepted`. `reference_id` is not used: Razorpay allows 3 to 20 characters and gates it behind a feature flag, so our user id cannot be sent there. Razorpay's category lists could not be retrieved when this was written: confirm them in test mode.
-- Progress is saved after every step (a row exists as soon as the linked account does), so a retry after a partial failure resumes instead of creating duplicates. If creating the account succeeded but the response was lost, Razorpay's "Merchant email already exists for account" answer is adopted only after the account's `notes.user_id` proves it is ours. One setup runs at a time per user (`409 PAYOUT_SETUP_IN_PROGRESS`). After `NEEDS_CLARIFICATION`, submitting again re-sends the settlement details.
-- We store only: `razorpay_account_id`, `razorpay_stakeholder_id`, `razorpay_product_id`, `status`, `bank_last4`, `ifsc`, `requirements` (JSON from Razorpay), timestamps. **Never PAN, never the full account number.**
-- Status: `PENDING` -> `ACTIVE`, or `NEEDS_CLARIFICATION` (show Razorpay's requirement reasons and let the creator fix them), or `SUSPENDED`. Razorpay's `activated` is `ACTIVE`, `needs_clarification` is `NEEDS_CLARIFICATION`, `suspended` is `SUSPENDED`, anything else (`requested`, `under_review`) is `PENDING`. Updated from the `product.route.under_review`, `.needs_clarification` and `.activated` webhooks (Razorpay documents no `account.*` events for Route, and none for `suspended`), plus a "Refresh status" button that fetches the product configuration from Razorpay. An update older than the last one applied is ignored (webhooks can arrive out of order), and email #16 is sent once, when the status changes to `ACTIVE` or `NEEDS_CLARIFICATION`.
-- Razorpay's responses contain the full bank account number and PAN, so they are never stored or logged: only the status and the requirement reasons are kept.
-- Creator must confirm: "I agree that Razorpay will store my bank and KYC details to pay me."
+Replaces the Route linked-account setup (REPLACEMENT_PLAN 2.1). Nothing is sent to Razorpay.
+
+- **Fields:** the UPI ID (`vpa`), the name on the account as the creator's UPI app shows it (`name`), and consent. Body of `PUT /me/payout-upi`: `{ vpa, name, consent: true }`, unknown fields rejected.
+- **UPI ID format:** `^[a-zA-Z0-9.\-_]{2,64}@[a-zA-Z]{2,32}$`, trimmed and stored in lower case. Enforced by the Zod schema and by a database CHECK (`users_payout_vpa_check`). Anything shaped like a bank account number (9 to 18 digits), a PAN or an IFSC code is refused with a message that says so; the same shapes are refused as the name. Messages never repeat what was typed.
+- **Name:** 2 to 80 characters, letters in any script, spaces, dots, hyphens and apostrophes.
+- **Consent:** "I agree my UPI ID and name are shown to a brand that confirms me on a deal." Saving stamps `payout_vpa_consent_at`; saving again replaces everything. The page also says: "We do not verify UPI IDs. Enter yours carefully. A payment to a wrong UPI ID cannot be recalled."
+- **Storage:** `users.payout_vpa`, `payout_name`, `payout_vpa_consent_at`. Never PAN, bank account numbers or IFSC. Account deletion clears all three.
+- **Disclosure:** the full UPI ID is shown to nobody yet. Prompt 13 shows it to the brand confirmed on a deal, only when the creator consented and only while a direct payment is due. Everywhere else, including the creator's own settings, it is masked: `cr•••@okhdfcbank` (the first two characters before the @, or one if there are only two). `GET /me/payout-upi` answers `{ payoutUpi: { maskedVpa, name, consentAt } | null }`. It is never logged: the logger redacts UPI-shaped values and the keys `vpa`, `upi` and `payout`.
+- **Endpoints:** `PUT /me/payout-upi` (creators only, 10 saves per hour per user) answers `{ payoutUpi, onboarding }`; `GET /me/payout-upi` (creators only).
+- **Gating:** applying needs all three (`403 PAYOUT_NOT_SET`, "Add your UPI ID to apply"); confirming an applicant needs them still saved (`409 CREATOR_PAYOUT_NOT_SET`).
 
 ### 7.3 Payments
 
 - For each of the 3 payments, the server creates a Razorpay Order: amount from the frozen breakdown, `currency: INR`, `receipt` = `<dealShortId>-<type>` (type as in the URL: `commission`, `advance`, `final`), notes `{ deal_id, type }`. Capture is automatic through the Razorpay account setting (the Orders API takes no per-order flag).
-- Advance and final Orders include a `transfers` array: the full advance/final amount to the creator's linked account, `on_hold: false`, notes `{ deal_id, type }`. (Subject to the 4.3 check.) Razorpay creates the transfer once the payment is captured; a transfer cannot exceed its order's amount.
+- **Advance and final orders are not created** (`409 PAYMENT_RAIL_CHANGED`, for the deal's brand in every status) until Prompt 13 builds direct UPI payments. Orders that already exist can still be captured by verify or webhook; their Route transfer is matched by amount. The advance and final actions in `allowedActions` are listed disabled with the reason "Paying the creator directly is not available yet".
 - Only one open Order per deal per payment type (a partial unique index enforces it, and a lock stops two simultaneous requests creating two). If one exists and is unpaid, it is reused. A declined attempt does not close the order: `payment.failed` marks the payment FAILED with Razorpay's reason and leaves the deal untouched, and the next order request reuses the same Razorpay order and reopens it (CREATED). A late successful capture is accepted from CREATED or FAILED.
-- The endpoint checks: the caller is the deal's brand (anyone else gets 404), and the deal is in the correct status (CONFIRMED for commission, COMMISSION_PAID for advance, APPROVED for final; otherwise `409 WRONG_DEAL_STATUS`). The advance also needs the creator's payout account to be ACTIVE (`409 CREATOR_PAYOUT_NOT_ACTIVE`); the final does not, because a transfer to an account that went bad takes the failed-transfer path below.
+- The endpoint checks: the caller is the deal's brand (anyone else gets 404), and the deal is in the correct status (CONFIRMED for commission, COMMISSION_PAID for advance, APPROVED for final; otherwise `409 WRONG_DEAL_STATUS`).
 - Frontend opens Razorpay Checkout with the Order id. On the Checkout success handler it calls `POST /api/payments/verify` with `razorpay_order_id, razorpay_payment_id, razorpay_signature`. The server verifies the signature.
 - **Both** the verify endpoint and the webhook call the same idempotent function `markPaymentCaptured(orderId, paymentId)`. Whichever arrives first performs the transition. The second is a no-op. It does not trust the browser or the webhook body: it fetches the payment from Razorpay and requires status `captured`, the same order, the order's amount and `INR`; a mismatch records nothing, answers `409 PAYMENT_AMOUNT_MISMATCH` (or `PAYMENT_ORDER_MISMATCH`, `PAYMENT_NOT_CAPTURED`) and alerts the admin (A1). In one transaction it marks the payment CAPTURED, stores the transfer row (id and status from `GET /v1/payments/:id/transfers`, or PENDING without an id until the first transfer webhook), and transitions the deal with a SYSTEM actor (CONFIRMED to COMMISSION_PAID, COMMISSION_PAID to ADVANCE_PAID, APPROVED to COMPLETED). Emails 4, 5 and 9 go out after commit (attachments arrive with section 7.4). If the deal is no longer in the status the payment moves it from (for example the brand cancelled while Checkout was open), the payment is still recorded as CAPTURED, the deal is left alone, and the admin is alerted to refund it by hand (section 12). A second captured payment for the same deal and type is marked FAILED and flagged for refund.
 - `POST /payments/verify` checks the Checkout signature (HMAC-SHA256 of `order_id|payment_id` with the key secret, constant-time compare, `400 INVALID_SIGNATURE`), then calls `markPaymentCaptured`. Only the deal's brand can verify its payments.
 - Webhook endpoint `POST /api/webhooks/razorpay`:
   - Uses the raw body for HMAC-SHA256 signature verification with the webhook secret. Invalid signature returns 400.
   - Deduplicates on the `x-razorpay-event-id` header, stored in `webhook_events`. Duplicates return 200 immediately.
-  - Handles, by a registry keyed by event type: `product.route.under_review`, `product.route.needs_clarification`, `product.route.activated` (section 7.2). `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`; and the Route `transfer.processed`, `transfer.failed` and `transfer.reversed` events, which update the transfer row (status only moves forward; a transfer event that arrives before its payment was recorded records the payment first). `transfer.reversed` is not on Razorpay's Route payload page, so check the dashboard's event list for it. An event with no handler (for example `settlement.processed`) is stored and marked processed.
+  - Handles, by a registry keyed by event type: `payment.captured`, `order.paid` (both call `markPaymentCaptured`) and `payment.failed`; and the Route `transfer.processed`, `transfer.failed` and `transfer.reversed` events, which update the transfer row (status only moves forward; a transfer event that arrives before its payment was recorded records the payment first). `transfer.reversed` is not on Razorpay's Route payload page, so check the dashboard's event list for it. An event with no handler (for example `settlement.processed` or an old `product.route.*`) is stored and marked processed.
   - Always returns 200 quickly after storing the event: the event is processed after the response. The stored payload is redacted (PAN, KYC, phone and legal info removed, account numbers reduced to their last 4 digits, and the payer's email, contact, VPA, card, bank and wallet details removed). Processing errors are recorded on the event row (the message, never the payload) and alerted to the admin (template A1, sent to `DISPUTE_EMAIL`), never retried in a loop.
 - A failed transfer (after payment was captured) sets the transfer row to FAILED with Razorpay's reason, emails the admin once (A1), and leaves the admin two actions (section 12): retry, or mark it as paid by hand. The deal still advances, because the brand did pay.
-  - **Retry** (`POST /admin/transfers/:id/retry`). Razorpay has no retry endpoint, and its docs do not say whether a failed transfer frees its amount under the payment's cap. So a retry first lists the payment's transfers (`GET /v1/payments/:id/transfers`): a pending or processed one to the creator for the same amount is adopted into our row and nothing is created, which makes repeated or simultaneous retries safe (the row is locked for the whole call). Only if ours is FAILED, none is live and the creator's payout account is ACTIVE does it create one new transfer with `POST /v1/payments/:id/transfers` (same amount, `on_hold: false`, notes `{ deal_id, type, retry: '1' }`), stores its id on the same row and sets the row to PENDING so the transfer webhooks move it on. A PROCESSED (including manual) or REVERSED transfer is `409 TRANSFER_STATE_CONFLICT`. A rejection by Razorpay (for example the cap) is `422 TRANSFER_REJECTED` with Razorpay's reason and leaves the row unchanged. This repairs one transfer; it does not settle the section 4.3 fee question.
+  - **Retry** (`POST /admin/transfers/:id/retry`) creates a Route transfer, which is not available (REPLACEMENT_PLAN 0), so it never calls Razorpay: an unknown id is `404`, any real transfer is `409 PAYMENT_RAIL_CHANGED`. Prompt 13 removes the route.
   - **Mark manual** (`POST /admin/transfers/:id/mark-manual`, body `{ reference }`, required): for a FAILED or PENDING transfer the admin paid outside Razorpay Route. Sets PROCESSED with `manual_reference`, `manual_by_id`, `manual_at`; the same reference again is a no-op, anything else on a PROCESSED or REVERSED row is `409 TRANSFER_STATE_CONFLICT`. A later webhook cannot undo it, and retry refuses it, so the creator is never paid twice.
 
 ### 7.4 Invoices
@@ -341,7 +345,7 @@ In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of se
 | 14 | Review reminder | Brand | Daily after 3 days in CONTENT_UPLOADED |
 | 15 | Dispute raised | valueskinsfounder@gmail.com (`DISPUTE_EMAIL`), CC both parties | Dispute form submitted |
 | 15b | Dispute resolved | Brand and Creator | Admin resolves a dispute (includes the resolution note and the refund reference when given) |
-| 16 | Payout account status | Creator | Linked account becomes ACTIVE or NEEDS_CLARIFICATION |
+| 16 | (retired) Payout account status | - | Removed with the Route linked account (section 7.2) |
 | A1 | Admin alert | Admin | Webhook processing error, transfer failed |
 
 Settlement timing copy: "Razorpay will send this to your bank account on its settlement schedule." Never promise a number of days we do not control.
@@ -425,8 +429,9 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 | Login attempts | 20 per hour, then 15-minute lockout | IP |
 | Email verification resend | 5 per hour | User |
 | Dispute | 3 per deal per 24h (counted once the request is valid and allowed) | User |
+| Save payout UPI details | 10 per hour | User |
 
-Publish and apply are counted only once the request has passed validation (and, for apply, the payout and deadline checks), so a form full of errors does not use up the day's allowance.
+Publish and apply are counted only once the request has passed validation (and, for apply, the UPI details and deadline checks), so a form full of errors does not use up the day's allowance.
 
 Response: `429` with `Retry-After`. Razorpay API calls from our server retry up to 3 times with exponential backoff, only for network errors and 5xx.
 
@@ -451,13 +456,10 @@ All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped i
 Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` default now, money columns `_paise BIGINT`, enums as Postgres enums. Foreign keys everywhere, with indexes on every foreign key and every column used in a filter.
 
 **users**
-`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), instagram_username_set_at (when an email-only account typed its Instagram username, V0_LAUNCH 2.2), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, last_active_at, created_at, updated_at, deleted_at`
+`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), instagram_username_set_at (when an email-only account typed its Instagram username, V0_LAUNCH 2.2), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, payout_vpa (nullable, CHECK on the UPI format), payout_name (nullable), payout_vpa_consent_at (nullable), last_active_at, created_at, updated_at, deleted_at`
 
 **brand_billing** (1:1 users)
 `user_id (pk), billing_name, billing_address, billing_state, gstin (nullable), created_at, updated_at`
-
-**creator_payout_accounts** (1:1 users)
-`user_id (pk), razorpay_account_id (unique), razorpay_stakeholder_id (nullable until created), razorpay_product_id (nullable until created), status (PENDING | ACTIVE | NEEDS_CLARIFICATION | SUSPENDED), bank_last4, ifsc, requirements jsonb, consent_at, status_synced_at, created_at, updated_at`
 
 **sessions**
 `id, user_id, token_hash (unique), expires_at, ip, user_agent, created_at`
@@ -524,7 +526,7 @@ Auth and account
 - `POST /me/instagram-username` (email-only accounts, before Instagram is connected)
 - `POST /me/email` and `POST /me/email/verify` (token) and `POST /me/email/resend`
 - `PUT /me/billing` (brand)
-- `POST /me/payout-account`, `GET /me/payout-account`, `POST /me/payout-account/refresh` (creator)
+- `PUT /me/payout-upi`, `GET /me/payout-upi` (creator; the UPI ID is always masked)
 - `DELETE /me` (account deletion)
 - `POST /meta/data-deletion`, `POST /meta/deauthorize`, `GET /meta/deletion-status/:code`
 
@@ -550,13 +552,13 @@ Deals
 - `POST /deals/:id/disputes` (the deal's brand or confirmed creator, body `{ subject, description }`, answers 201 `{ dispute }`; `409 DISPUTE_NOT_ALLOWED`, `429` over 3 per deal per day; email 15)
 
 Applications
-- `POST /deals/:id/applications` (creator; needs an ACTIVE payout account, `403 PAYOUT_NOT_ACTIVE`; `409 APPLICATIONS_CLOSED`, `409 ALREADY_APPLIED`; sends email 2)
+- `POST /deals/:id/applications` (creator; needs a saved UPI ID, name and consent, `403 PAYOUT_NOT_SET`; `409 APPLICATIONS_CLOSED`, `409 ALREADY_APPLIED`; sends email 2)
 - `GET /deals/:id/applications` (brand that owns the deal)
 - `GET /applications/mine` (creator: each application with a small summary of its deal)
-- `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator's payout account must be ACTIVE, `409 CREATOR_PAYOUT_NOT_ACTIVE`; sends emails 3 and 3b)
+- `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator must still have a UPI ID, name and consent saved, `409 CREATOR_PAYOUT_NOT_SET`; sends emails 3 and 3b)
 
 Payments
-- `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS`, `409 CREATOR_PAYOUT_NOT_ACTIVE` for the advance)
+- `POST /deals/:id/payments/:type/order` (type: `commission | advance | final`; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS` for the commission; `advance` and `final` answer `409 PAYMENT_RAIL_CHANGED` until Prompt 13)
 - `POST /payments/verify` (the deal's brand; body `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`; answers `{ payment: { status }, deal }`)
 - `POST /webhooks/razorpay` (no auth, signature verified, raw body)
 
@@ -564,7 +566,7 @@ Admin (`/admin/*`, admin only)
 - `GET /admin/analytics` (not built yet)
 - `GET /admin/deals` (`?status=&q=&cursor=&limit=`), `GET /admin/deals/:id`
 - `POST /admin/deals/:id/cancel` (body `{ note, refundReference? }`; from ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED or APPROVED, otherwise `409 INVALID_TRANSITION`; email 11)
-- `POST /admin/transfers/:id/retry` (body `{}`; answers `{ transfer, outcome: CREATED | SYNCED }`; `409 TRANSFER_STATE_CONFLICT`, `409 CREATOR_PAYOUT_NOT_ACTIVE`, `422 TRANSFER_REJECTED`)
+- `POST /admin/transfers/:id/retry` (answers `404` for an unknown id and otherwise `409 PAYMENT_RAIL_CHANGED`; removed in Prompt 13)
 - `POST /admin/transfers/:id/mark-manual` (body `{ reference }`; `409 TRANSFER_STATE_CONFLICT`)
 - `POST /admin/emails/:id/resend` (answers `{ emailLogId, status, missingAttachments }`)
 - `GET /admin/disputes` (`?status=OPEN|RESOLVED`), `POST /admin/disputes/:id/resolve` (body `{ resolution, refundReference? }`; `409 DISPUTE_ALREADY_RESOLVED`; email 15b)
@@ -603,7 +605,7 @@ Generated on demand with PDFKit, same document for both parties.
 - Navigation, creator: Home (live feed), Applications, Deals, Profile, Settings (payouts, email).
 - Navigation, brand: Campaigns (my deals, and a "New deal" button), Profile, Settings (billing, email). Browsing creators is v2.
 - Deal page shows: status, a step indicator for the 9 phases, the one action available to this user right now, deadlines with countdown, payment breakdown, content link history, feedback history, communication history, documents, and "Raise dispute".
-- Every disabled action says why (for example "Applications closed", "Set up payouts to apply", "Cancellation is not possible after the advance is paid").
+- Every disabled action says why (for example "Applications closed", "Add your UPI ID to apply", "Cancellation is not possible after the advance is paid").
 - Responsive: desktop and tablet first, usable at 375px wide.
 - Accessibility: all actions keyboard reachable, visible focus ring (accent color), text contrast AA.
 
@@ -648,18 +650,18 @@ Staging (V0_LAUNCH 2.7) runs on Render's free Postgres plan: it expires 30 days 
 ## 21. Open decisions (sign-off needed)
 
 1. **Commission formula and minimum budget** (section 4.2). Needed before Prompt 2.
-2. **Razorpay fee handling on Route transfers** (section 4.3). Verified in Prompt 12.
+2. **Razorpay fee handling on Route transfers** (section 4.3). Moot: Route is not used (REPLACEMENT_PLAN 0); Prompt 13 closes it.
 3. **GST and tax.** ValueSkins must be GST registered to charge GST on commission. Have the CA confirm the invoice format and SAC code, and whether marketplace TDS (Income Tax section 194-O) or GST TCS obligations apply to ValueSkins. If they apply, they change the payout math. Needed before go-live.
 4. **Stuck deals.** v1 only sends reminders when a brand does not pay the commission or does not review content. Decide whether to auto-cancel after N days in v2.
 5. **Public deal amounts** in the virtual resume (section 11).
-6. **Phone number for Razorpay KYC** if the linked-account API requires it (section 7.2).
+6. **Phone number for Razorpay KYC.** Moot: no linked accounts any more (section 7.2).
 
 ---
 
 ## 22. Go-live checklist
 
 - [ ] Meta app approved for `instagram_business_basic`, app in Live mode
-- [ ] Razorpay live account activated with Route enabled, live webhook registered with all events
+- [ ] Razorpay live account activated live webhook registered with the payment events
 - [ ] One complete deal run end to end in test mode on staging, then one small real deal (minimum budget) in live mode between the founders
 - [ ] Commission invoice format approved by CA, company GSTIN and SAC code in env
 - [ ] Resend domain verified (SPF, DKIM), test emails land in inbox (not spam) for Gmail and Outlook

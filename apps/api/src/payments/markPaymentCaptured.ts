@@ -1,7 +1,7 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
-import { creatorPayoutAccounts, payments, transfers } from '../db/schema/index.js';
+import { payments, transfers } from '../db/schema/index.js';
 import { findDeal } from '../deals/access.js';
 import { transitionDeal, type AfterCommitTask, type Deal, type Tx } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
@@ -253,12 +253,6 @@ async function planTransfer(
   paymentId: string,
 ): Promise<TransferInsert> {
   if (!deal.creatorId) throw new Error(`deal ${deal.id} has no creator for a ${row.type} payment`);
-  const [account] = await db
-    .select({ razorpayAccountId: creatorPayoutAccounts.razorpayAccountId })
-    .from(creatorPayoutAccounts)
-    .where(eq(creatorPayoutAccounts.userId, deal.creatorId))
-    .limit(1);
-
   let listed: RazorpayTransfer[] = [];
   try {
     listed = (await deps.razorpay.fetchPaymentTransfers(paymentId)).items;
@@ -269,10 +263,8 @@ async function planTransfer(
       'could not list transfers for a captured payment',
     );
   }
-  const match =
-    listed.find(
-      (t) => t.recipient === account?.razorpayAccountId && t.amount === row.amountPaise,
-    ) ?? null;
+  // An order made before the rail changed carries one transfer for the full amount.
+  const match = listed.find((t) => t.amount === row.amountPaise) ?? null;
 
   if (match) {
     // Amounts only, for the fee report (SPEC 4.3). No personal data is involved.

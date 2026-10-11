@@ -9,7 +9,6 @@ import {
   INVOICE_KINDS,
   PAYMENT_STATUSES,
   PAYMENT_TYPES,
-  PAYOUT_ACCOUNT_STATUSES,
   TRANSFER_STATUSES,
   TRANSFER_TYPES,
   USER_ROLES,
@@ -30,12 +29,6 @@ describe('SPEC section 15 enums', () => {
       'CANCELLED',
     ]);
     expect(USER_ROLES).toEqual(['CREATOR', 'BRAND']);
-    expect(PAYOUT_ACCOUNT_STATUSES).toEqual([
-      'PENDING',
-      'ACTIVE',
-      'NEEDS_CLARIFICATION',
-      'SUSPENDED',
-    ]);
     expect(CANCELLED_BY_ROLES).toEqual(['BRAND', 'ADMIN']);
     expect(APPLICATION_STATUSES).toEqual(['APPLIED', 'CONFIRMED', 'REJECTED']);
     expect(PAYMENT_TYPES).toEqual(['COMMISSION', 'ADVANCE', 'FINAL']);

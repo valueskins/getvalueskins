@@ -3,9 +3,9 @@ import {
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
-  CREATOR_PAYOUT_NOT_READY,
+  ADD_UPI_TO_APPLY,
   NO_APPLICATIONS_YET,
-  SET_UP_PAYOUTS_TO_APPLY,
+  DIRECT_PAYMENT_NOT_AVAILABLE,
   UPLOAD_LIMIT_REACHED,
 } from './copy.js';
 import { MAX_CONTENT_UPLOADS_PER_DEAL } from './config.js';
@@ -50,10 +50,8 @@ export interface DealActionsInput {
   applicationCount: number;
   /** The creator viewer already has an application on this deal. */
   hasApplied: boolean;
-  /** The creator viewer's payout account is ACTIVE. */
-  payoutActive: boolean;
-  /** The deal's confirmed creator has an ACTIVE payout account (the brand pays the advance to it). */
-  creatorPayoutActive: boolean;
+  /** The creator viewer has saved a UPI ID, a name and consent (REPLACEMENT_PLAN 2.1). */
+  payoutSet: boolean;
   /** The deal has a confirmed creator (a cancelled deal may never have had one). */
   hasCreator: boolean;
   hasBilling: boolean;
@@ -115,11 +113,9 @@ function brandActions(input: DealActionsInput): DealActionState[] {
   const actions: DealActionState[] = [];
   if (status === 'CONFIRMED') actions.push(on('PAY_COMMISSION'));
   if (status === 'COMMISSION_PAID') {
-    actions.push(
-      input.creatorPayoutActive ? on('PAY_ADVANCE') : off('PAY_ADVANCE', CREATOR_PAYOUT_NOT_READY),
-    );
+    actions.push(off('PAY_ADVANCE', DIRECT_PAYMENT_NOT_AVAILABLE));
   }
-  if (status === 'APPROVED') actions.push(on('PAY_FINAL'));
+  if (status === 'APPROVED') actions.push(off('PAY_FINAL', DIRECT_PAYMENT_NOT_AVAILABLE));
   if (status === 'CONTENT_UPLOADED') actions.push(on('SEND_FEEDBACK'), on('APPROVE'));
   if (status === 'OPEN') {
     actions.push(
@@ -140,7 +136,7 @@ function creatorActions(input: DealActionsInput): DealActionState[] {
   if (input.status !== 'OPEN') return [];
   if (input.hasApplied) return [off('APPLY', ALREADY_APPLIED_MESSAGE)];
   if (!input.applicationsOpen) return [off('APPLY', APPLICATIONS_CLOSED)];
-  if (!input.payoutActive) return [off('APPLY', SET_UP_PAYOUTS_TO_APPLY)];
+  if (!input.payoutSet) return [off('APPLY', ADD_UPI_TO_APPLY)];
   return [on('APPLY')];
 }
 

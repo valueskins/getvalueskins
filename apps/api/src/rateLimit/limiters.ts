@@ -52,6 +52,14 @@ export const consumeApplyLimit = createKeyedLimiter({
   keyPrefix: 'apply',
 });
 
+/** SPEC 13: saving payout UPI details, 10 per hour per creator. */
+export const payoutUpiLimiter = createRateLimiter({
+  points: 10,
+  duration: 60 * 60,
+  keyPrefix: 'payout-upi',
+  keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});
+
 /** SPEC 13: dispute, 3 per deal per 24 hours per user. Key it `${userId}:${dealId}`. */
 export const consumeDisputeLimit = createKeyedLimiter({
   points: 3,
