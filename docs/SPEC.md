@@ -9,26 +9,28 @@
 
 ## 0. What changed from v1 and why
 
-| # | v1 said | v2 says | Why |
-|---|---|---|---|
-| 1 | `amount INT` in rupees | All money is integer **paise** (`BIGINT`) | ₹2,734.50 cannot be stored as an INT. Razorpay works in paise. |
-| 2 | Flat ₹750 + GST commission, Razorpay fees absorbed | Commission = `max(₹750, 5% of budget)` + 18% GST, minimum budget ₹5,000 **[CONFIRM]** | A flat ₹750 with about 2% fees absorbed loses money on every deal above about ₹37,500. The formula gives the same ₹885 on a ₹10,000 deal, so every v1 example still holds. |
-| 3 | "No escrow", but ValueSkins collects and pays out via Payouts | **Razorpay Route**: each creator is a Route linked account, and advance and final payments are transferred to it automatically | Moving third-party money through your own account with generic payouts is the wrong product. Route is Razorpay's product for marketplaces. | **Superseded by row 8.**
-| 4 | Bank details for everyone, "Razorpay stores" | Only creators give payout details, through Route linked-account onboarding (legal name, PAN, bank, IFSC). Brands give billing details for GST. We never store PAN or full bank numbers. | Brands pay by card/UPI/netbanking and never need a bank account on file. Creators need KYC to receive transfers. | **Superseded by row 8.**
-| 5 | Webhook events `payment.authorized` / `payment.failed` | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events (all gone, row 8). Idempotent processing. | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless. | Route and linked-account events are gone (row 8); transfer events stay until Prompt 13.
-| 6 | "Production only, no test mode" | Build and test in **test mode**. Live keys exist only in the production environment. | Testing a 3-payment flow with real money creates real refunds and real GST invoices for every bug. |
-| 7 | Instagram type auto-detected from followers, immutable | User **chooses** Creator or Brand once at onboarding (pre-selected from Instagram `account_type`), then it is locked. A wrong choice is fixed by hand in the database on request. | Follower count cannot tell a brand from a creator. |
-| 8 | Route linked accounts for creator payouts (rows 3 to 5) | Razorpay Route is not available to ValueSkins (REPLACEMENT_PLAN 0). Only the fee goes through Razorpay. The creator's share is paid by the brand directly to the creator's **UPI ID**, which the creator saves with the name on the account and a consent (section 7.2). Prompt 12 replaced the payout setup and Prompt 13 the advance and final payments (section 7.3); the `transfers` table and all Route code are gone. | RBI's payment aggregator directions only allow paying out to third parties above a turnover ValueSkins does not have. |
-| 8 | Instagram OAuth for everyone | **Instagram API with Instagram Login** (Business Login for Instagram). Only Professional (Business or Creator) accounts can sign in. Needs Meta app review. | The old Basic Display API is gone. Personal accounts are not supported by the current API. |
-| 9 | Status enum missing CANCELLED and CLOSED_FOR_APPLICATIONS | CANCELLED added. "Applications closed" is **derived** from `application_deadline`, not a status. | Fewer states, no cron needed to close applications. |
-| 10 | "Reject Deal" allowed at CONTENT_UPLOADED | Removed. After the advance is paid, only an **admin** can cancel, through dispute resolution. | Contradicted "no cancellation after advance". Also gives a way out when a creator disappears with the advance. |
-| 11 | "No external services" | Transactional email through **Resend** (single provider, own domain). | You cannot send 15 kinds of email reliably from nothing. |
-| 12 | Disputes: user emails a Gmail address, "auto-CC both" | In-app **Raise dispute** form. The server emails valueskinsfounder@gmail.com with both parties CC'd, and stores it. Direct email still works. | A direct email to Gmail cannot be auto-CC'd by us. |
-| 13 | Upload limit 5 per deal, and unlimited revisions | Upload limit 20 per deal (anti-abuse). Notice suggesting a dispute after 5 revisions. | 5 uploads capped revisions at 4, which contradicted "unlimited". |
-| 14 | `valueskins.vercel.app` + `api.valueskins.render.com` | `valueskins.com` (Vercel) + `api.valueskins.com` (Render) | Same-site cookies. Cross-site cookies between vercel.app and onrender.com break in Safari and are fragile everywhere. |
-| 15 | Razorpay generates the GST invoice | ValueSkins generates its own GST tax invoice for the commission, with sequential numbering | Razorpay Invoices are payment requests, not a tax invoice for a Checkout payment already made. |
-| 16 | Render (unspecified plan) | Paid always-on Render web service and paid Postgres with backups | Free instances sleep, which kills WebSockets and cron jobs. |
-| 17 | "Creator gets refund if payment already made (only before commission)" | Removed. Creators never pay anything. | It described a case that cannot happen. |
+| #   | v1 said                                                                | v2 says                                                                                                                                                                                                                                                                                                                                                                                                                     | Why                                                                                                                                                                                                              |
+| --- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `amount INT` in rupees                                                 | All money is integer **paise** (`BIGINT`)                                                                                                                                                                                                                                                                                                                                                                                   | ₹2,734.50 cannot be stored as an INT. Razorpay works in paise.                                                                                                                                                   |
+| 2   | Flat ₹750 + GST commission, Razorpay fees absorbed                     | A flat commission of ₹750 + 18% GST = **₹885** on every deal, whatever the budget, as on the live site (REPLACEMENT_PLAN 2.2, Prompt 14). Minimum budget ₹5,000.                                                                                                                                                                                                                                                            | Prompt 5 made it `max(₹750, 5% of budget)`. Only the fee now goes through Razorpay, and the live site charges ₹885 on every deal, so the percentage is gone. The formula keeps its shape with a percentage of 0. |
+| 3   | "No escrow", but ValueSkins collects and pays out via Payouts          | **Razorpay Route**: each creator is a Route linked account, and advance and final payments are transferred to it automatically                                                                                                                                                                                                                                                                                              | Moving third-party money through your own account with generic payouts is the wrong product. Route is Razorpay's product for marketplaces.                                                                       | **Superseded by row 8.**                                                                |
+| 4   | Bank details for everyone, "Razorpay stores"                           | Only creators give payout details, through Route linked-account onboarding (legal name, PAN, bank, IFSC). Brands give billing details for GST. We never store PAN or full bank numbers.                                                                                                                                                                                                                                     | Brands pay by card/UPI/netbanking and never need a bank account on file. Creators need KYC to receive transfers.                                                                                                 | **Superseded by row 8.**                                                                |
+| 5   | Webhook events `payment.authorized` / `payment.failed`                 | `payment.captured`, `order.paid`, `payment.failed`, plus Route transfer and linked-account events (all gone, row 8). Idempotent processing.                                                                                                                                                                                                                                                                                 | Authorized is not money received. Razorpay retries webhooks, so duplicates must be harmless.                                                                                                                     | Route and linked-account events are gone (row 8); transfer events stay until Prompt 13. |
+| 6   | "Production only, no test mode"                                        | Build and test in **test mode**. Live keys exist only in the production environment.                                                                                                                                                                                                                                                                                                                                        | Testing a 3-payment flow with real money creates real refunds and real GST invoices for every bug.                                                                                                               |
+| 7   | Instagram type auto-detected from followers, immutable                 | The role **comes from the Instagram account type** at every sign-in: `BUSINESS` is a brand and `MEDIA_CREATOR` is a creator. Users never choose it (REPLACEMENT_PLAN 2.3, Prompt 14; Prompt 4 had users choose it once).                                                                                                                                                                                                    | Follower count cannot tell a brand from a creator, but the account type can.                                                                                                                                     |
+| 8   | Route linked accounts for creator payouts (rows 3 to 5)                | Razorpay Route is not available to ValueSkins (REPLACEMENT_PLAN 0). Only the fee goes through Razorpay. The creator's share is paid by the brand directly to the creator's **UPI ID**, which the creator saves with the name on the account and a consent (section 7.2). Prompt 12 replaced the payout setup and Prompt 13 the advance and final payments (section 7.3); the `transfers` table and all Route code are gone. | RBI's payment aggregator directions only allow paying out to third parties above a turnover ValueSkins does not have.                                                                                            |
+| 8   | Instagram OAuth for everyone                                           | **Instagram API with Instagram Login** (Business Login for Instagram). Only Professional (Business or Creator) accounts can sign in. Needs Meta app review.                                                                                                                                                                                                                                                                 | The old Basic Display API is gone. Personal accounts are not supported by the current API.                                                                                                                       |
+| 9   | Status enum missing CANCELLED and CLOSED_FOR_APPLICATIONS              | CANCELLED added. "Applications closed" is **derived** from `application_deadline`, not a status.                                                                                                                                                                                                                                                                                                                            | Fewer states, no cron needed to close applications.                                                                                                                                                              |
+| 10  | "Reject Deal" allowed at CONTENT_UPLOADED                              | Removed. A brand can cancel free until it pays the fee (OPEN and CONFIRMED). From COMMISSION_PAID on, only an **admin** can cancel, through dispute resolution (REPLACEMENT_PLAN 2.6, Prompt 14).                                                                                                                                                                                                                           | Contradicted "no cancellation after advance". Also gives a way out when a creator disappears with the advance.                                                                                                   |
+| 11  | "No external services"                                                 | Transactional email through **Resend** (single provider, own domain).                                                                                                                                                                                                                                                                                                                                                       | You cannot send 15 kinds of email reliably from nothing.                                                                                                                                                         |
+| 12  | Disputes: user emails a Gmail address, "auto-CC both"                  | In-app **Raise dispute** form. The server emails `DISPUTE_EMAIL` (the support address unless set otherwise) with both parties CC'd, and stores it. Direct email still works.                                                                                                                                                                                                                                                | A direct email to Gmail cannot be auto-CC'd by us.                                                                                                                                                               |
+| 13  | Upload limit 5 per deal, and unlimited revisions                       | Upload limit 20 per deal (anti-abuse). Notice suggesting a dispute after 5 revisions.                                                                                                                                                                                                                                                                                                                                       | 5 uploads capped revisions at 4, which contradicted "unlimited".                                                                                                                                                 |
+| 14  | `valueskins.vercel.app` + `api.valueskins.render.com`                  | `valueskins.com` (Vercel) + `api.valueskins.com` (Render)                                                                                                                                                                                                                                                                                                                                                                   | Same-site cookies. Cross-site cookies between vercel.app and onrender.com break in Safari and are fragile everywhere.                                                                                            |
+| 15  | Razorpay generates the GST invoice                                     | ValueSkins generates its own GST tax invoice for the commission, with sequential numbering                                                                                                                                                                                                                                                                                                                                  | Razorpay Invoices are payment requests, not a tax invoice for a Checkout payment already made.                                                                                                                   |
+| 16  | Render (unspecified plan)                                              | Paid always-on Render web service and paid Postgres with backups                                                                                                                                                                                                                                                                                                                                                            | Free instances sleep, which kills WebSockets and cron jobs.                                                                                                                                                      |
+| 17  | "Creator gets refund if payment already made (only before commission)" | Removed. Creators never pay anything.                                                                                                                                                                                                                                                                                                                                                                                       | It described a case that cannot happen.                                                                                                                                                                          |
+| 18  | Profile was whatever Instagram returned                                | Name, city, age and gender (creators), or name, city, website and a hiring pitch (brands), are entered **once and then locked**. Age is stored with the date it was given, so it rises each year. The resume shows them with the contact email (REPLACEMENT_PLAN 2.4, 2.5, Prompt 14).                                                                                                                                      | The live site does this, and with no chat the two sides need each other's details.                                                                                                                               |
+| 19  | Any address could be used for "write to us"                            | One `SUPPORT_EMAIL` is the footer of every email, the reply-to, and the address in error messages. `DISPUTE_EMAIL` defaults to it (REPLACEMENT_PLAN 2.7, Prompt 14).                                                                                                                                                                                                                                                        | One address to agree and to change.                                                                                                                                                                              |
 
 ---
 
@@ -40,22 +42,22 @@ A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators a
 
 ## 2. Tech stack
 
-| Layer | Choice |
-|---|---|
-| Repo | pnpm monorepo: `apps/web`, `apps/api`, `packages/shared` |
-| Language | TypeScript, `strict: true`, everywhere |
-| Frontend | Next.js (App Router, current stable), React, Tailwind CSS, TanStack Query, socket.io-client. Hosted on **Vercel** at `https://valueskins.com` |
-| Backend | Node.js 22 LTS, Express 5, Socket.io, Zod, pino. Hosted on **Render** (paid, always-on, single instance) at `https://api.valueskins.com` |
-| Database | PostgreSQL on **Render** (paid plan with backups). Drizzle ORM + drizzle-kit migrations |
-| Payments | Razorpay: Standard Checkout + Orders (the commission only; the creator is paid directly by UPI, REPLACEMENT_PLAN 2.1) |
-| Auth | Instagram API with Instagram Login. Server-side sessions in Postgres, httpOnly cookie |
-| Email | Resend, sending from `notifications@valueskins.com` (SPF + DKIM on the domain) |
-| PDF | PDFKit, generated on demand, never stored |
-| Jobs | node-cron inside the API process, each job guarded by a Postgres advisory lock |
-| Rate limiting | rate-limiter-flexible with the Postgres store |
-| Tests | Vitest. API integration tests run against a real Postgres (docker compose locally, service container in CI) |
-| CI | GitHub Actions: typecheck, lint, test on every PR |
-| File storage | None. Google Drive links for content, Instagram URLs for profile pictures |
+| Layer         | Choice                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repo          | pnpm monorepo: `apps/web`, `apps/api`, `packages/shared`                                                                                      |
+| Language      | TypeScript, `strict: true`, everywhere                                                                                                        |
+| Frontend      | Next.js (App Router, current stable), React, Tailwind CSS, TanStack Query, socket.io-client. Hosted on **Vercel** at `https://valueskins.com` |
+| Backend       | Node.js 22 LTS, Express 5, Socket.io, Zod, pino. Hosted on **Render** (paid, always-on, single instance) at `https://api.valueskins.com`      |
+| Database      | PostgreSQL on **Render** (paid plan with backups). Drizzle ORM + drizzle-kit migrations                                                       |
+| Payments      | Razorpay: Standard Checkout + Orders (the commission only; the creator is paid directly by UPI, REPLACEMENT_PLAN 2.1)                         |
+| Auth          | Instagram API with Instagram Login. Server-side sessions in Postgres, httpOnly cookie                                                         |
+| Email         | Resend, sending from `notifications@valueskins.com` (SPF + DKIM on the domain)                                                                |
+| PDF           | PDFKit, generated on demand, never stored                                                                                                     |
+| Jobs          | node-cron inside the API process, each job guarded by a Postgres advisory lock                                                                |
+| Rate limiting | rate-limiter-flexible with the Postgres store                                                                                                 |
+| Tests         | Vitest. API integration tests run against a real Postgres (docker compose locally, service container in CI)                                   |
+| CI            | GitHub Actions: typecheck, lint, test on every PR                                                                                             |
+| File storage  | None. Google Drive links for content, Instagram URLs for profile pictures                                                                     |
 
 `packages/shared` holds: money math, the deal state machine definition, Zod request/response schemas, enums, and UI copy constants. Both apps import it so the numbers and rules can never disagree.
 
@@ -79,8 +81,8 @@ A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators a
 14. Deal communication happens by email, and every email about a deal is visible to both parties on the deal page.
 15. No phone numbers shown or used for communication. (See 7.2 about Razorpay possibly requiring one for KYC.)
 16. Web app only, responsive for desktop and tablet, usable on mobile browsers.
-17. Commission is non-refundable once paid.
-18. After the advance is paid, neither party can cancel. Only an admin can, through a dispute.
+17. The fee (commission) is non-refundable once paid.
+18. After the fee is paid, neither party can cancel. Only an admin can, through a dispute.
 19. Plain black UI. No gradients, no shadows, no emojis, no em dashes, no marketing language.
 
 ---
@@ -94,14 +96,14 @@ A brand posts a deal (for example "3 Instagram posts for ₹10,000"). Creators a
 - All money math lives in `packages/shared/src/money.ts`. Nothing else computes amounts.
 - The breakdown is computed **once, at publish**, and frozen on the deal row. Later config changes never affect published deals.
 
-### 4.2 Formula **[CONFIRM commission rate and minimum]**
+### 4.2 Formula **[CONFIRM the ₹5,000 minimum budget with the live site]**
 
 Config (in `packages/shared/src/config.ts`):
 
 ```
 MIN_BUDGET_PAISE          = 5_000_00     // ₹5,000
 COMMISSION_FLAT_PAISE     = 750_00       // ₹750
-COMMISSION_PERCENT_BPS    = 500          // 5.00%
+COMMISSION_PERCENT_BPS    = 0            // no percentage: the fee is flat (REPLACEMENT_PLAN 2.2)
 GST_RATE_BPS              = 1800         // 18%
 ADVANCE_PERCENT           = 30
 ```
@@ -121,21 +123,21 @@ Invariant (tested): `commission_total + advance + final == budget`, all positive
 
 Worked example, budget ₹10,000 (1,000,000 paise):
 
-| Item | Paise | Rupees |
-|---|---|---|
-| Commission base | 75,000 | 750.00 |
-| GST 18% | 13,500 | 135.00 |
-| Commission total (Payment 1) | 88,500 | 885.00 |
-| Creator amount | 911,500 | 9,115.00 |
-| Advance 30% (Payment 2) | 273,450 | 2,734.50 |
-| Final 70% (Payment 3) | 638,050 | 6,380.50 |
-| Brand pays in total | 1,000,000 | 10,000.00 |
+| Item                         | Paise     | Rupees    |
+| ---------------------------- | --------- | --------- |
+| Commission base              | 75,000    | 750.00    |
+| GST 18%                      | 13,500    | 135.00    |
+| Commission total (Payment 1) | 88,500    | 885.00    |
+| Creator amount               | 911,500   | 9,115.00  |
+| Advance 30% (Payment 2)      | 273,450   | 2,734.50  |
+| Final 70% (Payment 3)        | 638,050   | 6,380.50  |
+| Brand pays in total          | 1,000,000 | 10,000.00 |
 
-Worked example, budget ₹50,000: commission base ₹2,500, GST ₹450, total ₹2,950, creator ₹47,050, advance ₹14,115, final ₹32,935.
+Worked example, budget ₹50,000: commission base ₹750, GST ₹135, total ₹885, creator ₹49,115, advance ₹14,734.50, final ₹34,380.50. The fee is ₹885 at every budget; only the creator's share grows.
 
-`computeBreakdown` takes the GST rate as an optional parameter (basis points), defaulting to `GST_RATE_BPS` above. The API's `GST_RATE_BPS` env var controls the live rate; it is `0` until ValueSkins is GST-registered (V0_LAUNCH 2.6), so commission_gst is 0 and commission_total equals commission_base.
+`computeBreakdown` takes the GST rate as an optional parameter (basis points), defaulting to `GST_RATE_BPS` above. The API passes its `GST_RATE_BPS` env var, which defaults to `1800`. GST is charged (REPLACEMENT_PLAN 2.2), so a startup guard refuses to start when it is above 0 and `COMPANY_GSTIN` is empty. A deal keeps the breakdown frozen when it was published, whatever the rate is later.
 
-Worked example at GST 0, budget ₹10,000: commission base ₹750, GST ₹0, total ₹750, creator ₹9,250, advance ₹2,775, final ₹6,475.
+Worked example at GST 0 (a test environment, no GST): budget ₹10,000: commission base ₹750, GST ₹0, total ₹750, creator ₹9,250, advance ₹2,775, final ₹6,475.
 
 ### 4.3 Razorpay fees
 
@@ -152,29 +154,29 @@ ValueSkins absorbs Razorpay's fees. They are never shown to or charged to users,
 `DRAFT, OPEN, CONFIRMED, COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED, COMPLETED, CANCELLED`
 
 Derived flags (not statuses):
+
 - `applications_open` = `status == OPEN && now < end_of_day_IST(application_deadline)`
 - `content_overdue` = `status in (ADVANCE_PAID, REVISION_REQUESTED) && now > end_of_day_IST(content_upload_deadline)`
 
 ### 5.2 Transitions (the only allowed ones)
 
-| From | To | Who | Trigger |
-|---|---|---|---|
-| DRAFT | OPEN | Brand | Publish (validates fields, computes and freezes money breakdown) |
-| DRAFT | (deleted) | Brand | Delete draft |
-| OPEN | CONFIRMED | Brand | Confirm one application. All other applications become REJECTED in the same transaction. Creator must have a UPI ID, a name and consent saved (`409 CREATOR_PAYOUT_NOT_SET`). |
-| OPEN | CANCELLED | Brand | Cancel, free |
-| CONFIRMED | COMMISSION_PAID | System | Commission payment captured (webhook) |
-| CONFIRMED | CANCELLED | Brand | Cancel, free |
-| COMMISSION_PAID | ADVANCE_PAID | Creator | The confirmed creator confirms the brand's direct UPI advance payment arrived (`POST /direct-payments/:id/confirm`). The brand recording a payment never moves the deal. |
-| COMMISSION_PAID | CANCELLED | Brand | Cancel. Commission is kept. UI states this before confirming. |
-| ADVANCE_PAID | CONTENT_UPLOADED | Creator | Upload a Google Drive link |
-| CONTENT_UPLOADED | REVISION_REQUESTED | Brand | Send feedback |
-| CONTENT_UPLOADED | APPROVED | Brand | Final approval |
-| REVISION_REQUESTED | CONTENT_UPLOADED | Creator | Upload a new link |
-| APPROVED | COMPLETED | Creator | The confirmed creator confirms the brand's direct UPI final payment arrived. |
-| COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED | Admin | Dispute resolution (`POST /admin/deals/:id/cancel`); the brand can also cancel from COMMISSION_PAID until Prompt 14. The note is required and becomes the cancellation reason; a manual refund reference is optional. Both are kept in the deal event (its note, and its metadata `refundReference`), because the deals table has no column for the reference. The commission is always kept. |
+| From                                                                          | To                 | Who     | Trigger                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DRAFT                                                                         | OPEN               | Brand   | Publish (validates fields, computes and freezes money breakdown)                                                                                                                                                                                                                                                                                                               |
+| DRAFT                                                                         | (deleted)          | Brand   | Delete draft                                                                                                                                                                                                                                                                                                                                                                   |
+| OPEN                                                                          | CONFIRMED          | Brand   | Confirm one application. All other applications become REJECTED in the same transaction. Creator must have a UPI ID, a name and consent saved (`409 CREATOR_PAYOUT_NOT_SET`).                                                                                                                                                                                                  |
+| OPEN                                                                          | CANCELLED          | Brand   | Cancel, free                                                                                                                                                                                                                                                                                                                                                                   |
+| CONFIRMED                                                                     | COMMISSION_PAID    | System  | Commission payment captured (webhook)                                                                                                                                                                                                                                                                                                                                          |
+| CONFIRMED                                                                     | CANCELLED          | Brand   | Cancel, free                                                                                                                                                                                                                                                                                                                                                                   |
+| COMMISSION_PAID                                                               | ADVANCE_PAID       | Creator | The confirmed creator confirms the brand's direct UPI advance payment arrived (`POST /direct-payments/:id/confirm`). The brand recording a payment never moves the deal.                                                                                                                                                                                                       |
+| ADVANCE_PAID                                                                  | CONTENT_UPLOADED   | Creator | Upload a Google Drive link                                                                                                                                                                                                                                                                                                                                                     |
+| CONTENT_UPLOADED                                                              | REVISION_REQUESTED | Brand   | Send feedback                                                                                                                                                                                                                                                                                                                                                                  |
+| CONTENT_UPLOADED                                                              | APPROVED           | Brand   | Final approval                                                                                                                                                                                                                                                                                                                                                                 |
+| REVISION_REQUESTED                                                            | CONTENT_UPLOADED   | Creator | Upload a new link                                                                                                                                                                                                                                                                                                                                                              |
+| APPROVED                                                                      | COMPLETED          | Creator | The confirmed creator confirms the brand's direct UPI final payment arrived.                                                                                                                                                                                                                                                                                                   |
+| COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED, APPROVED | CANCELLED          | Admin   | Dispute resolution (`POST /admin/deals/:id/cancel`); the brand cannot cancel from COMMISSION_PAID on. The note is required and becomes the cancellation reason; a manual refund reference is optional. Both are kept in the deal event (its note, and its metadata `refundReference`), because the deals table has no column for the reference. The commission is always kept. |
 
-Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cancel at any stage. The cancel button is not rendered from ADVANCE_PAID onward.
+Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cancel at any stage. A brand can cancel free until it pays the fee (OPEN and CONFIRMED). From COMMISSION_PAID to APPROVED the brand's cancel answers `409 CANCELLATION_NOT_POSSIBLE` and its CANCEL action is disabled with "The deal cannot be cancelled after the fee is paid. Write to us if something is wrong." The table has 16 rows.
 
 ### 5.3 How transitions are implemented
 
@@ -210,21 +212,22 @@ Everything else is rejected with `409 INVALID_TRANSITION`. Creators cannot cance
 ### 6.1 Instagram login
 
 - Product: **Instagram API with Instagram Login** (Business Login for Instagram), host `graph.instagram.com`, scope `instagram_business_basic`.
-- Only Instagram Professional accounts (Business or Creator) can sign in. If login fails for this reason, show: "ValueSkins needs an Instagram Professional account. You can switch for free in Instagram settings: Account type and tools, Switch to professional account."
+- Only public Instagram **Business** and **Creator** accounts can sign in, and the **role comes from the account type at every sign-in**: `BUSINESS` is a brand and `MEDIA_CREATOR` is a creator (`roleFromAccountType` in `packages/shared`). Any other type, or none, stops the sign-in with: "ValueSkins needs a public Instagram Business or Creator account. A Business account posts deals as a brand. A Creator account applies to deals." (redirect code `account_type_unsupported`). Meta's docs list the values as Business and Media_Creator; the API sends them in capitals and the mapping ignores case.
+- The type is stored (`users.ig_account_type`). A returning account follows a changed type only if it has no deals as a brand, and no deals or applications as a creator (a draft counts); the check and the change run in one transaction with the user row locked, so a deal cannot be created in between. Otherwise sign-in is refused with `409 ACCOUNT_TYPE_CHANGE_BLOCKED`, which names the support address (redirect code `account_type_change_blocked`), and nothing changes. When the type does change, the saved profile details start again, because they are for the old role. Link mode follows the same rules, and is how an email-only account gets its role.
 - Flow:
   1. Web "Continue with Instagram" goes to `GET https://api.valueskins.com/api/auth/instagram/start`. The API sets a signed `state` cookie and redirects to Instagram's authorize URL.
   2. Instagram redirects to `GET /api/auth/instagram/callback?code&state`. The API verifies state, exchanges the code for a short-lived token, exchanges that for a long-lived token (about 60 days), and fetches the profile.
-  3. Upsert the user by Instagram user id. Create a session. Redirect to `https://valueskins.com/onboarding` if onboarding is incomplete, else `/home`.
+  3. Upsert the user by Instagram user id, with the role from the account type (above). Create a session. Redirect to `https://valueskins.com/onboarding` if onboarding is incomplete, else `/home`.
 - **Link mode**: `GET /api/auth/instagram/start?link=1` (must already be logged in) attaches the fetched Instagram account to the current user instead of creating a session, and redirects to `/home` on success. If that Instagram account already belongs to a different user, nothing is mutated and the browser is redirected with an error instead.
 - Profile fields fetched from `/me`: `user_id, username, name, account_type, profile_picture_url, followers_count, follows_count, media_count, biography`. Verify the exact field list against Meta's docs at build time. If `biography` is not available on `/me`, drop it.
 - Engagement rate = average of (likes + comments) over the latest 12 media, divided by followers, as a percentage with 2 decimals. Null if fewer than 3 posts or 0 followers.
 - The long-lived token is stored **encrypted** (AES-256-GCM, key from env `TOKEN_ENCRYPTION_KEY`). It is refreshed when it has less than 10 days left.
-- Profile is refreshed on every login and by the daily cron. `is_admin` is recomputed from `ADMIN_INSTAGRAM_USER_IDS` on every login/upsert, in both directions.
+- Profile is refreshed on every login and by the daily cron. The name is the Instagram name only until the user's profile is locked (section 6.4); after that it is the name the user gave. `is_admin` is recomputed from `ADMIN_INSTAGRAM_USER_IDS` on every login/upsert, in both directions.
 - Meta app requirements, built into the product: `/privacy` and `/terms` pages on the web app, a **data deletion callback** (`POST /api/meta/data-deletion`, returns a confirmation code and status URL, `GET /api/meta/deletion-status/:code` to check it) and a **deauthorize callback** (`POST /api/meta/deauthorize`). Both verify Meta's `signed_request` with `META_APP_SECRET`. Deauthorize only clears the now-invalid stored token (`ig_token_encrypted`, `ig_token_expires_at`) for that Instagram user id — it does not delete the account; full soft-delete and anonymization (section 15) is exclusive to data-deletion and `DELETE /me`.
 
 ### 6.2 Dev login (non-production only)
 
-Meta app review takes weeks, and building cannot wait. In development and staging, `POST /api/dev/login` accepts `{ username, role }` and creates or logs in a fake user with fake Instagram data. It is registered only when `NODE_ENV !== 'production'` **and** `ENABLE_DEV_LOGIN=true`. A startup check crashes the process if both `NODE_ENV=production` and `ENABLE_DEV_LOGIN=true` are set.
+Meta app review takes weeks, and building cannot wait. In development and staging, `POST /api/dev/login` accepts `{ username, role }` and creates or logs in a fake user with fake Instagram data (the account type is set to match the role, `BUSINESS` or `MEDIA_CREATOR`; the role is a dev-only shortcut and never comes from a request in production). It is registered only when `NODE_ENV !== 'production'` **and** `ENABLE_DEV_LOGIN=true`. A startup check crashes the process if both `NODE_ENV=production` and `ENABLE_DEV_LOGIN=true` are set.
 
 ### 6.3 Sessions and security
 
@@ -235,29 +238,32 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
 
 ### 6.4 Onboarding (all steps required, in order)
 
-1. **Confirm profile.** Show the fetched Instagram data. "Is this you?" Continue.
-2. **Choose account type.** Creator or Brand. Pre-selected: Instagram `MEDIA_CREATOR` means Creator, `BUSINESS` means Brand. Warning: "You cannot change this later." Stored once, locked.
-3. **Email.** Required. The server sends a verification link (token valid 24 hours, single use, only the hash stored). The user must click it before continuing. Changing email later re-runs verification.
+1. **Instagram profile.** Show the fetched Instagram data. "Is this you?" There is no account type question: the role comes from the Instagram account type (section 6.1).
+2. **Email.** Required. The server sends a verification link (token valid 24 hours, single use, only the hash stored). The user must click it before continuing. Changing email later re-runs verification.
+3. **Profile details, saved once and then locked** (`PUT /me/profile`). The fields depend on the role of the session, never on the request.
+   - Creators: name, city, age (18 to 99) and gender (`MALE`, `FEMALE`, `OTHER`, `PREFER_NOT_TO_SAY`).
+   - Brands: name, city, website (`http://` or `https://`, up to 200 characters) and an optional hiring pitch (up to 1,000 characters).
+   - Both tick "I am 18 or older" (`adultConfirmed: true`), stored as `adult_confirmed_at`. Names and cities are 2 to 100 characters; a name uses letters, spaces, dots, hyphens and apostrophes. Bodies are strict: a field for the other role is rejected.
 4. **Type-specific setup.**
    - Creator: **UPI payout details** (section 7.2). Creators may browse deals before finishing, but cannot apply until they have saved a UPI ID, the name on the account and consent.
    - Brand: **Billing details**: billing name, billing state (for GST place of supply), billing address, GSTIN (optional, validated format). Required before publishing a deal.
 5. **Marketplace.**
 
-Which steps apply, which are done and which is next is returned by `GET /me` as `onboarding` (`{ completed, nextStep, steps: [{ id, done, required }] }`, step ids `instagram_username`, `role`, `email`, `billing`, `payout`), computed by `computeOnboarding` in `packages/shared`. Confirm profile and Marketplace are UI-only and not tracked.
+Which steps apply, which are done and which is next is returned by `GET /me` as `onboarding` (`{ completed, nextStep, steps: [{ id, done, required }] }`, step ids `instagram`, `email`, `profile`, `billing`, `payout`), computed by `computeOnboarding` in `packages/shared`. `GET /me` also returns `profileDetails` (the locked details with the current age, or null before they are saved). Marketplace is UI-only and not tracked.
 
-- **Completion.** `onboarding_completed_at` is set, once and never unset, when the role is chosen and the email is verified, plus billing details for a brand, plus the Instagram username for an email-only account (V0_LAUNCH 2.2). The UPI payout step is not required to complete: creators may browse before finishing it. It is done when the UPI ID, name and consent are all saved, and it gates applying and being confirmed, not onboarding.
-- **Role** (`POST /me/role`): once only. A second call answers `409 ROLE_ALREADY_SET` and never overwrites.
+- **Completion.** `onboarding_completed_at` is set, once and never unset, when Instagram is connected, the email is verified, the profile is saved, plus billing details for a brand. The UPI payout step is not required to complete: creators may browse before finishing it. It is done when the UPI ID, name and consent are all saved, and it gates applying and being confirmed, not onboarding.
+- **Email-only accounts** (staging and tests, section 6.5) have no role, so they see only the Instagram and email steps and cannot finish until they connect Instagram (`GET /auth/instagram/start?link=1`, which also gives them their role). Until then every role-gated route answers `403 INSTAGRAM_NOT_CONNECTED` ("Connect your Instagram account to continue.").
+- **Profile** (`PUT /me/profile`): once only, by one conditional `UPDATE ... WHERE profile_locked_at IS NULL`, so two racing requests cannot both win. A second save answers `409 PROFILE_LOCKED`, naming `SUPPORT_EMAIL`: corrections go to support by email, who fix the row by hand. It saves the age and the time it was given (`age`, `age_recorded_at`); the **current age** is the age plus the whole years since, worked out on read (`currentAge` in `packages/shared`) and never stored. `users.name` becomes the name given, and Instagram sign-in stops overwriting it. Followers and engagement still come from Instagram and refresh on sign-in. Rate limited (section 13). Users who finished onboarding before Prompt 14 keep their completion and may save the profile later; nothing is gated on it yet.
 - **Email for Instagram accounts** (`POST /me/email`, `/me/email/verify`, `/me/email/resend`). `users.email` changes only when the new address is verified, so a changed address leaves the old verified one in place until then. The link is `WEB_ORIGIN/verify-email?token=...`, valid 24 hours, single use, only the hash stored, bound to the signed-in user; every bad token is the same `400 INVALID_TOKEN`. `POST /me/email` always answers 200 whether or not another account uses the address; a clash is reported at verify time as `409 EMAIL_TAKEN`. Email-only accounts cannot use these routes (`409 EMAIL_IS_SIGN_IN`): their email is their sign-in. Resend is rate limited (section 13).
 - **Brand billing** (`PUT /me/billing`): brands only, GSTIN format-validated.
-- **Email-only accounts** (V0_LAUNCH 2.2): they sign in with a verified email, so they type their Instagram username instead of confirming a fetched profile (`POST /me/instagram-username`). It is unverified, stored in `users.username`, not unique, editable until Instagram is connected (`409 INSTAGRAM_ALREADY_CONNECTED` afterwards), and replaced by the real handle when they connect.
 
-### 6.5 Email login (V0 launch)
+### 6.5 Email login (staging and tests only)
 
-Until Meta app review completes, `AUTH_EMAIL_ENABLED` can enable an email-code login path alongside Instagram login (V0_LAUNCH 2.1). Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id`, `ig_account_type`, `ig_token_encrypted` and `ig_token_expires_at` all null until they later link Instagram.
+Production sign-in is **Instagram only** (REPLACEMENT_PLAN 2.3): `AUTH_EMAIL_ENABLED` is `false` in production, and a startup guard refuses to start with `NODE_ENV=production` and `AUTH_EMAIL_ENABLED=true`. On staging and in tests it enables an email-code login path alongside Instagram login. Codes are tracked in `email_login_codes` (section 15); a user created this way has `instagram_user_id`, `ig_account_type`, `ig_token_encrypted` and `ig_token_expires_at` all null until they later link Instagram.
 
 - `POST /auth/email/start { email }`: always responds `200 { ok: true }`, regardless of whether an account exists for that email — this is the whole non-enumeration mechanism, not a special case on top of it. Generates a 6-digit numeric code, invalidates any prior unused code for that email, and sends it with the "Your sign-in code" template. Valid for 10 minutes. Rate limited as a login attempt (section 13).
 - `POST /auth/email/verify { email, code }`: on a correct, unexpired, unused code with fewer than 5 prior wrong attempts on it, marks the code used, finds the user by email or creates one (`email_verified_at` set immediately), and creates a session. Every failure (no code, wrong code, expired, 5 attempts already used) returns the identical `400 INVALID_CODE` — never distinguished. Also rate limited as a login attempt.
-- A brand-new email-only user has no Instagram handle to derive a username from; `username` and `name` default to the email's local-part.
+- A brand-new email-only user has no Instagram handle to derive a username from; `username` and `name` default to the email's local-part. It has no role until it connects Instagram (section 6.4).
 
 ---
 
@@ -312,7 +318,7 @@ REPLACEMENT_PLAN 2.1. The brand pays the creator's UPI ID itself; ValueSkins nev
 
 - **Commission invoice**, issued by Valueskins Private Limited to the brand when Payment 1 is captured. Number `VS/2026-27/000001`. Contents: ValueSkins legal name, address, GSTIN (when it has one), SAC code, brand billing name, address, state and GSTIN if any, place of supply (the brand's billing state), taxable value, tax, total, Razorpay payment id, date. **[CONFIRM format with the CA before go-live.]**
   - With GST charged, the document is titled "Tax Invoice" and splits the GST into CGST + SGST when the brand's billing state is the company's state (`COMPANY_STATE`), or IGST when it is not. The two states are compared as text, ignoring case and spacing, so a misspelled state is billed as IGST. The odd paisa of an odd GST amount goes to SGST so the halves add up.
-  - With GST 0 (V0_LAUNCH 2.6) the document is titled "Invoice" and has no tax lines. The amounts always come from the deal's frozen breakdown, never from today's rate.
+  - With GST 0 (a test environment: GST is charged by default, section 4.2) the document is titled "Invoice" and has no tax lines. The amounts always come from the deal's frozen breakdown, never from today's rate.
 - **Advance payment record** and **Final payment record** (REPLACEMENT_PLAN 2.1): issued when the creator confirms a direct payment. They are not receipts and not GST documents. They say: "Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money." Contents: the creator's name on the account, username, Instagram user id and masked UPI ID, the brand's billing name, the amount, the UPI reference and note, the time the brand recorded it and the time the creator confirmed it. Both stages share one gapless series, `VS-PR/2026-27/000001`, `000002`, and so on.
 - Tax invoices and payment records are numbered in separate gapless sequences per financial year (April to March, in IST). One upsert on the counter row (`invoice_counters`) takes its lock and holds it until the transaction that issues the invoice ends, so concurrent captures queue up and a rollback leaves no hole. The payment record sequence is the `ADVANCE_PAYMENT_RECORD` counter row; `FINAL_PAYMENT_RECORD` uses the same one.
 - The commission invoice is issued inside the transaction that marks its payment captured (section 7.3), once per payment (unique on `payment_id`; a payment recorded on a deal that cannot take it gets none). A payment record is issued inside the transaction that confirms its direct payment (section 7.3a), once per direct payment (unique on `direct_payment_id`). An invoice row belongs to exactly one of the two.
@@ -323,35 +329,35 @@ REPLACEMENT_PLAN 2.1. The brand pays the creator's UPI ID itself; ValueSkins nev
 
 ## 8. Emails
 
-Sent through Resend from `ValueSkins <notifications@valueskins.com>`, reply-to `valueskinsfounder@gmail.com`. Every email is plain text plus minimal HTML (black text on white for email-client readability), no images except the wordmark, and no emojis. Every send is logged in `email_log`. Every deal-related email is visible to both parties in the deal's Communication history.
+Sent through Resend from `ValueSkins <notifications@valueskins.com>`, reply-to `SUPPORT_EMAIL`. Every email ends with the line "Questions? Write to <SUPPORT_EMAIL>." (text and HTML), added in one place when the email is logged and sent, so it is in the stored text and in an admin resend, and never doubled. Every email is plain text plus minimal HTML (black text on white for email-client readability), no images except the wordmark, and no emojis. Every send is logged in `email_log`. Every deal-related email is visible to both parties in the deal's Communication history.
 
 In development, `EMAIL_TRANSPORT=console` prints emails to the log instead of sending. A startup guard crashes the process if `EMAIL_TRANSPORT=console` with `NODE_ENV=production` — printed emails include verification links and sign-in codes, which must never reach production logs (section 20).
 
-| # | Template | To | When |
-|---|---|---|---|
-| E0 | Verify your email | User | Email entered or changed |
-| E1 | Your sign-in code | User | Email-code login started (V0_LAUNCH 2.1, section 6.5) |
-| 1 | Deal published | Brand | Deal goes OPEN |
-| 2 | New application | Brand | Creator applies |
-| 3 | You were selected | Creator | Brand confirms |
-| 3b | Application not selected | Other applicants | Brand confirms someone else |
-| 4 | Commission paid | Brand (invoice attached), Creator (notice only) | Payment 1 captured |
-| 5 | Advance confirmed | Creator and Brand (advance payment record attached) | The creator confirms the direct UPI advance arrived |
-| 6 | Content uploaded | Brand | Creator uploads |
-| 7 | Changes requested | Creator | Brand sends feedback (feedback text included) |
-| 8 | Content approved | Creator | Brand approves ("waiting for final payment") |
-| 9 | Final payment confirmed | Creator and Brand (final payment record attached) | The creator confirms the direct UPI final arrived |
-| 10 | Deal report ready | Creator and Brand (ADP attached) | Deal COMPLETED |
-| 11 | Deal cancelled | Brand, and Creator if confirmed | Deal CANCELLED, by the brand or by an admin (includes reason, and whether commission was kept) |
-| 12 | Commission payment reminder | Brand | Daily while CONFIRMED |
-| 13 | Content overdue | Creator and Brand | Daily while content_overdue |
-| 14 | Review reminder | Brand | Daily after 3 days in CONTENT_UPLOADED |
-| 15 | Dispute raised | valueskinsfounder@gmail.com (`DISPUTE_EMAIL`), CC both parties | Dispute form submitted |
-| 15b | Dispute resolved | Brand and Creator | Admin resolves a dispute (includes the resolution note and the refund reference when given) |
-| 16 | (retired) Payout account status | - | Removed with the Route linked account (section 7.2) |
-| 17 | Payment recorded | Creator | The brand records a direct UPI payment: "Check your UPI app and confirm" (no UPI ID in it) |
-| 18 | Payment not received | Brand and Creator, plus the admin alert A1 | The creator says a direct payment did not arrive (includes the reason) |
-| A1 | Admin alert | Admin | Webhook processing error, a creator says a direct payment did not arrive |
+| #   | Template                        | To                                                                | When                                                                                                                                           |
+| --- | ------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| E0  | Verify your email               | User                                                              | Email entered or changed                                                                                                                       |
+| E1  | Your sign-in code               | User                                                              | Email-code login started (staging and tests only, section 6.5)                                                                                 |
+| 1   | Deal published                  | Brand                                                             | Deal goes OPEN                                                                                                                                 |
+| 2   | New application                 | Brand                                                             | Creator applies                                                                                                                                |
+| 3   | You were selected               | Creator                                                           | Brand confirms                                                                                                                                 |
+| 3b  | Application not selected        | Other applicants                                                  | Brand confirms someone else                                                                                                                    |
+| 4   | Commission paid                 | Brand (invoice attached), Creator (notice only)                   | Payment 1 captured                                                                                                                             |
+| 5   | Advance confirmed               | Creator and Brand (advance payment record attached)               | The creator confirms the direct UPI advance arrived                                                                                            |
+| 6   | Content uploaded                | Brand                                                             | Creator uploads                                                                                                                                |
+| 7   | Changes requested               | Creator                                                           | Brand sends feedback (feedback text included)                                                                                                  |
+| 8   | Content approved                | Creator                                                           | Brand approves ("waiting for final payment")                                                                                                   |
+| 9   | Final payment confirmed         | Creator and Brand (final payment record attached)                 | The creator confirms the direct UPI final arrived                                                                                              |
+| 10  | Deal report ready               | Creator and Brand (ADP attached)                                  | Deal COMPLETED                                                                                                                                 |
+| 11  | Deal cancelled                  | Brand, and Creator if confirmed                                   | Deal CANCELLED, by the brand (OPEN or CONFIRMED: "No fee was charged.") or by an admin ("The fee already paid was kept."); includes the reason |
+| 12  | Commission payment reminder     | Brand                                                             | Daily while CONFIRMED                                                                                                                          |
+| 13  | Content overdue                 | Creator and Brand                                                 | Daily while content_overdue                                                                                                                    |
+| 14  | Review reminder                 | Brand                                                             | Daily after 3 days in CONTENT_UPLOADED                                                                                                         |
+| 15  | Dispute raised                  | `DISPUTE_EMAIL` (the support address by default), CC both parties | Dispute form submitted                                                                                                                         |
+| 15b | Dispute resolved                | Brand and Creator                                                 | Admin resolves a dispute (includes the resolution note and the refund reference when given)                                                    |
+| 16  | (retired) Payout account status | -                                                                 | Removed with the Route linked account (section 7.2)                                                                                            |
+| 17  | Payment recorded                | Creator                                                           | The brand records a direct UPI payment: "Check your UPI app and confirm" (no UPI ID in it)                                                     |
+| 18  | Payment not received            | Brand and Creator, plus the admin alert A1                        | The creator says a direct payment did not arrive (includes the reason)                                                                         |
+| A1  | Admin alert                     | Admin                                                             | Webhook processing error, a creator says a direct payment did not arrive                                                                       |
 
 Settlement timing copy: "Razorpay will send this to your bank account on its settlement schedule." Never promise a number of days we do not control.
 
@@ -398,7 +404,13 @@ Drafts: the form auto-saves to browser localStorage every 30 seconds and on blur
 
 ## 11. Virtual resume (hover card)
 
-On hover (desktop) or tap (touch) over any username or avatar: Instagram username, name, profile picture, followers, engagement rate, account type, and the last 10 **completed** deals (counterparty username, amount, deliverables summary = deal title, date completed). Endpoint `GET /api/users/:id/resume` (by user id, not username: email-only usernames are not unique, V0_LAUNCH 2.2), for signed-in users, cached in the API process for 5 minutes (`Cache-Control: private, max-age=300`). It returns `{ user, completedDeals }`. For an account without a linked Instagram profile (V0_LAUNCH 2.1, 2.2) `user.instagramVerified` is `false`, the username is the one the user typed, and the picture, followers, engagement rate and account type are `null`. Each completed deal is `{ counterparty: { id, username }, budgetPaise, title, completedAt }`, the 10 most recent first; a deleted counterparty shows as "Deleted user". Unknown, deleted and role-less users are a 404. **[CONFIRM that showing deal amounts publicly is intended.]**
+On hover (desktop) or tap (touch) over any username or avatar. Endpoint `GET /api/users/:id/resume` (by user id, not username), for signed-in users, cached in the API process for 5 minutes (`Cache-Control: private, max-age=300`, so a profile saved just now, or an age that has just risen, shows after the cache expires). It returns `{ user, stats, completedDeals }`:
+
+- `user`: `id`, `role`, `username` (the Instagram handle and, in the UI, its link), `name` (the name the user gave once the profile is locked), `profilePictureUrl`, `instagramVerified`, `igAccountType` (the account type, `BUSINESS` or `MEDIA_CREATOR`), `followersCount`, `engagementRate`, and from the locked profile `city`, `age` (the **current** age, section 6.4), `gender`, `website`, `pitch` (each null until the profile is saved), the verified **`contactEmail`** (there is no chat, so the two sides write to each other, REPLACEMENT_PLAN 2.5; null if the email is not verified) and `memberSince` (when the account was created).
+- `stats`: `completedDealsCount` and `totalValuePaise`, over every completed deal of the user, not only the last 10.
+- `completedDeals`: the last 10 completed deals, `{ counterparty: { id, username }, budgetPaise, title, completedAt }`, the most recent first; a deleted counterparty shows as "Deleted user".
+
+Unknown, deleted and role-less users (an email-only account that has not connected Instagram) are a 404. **[CONFIRM that showing deal amounts and the contact email to every signed-in user is intended.]**
 
 ---
 
@@ -424,19 +436,20 @@ On hover (desktop) or tap (touch) over any username or avatar: Instagram usernam
 
 ## 13. Rate limits
 
-| What | Limit | Scope |
-|---|---|---|
-| Publish deal | 10 per 24h | Brand |
-| Apply | 20 per 24h | Creator |
-| Content upload | 20 per deal (a permanent cap: `429 UPLOAD_LIMIT_REACHED`, no `Retry-After`) | Deal |
-| API requests | 100 per minute | User |
-| Signup (new user created) | 5 per hour | IP |
-| Login attempts | 20 per hour, then 15-minute lockout | IP |
-| Email verification resend | 5 per hour | User |
-| Dispute | 3 per deal per 24h (counted once the request is valid and allowed) | User |
-| Save payout UPI details | 10 per hour | User |
-| Record a direct payment | 10 per hour | User (brand) |
-| Confirm a direct payment, or say it did not arrive | 20 per hour (both together) | User (creator) |
+| What                                               | Limit                                                                       | Scope          |
+| -------------------------------------------------- | --------------------------------------------------------------------------- | -------------- |
+| Publish deal                                       | 10 per 24h                                                                  | Brand          |
+| Apply                                              | 20 per 24h                                                                  | Creator        |
+| Content upload                                     | 20 per deal (a permanent cap: `429 UPLOAD_LIMIT_REACHED`, no `Retry-After`) | Deal           |
+| API requests                                       | 100 per minute                                                              | User           |
+| Signup (new user created)                          | 5 per hour                                                                  | IP             |
+| Login attempts                                     | 20 per hour, then 15-minute lockout                                         | IP             |
+| Email verification resend                          | 5 per hour                                                                  | User           |
+| Dispute                                            | 3 per deal per 24h (counted once the request is valid and allowed)          | User           |
+| Save profile details                               | 10 per hour (each request counts, valid or not)                             | User           |
+| Save payout UPI details                            | 10 per hour                                                                 | User           |
+| Record a direct payment                            | 10 per hour                                                                 | User (brand)   |
+| Confirm a direct payment, or say it did not arrive | 20 per hour (both together)                                                 | User (creator) |
 
 Publish and apply are counted only once the request has passed validation (and, for apply, the UPI details and deadline checks), so a form full of errors does not use up the day's allowance.
 
@@ -448,13 +461,13 @@ Response: `429` with `Retry-After`. Razorpay API calls from our server retry up 
 
 All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped in a Postgres advisory lock so a redeploy overlap cannot double-run them.
 
-| Job | Schedule (IST) | Does |
-|---|---|---|
-| Instagram refresh | 03:00 daily | Refresh profile and engagement for users active in the last 30 days. Refresh tokens under 10 days to expiry. Stay under Meta's per-account rate limits. |
-| Commission reminders | 10:00 daily | Email 12 for deals in CONFIRMED for more than 24h |
-| Review reminders | 10:00 daily | Email 14 for deals in CONTENT_UPLOADED for more than 3 days |
-| Content overdue | 23:59 daily | Email 13 for overdue deals. Deal stays in its status. |
-| Cleanup | 04:00 daily | Delete expired sessions and verification tokens |
+| Job                  | Schedule (IST) | Does                                                                                                                                                    |
+| -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instagram refresh    | 03:00 daily    | Refresh profile and engagement for users active in the last 30 days. Refresh tokens under 10 days to expiry. Stay under Meta's per-account rate limits. |
+| Commission reminders | 10:00 daily    | Email 12 for deals in CONFIRMED for more than 24h                                                                                                       |
+| Review reminders     | 10:00 daily    | Email 14 for deals in CONTENT_UPLOADED for more than 3 days                                                                                             |
+| Content overdue      | 23:59 daily    | Email 13 for overdue deals. Deal stays in its status.                                                                                                   |
+| Cleanup              | 04:00 daily    | Delete expired sessions and verification tokens                                                                                                         |
 
 ---
 
@@ -463,7 +476,7 @@ All run in the API process via node-cron, in `Asia/Kolkata` time, each wrapped i
 Conventions: UUID v7 primary keys, `created_at`/`updated_at` `timestamptz` default now, money columns `_paise BIGINT`, enums as Postgres enums. Foreign keys everywhere, with indexes on every foreign key and every column used in a filter.
 
 **users**
-`id, instagram_user_id (unique, nullable — V0 allows email-only accounts, V0_LAUNCH 2.1), username (unique only among rows with instagram_user_id set), instagram_username_set_at (when an email-only account typed its Instagram username, V0_LAUNCH 2.2), name, ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, null until chosen), role_locked_at, followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, payout_vpa (nullable, CHECK on the UPI format), payout_name (nullable), payout_vpa_consent_at (nullable), last_active_at, created_at, updated_at, deleted_at`
+`id, instagram_user_id (unique, nullable — an email-only account has none until it connects Instagram), username (unique only among rows with instagram_user_id set), name (the Instagram name until the profile is locked, then the name the user gave), ig_account_type (nullable — null for an email-only account), role (CREATOR | BRAND, from the Instagram account type, null for an email-only account until it connects Instagram), role_locked_at (when the role was first set), followers_count, follows_count, media_count, engagement_rate numeric(5,2), bio, profile_picture_url, ig_token_encrypted (nullable), ig_token_expires_at (nullable), instagram_synced_at, email (unique, nullable until set), email_verified_at, is_admin, onboarding_completed_at, payout_vpa (nullable, CHECK on the UPI format), payout_name (nullable), payout_vpa_consent_at (nullable), city (varchar 100, nullable), age (smallint, nullable) with age_recorded_at (set together: CHECK, and CHECK age between 18 and 99), gender (user_gender enum MALE | FEMALE | OTHER | PREFER_NOT_TO_SAY, nullable), website (nullable), pitch (nullable, CHECK at most 1000 characters), profile_locked_at (set once, when the profile is saved), adult_confirmed_at, last_active_at, created_at, updated_at, deleted_at`
 
 **brand_billing** (1:1 users)
 `user_id (pk), billing_name, billing_address, billing_state, gstin (nullable), created_at, updated_at`
@@ -524,33 +537,36 @@ User deletion: soft delete (`deleted_at`), anonymize username, email and Instagr
 All under `https://api.valueskins.com/api`. JSON. Errors are `{ error: { code, message } }` with correct HTTP status; validation errors additionally carry a `details` array of `{ path, message }` field errors. Every request body and query is validated with the Zod schemas from `packages/shared`. Lists use cursor pagination (`?cursor=&limit=`, max 50).
 
 Auth and account
+
 - `GET /auth/instagram/start` (`?link=1` to attach to the current user instead of logging in)
 - `GET /auth/instagram/callback`
-- `POST /auth/email/start` and `POST /auth/email/verify` (V0 launch, only when `AUTH_EMAIL_ENABLED`)
+- `POST /auth/email/start` and `POST /auth/email/verify` (staging and tests only: `AUTH_EMAIL_ENABLED` is false in production)
 - `POST /auth/logout`
 - `POST /dev/login` (non-production only)
-- `GET /me` (returns `{ user, profile, onboarding }`: `profile` is the fetched Instagram profile - username, name, picture, followers, follows, media count, engagement rate, last sync - or `null` when no Instagram account is linked; `onboarding` is described in section 6.4)
-- `POST /me/role` (once)
-- `POST /me/instagram-username` (email-only accounts, before Instagram is connected)
+- `GET /me` (returns `{ user, profile, profileDetails, onboarding }`: `profileDetails` is the locked profile with the current age, or `null` before it is saved; `profile` is the fetched Instagram profile - username, name, picture, followers, follows, media count, engagement rate, last sync - or `null` when no Instagram account is linked; `onboarding` is described in section 6.4)
 - `POST /me/email` and `POST /me/email/verify` (token) and `POST /me/email/resend`
+- `PUT /me/profile` (once, then `409 PROFILE_LOCKED`; creators: name, city, age, gender; brands: name, city, website, optional pitch; both `adultConfirmed: true`)
 - `PUT /me/billing` (brand)
 - `PUT /me/payout-upi`, `GET /me/payout-upi` (creator; the UPI ID is always masked)
 - `DELETE /me` (account deletion)
 - `POST /meta/data-deletion`, `POST /meta/deauthorize`, `GET /meta/deletion-status/:code`
 
 Users
+
 - `GET /users/:id/resume` (section 11)
 
 Config
-- `GET /config` (public: `{ gstRateBps, minBudgetPaise, advancePercent, authEmailEnabled, razorpayKeyId }`, used by the web app for the live breakdown preview and the sign-in options)
+
+- `GET /config` (public: `{ gstRateBps, minBudgetPaise, advancePercent, authEmailEnabled, razorpayKeyId, supportEmail }`, used by the web app for the live breakdown preview and the sign-in options)
 
 Deals
+
 - `GET /deals/feed` (creator: OPEN deals with applications open, newest first, cursor pagination)
 - `GET /deals/mine` (brand: my deals including drafts, optional `?status=`; creator: deals I'm confirmed on)
 - `POST /deals` (create draft), `PATCH /deals/:id` (edit draft only; a field set to `null` is cleared), `DELETE /deals/:id` (draft only)
 - `POST /deals/:id/publish` (needs billing details; validation failures are `400 VALIDATION_ERROR` with `details`; `409 BILLING_REQUIRED`; computes and freezes the breakdown with the live `GST_RATE_BPS`; sends email 1)
 - `GET /deals/:id` (visibility: OPEN deals to any signed-in, onboarded user; otherwise only its brand, confirmed creator, admin; everyone else gets 404). The body is `{ deal }` with the deal fields, the frozen breakdown, the brand and creator, the derived flags `applicationsOpen` and `contentOverdue` (section 5.1), `allowedActions`, and, for the deal's brand and admins only, `applicationCount` and `creatorPayoutStatus`. `allowedActions` is a list of `{ action, enabled, reason }` for the signed-in user: `reason` says why a disabled action is disabled (section 18) and is null when enabled. Actions today: `EDIT_DRAFT`, `DELETE_DRAFT`, `PUBLISH`, `CONFIRM_CREATOR`, `CANCEL`, `APPLY`, `PAY_COMMISSION`, `PAY_ADVANCE` and `PAY_FINAL` (the brand pays by UPI and records it; disabled with a reason when the creator has no UPI ID or a record waits for them), `PAY_FINAL`, `UPLOAD_CONTENT` (disabled once 20 links are used), `SEND_FEEDBACK`, `APPROVE`, `CONFIRM_PAYMENT_RECEIVED` (the confirmed creator, enabled while the brand's payment waits for them), `RAISE_DISPUTE` (the deal's brand and confirmed creator, once the deal allows a dispute, section 12); the actions of later phases are added with their endpoints. `GET /deals/:id` also returns the delivery state (`contentLink`, `uploadCount`, `revisionCount`, `feedback`, `contentUploads[]`, the payment and approval times) and `revisionNotice` (the 5-revision warning) once the deal has had 5 revisions.
-- `POST /deals/:id/cancel` (brand, from OPEN, CONFIRMED or COMMISSION_PAID, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from ADVANCE_PAID to APPROVED; sends email 11)
+- `POST /deals/:id/cancel` (brand, from OPEN or CONFIRMED, body `{ reason }`; `409 CANCELLATION_NOT_POSSIBLE` from COMMISSION_PAID to APPROVED, "The deal cannot be cancelled after the fee is paid. Write to us if something is wrong."; sends email 11)
 - `POST /deals/:id/content` (the confirmed creator, body `{ link }`, from ADVANCE_PAID or REVISION_REQUESTED; a Drive or Docs https link; `409 WRONG_DEAL_STATUS`, `429 UPLOAD_LIMIT_REACHED` after 20; email 6)
 - `POST /deals/:id/feedback` (brand, body `{ feedback }`, from CONTENT_UPLOADED; email 7)
 - `POST /deals/:id/approve` (brand, from CONTENT_UPLOADED; email 8)
@@ -560,23 +576,27 @@ Deals
 - `POST /deals/:id/disputes` (the deal's brand or confirmed creator, body `{ subject, description }`, answers 201 `{ dispute }`; `409 DISPUTE_NOT_ALLOWED`, `429` over 3 per deal per day; email 15)
 
 Applications
+
 - `POST /deals/:id/applications` (creator; needs a saved UPI ID, name and consent, `403 PAYOUT_NOT_SET`; `409 APPLICATIONS_CLOSED`, `409 ALREADY_APPLIED`; sends email 2)
 - `GET /deals/:id/applications` (brand that owns the deal)
 - `GET /applications/mine` (creator: each application with a small summary of its deal)
 - `POST /applications/:id/confirm` (brand that owns the deal; one transaction through `transitionDeal`; the creator must still have a UPI ID, name and consent saved, `409 CREATOR_PAYOUT_NOT_SET`; sends emails 3 and 3b)
 
 Payments
+
 - `POST /deals/:id/payments/:type/order` (type: `commission` only; the deal's brand; body `{}`; answers `{ orderId, amountPaise, currency, keyId, type }` for Checkout; `409 WRONG_DEAL_STATUS`)
 - `POST /payments/verify` (the deal's brand; body `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`; answers `{ payment: { status }, deal }`)
 - `POST /webhooks/razorpay` (no auth, signature verified, raw body)
 
 Direct payments (section 7.3a)
+
 - `GET /deals/:id/direct-payment` (the deal's brand; the stage due, the amount, the creator's full UPI ID and name, the `upi://pay` fields and link, or `blocked`: `no_creator | creator_has_no_upi | no_consent | not_due`)
 - `POST /deals/:id/direct-payment` (the deal's brand; body `{ stage, reference, note? }`; `201 { directPayment }`; `409 WRONG_DEAL_STATUS`, `409 CREATOR_PAYOUT_NOT_SET`, `409 DIRECT_PAYMENT_ALREADY_RECORDED`; email 17)
 - `POST /direct-payments/:id/confirm` (the deal's confirmed creator; answers `{ directPayment, deal }`; `409 DIRECT_PAYMENT_NOT_PENDING`, `409 INVALID_TRANSITION`; emails 5 or 9, then 10)
 - `POST /direct-payments/:id/not-received` (the deal's confirmed creator; body `{ reason }`; emails 18 and alert A1)
 
 Admin (`/admin/*`, admin only)
+
 - `GET /admin/analytics` (not built yet)
 - `GET /admin/deals` (`?status=&q=&cursor=&limit=`), `GET /admin/deals/:id`
 - `POST /admin/deals/:id/cancel` (body `{ note, refundReference? }`; from COMMISSION_PAID, ADVANCE_PAID, CONTENT_UPLOADED, REVISION_REQUESTED or APPROVED, otherwise `409 INVALID_TRANSITION`; email 11)
@@ -585,6 +605,7 @@ Admin (`/admin/*`, admin only)
 - All admin routes: 404 for everyone who is not an admin.
 
 Health
+
 - `GET /health` (DB check, used by Render)
 
 ---
@@ -625,24 +646,24 @@ Generated on demand with PDFKit, same document for both parties.
 
 ## 19. Environments and config
 
-| | Local | Staging | Production |
-|---|---|---|---|
-| Web | localhost:3000 | staging.valueskins.com (Vercel) | valueskins.com |
-| API | localhost:4000 | api-staging.valueskins.com (Render) | api.valueskins.com |
-| DB | docker compose Postgres | Render Postgres | Render Postgres (paid, backups) |
-| Razorpay | test | test | live |
-| Email | console | Resend | Resend |
-| Dev login | on | on | impossible |
-| Session cookie | vs_session_dev | vs_session_staging | vs_session |
+|                | Local                   | Staging                             | Production                      |
+| -------------- | ----------------------- | ----------------------------------- | ------------------------------- |
+| Web            | localhost:3000          | staging.valueskins.com (Vercel)     | valueskins.com                  |
+| API            | localhost:4000          | api-staging.valueskins.com (Render) | api.valueskins.com              |
+| DB             | docker compose Postgres | Render Postgres                     | Render Postgres (paid, backups) |
+| Razorpay       | test                    | test                                | live                            |
+| Email          | console                 | Resend                              | Resend                          |
+| Dev login      | on                      | on                                  | impossible                      |
+| Session cookie | vs_session_dev          | vs_session_staging                  | vs_session                      |
 
 Local cookies: API and web both on `localhost` (cookie without Domain). Local webhooks: expose the API with a tunnel (cloudflared or ngrok) and register the tunnel URL in Razorpay test mode.
 
 API env (validated with Zod at startup, the process exits on any missing value):
-`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE, AUTH_EMAIL_ENABLED, GST_RATE_BPS` (the last two are V0 launch additions, V0_LAUNCH 2.1 and 2.6). `TEST_DATABASE_URL`, `COMPANY_GSTIN` and `ADMIN_INSTAGRAM_USER_IDS` default to empty when omitted, so a host that cannot define empty variables can leave them out. `PORT` is injected by Render.
+`NODE_ENV, PORT, DATABASE_URL, WEB_ORIGIN, COOKIE_DOMAIN, SESSION_COOKIE_NAME, SESSION_SECRET, TOKEN_ENCRYPTION_KEY, INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI, META_APP_SECRET, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, RESEND_API_KEY, EMAIL_FROM, EMAIL_TRANSPORT, ADMIN_INSTAGRAM_USER_IDS, SUPPORT_EMAIL, DISPUTE_EMAIL, ENABLE_DEV_LOGIN, COMPANY_LEGAL_NAME, COMPANY_ADDRESS, COMPANY_STATE, COMPANY_GSTIN, COMMISSION_SAC_CODE, AUTH_EMAIL_ENABLED, GST_RATE_BPS` `SUPPORT_EMAIL` is the one address users write to (every email footer, the reply-to, error messages). `DISPUTE_EMAIL` is optional and defaults to it. `GST_RATE_BPS` is optional and defaults to `1800`, and a blank value counts as unset, not as 0. `AUTH_EMAIL_ENABLED` is `true` only on staging. Startup guards refuse: `ENABLE_DEV_LOGIN=true` in production, `AUTH_EMAIL_ENABLED=true` in production, a Razorpay key of the wrong mode, `GST_RATE_BPS` above 0 with an empty `COMPANY_GSTIN`, and `EMAIL_TRANSPORT=console` in production. `TEST_DATABASE_URL`, `COMPANY_GSTIN` and `ADMIN_INSTAGRAM_USER_IDS` default to empty when omitted, so a host that cannot define empty variables can leave them out (staging sets `COMPANY_GSTIN`, because GST is charged). `PORT` is injected by Render.
 
-Web env: `NEXT_PUBLIC_API_URL, NEXT_PUBLIC_RAZORPAY_KEY_ID`, plus `NEXT_PUBLIC_ENABLE_DEV_LOGIN` and `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` (V0 launch, V0_LAUNCH 2.7). `next build` always runs with `NODE_ENV=production`, so the web dev login page is gated by `NEXT_PUBLIC_ENABLE_DEV_LOGIN=true` instead, and a build with that flag true and `NEXT_PUBLIC_API_URL` set to `https://api.valueskins.com` fails.
+Web env: `NEXT_PUBLIC_API_URL, NEXT_PUBLIC_RAZORPAY_KEY_ID`, plus `NEXT_PUBLIC_ENABLE_DEV_LOGIN` and `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` (staging only). `next build` always runs with `NODE_ENV=production`, so the web dev login page is gated by `NEXT_PUBLIC_ENABLE_DEV_LOGIN=true` instead, and a build with that flag true and `NEXT_PUBLIC_API_URL` set to `https://api.valueskins.com` fails.
 
-Staging (V0_LAUNCH 2.7) runs on Render's free Postgres plan: it expires 30 days after creation and has no backups. Production must use a paid plan with backups (section 2). Setup steps are in `docs/DEPLOYMENT.md`.
+Staging runs on Render's free Postgres plan: it expires 30 days after creation and has no backups. Production must use a paid plan with backups (section 2). Setup steps are in `docs/DEPLOYMENT.md`.
 
 ---
 
@@ -661,12 +682,13 @@ Staging (V0_LAUNCH 2.7) runs on Render's free Postgres plan: it expires 30 days 
 
 ## 21. Open decisions (sign-off needed)
 
-1. **Commission formula and minimum budget** (section 4.2). Needed before Prompt 2.
+1. **Minimum budget** (section 4.2). The fee is decided (a flat ₹750 + 18% GST, REPLACEMENT_PLAN 2.2). The ₹5,000 minimum stays until the live site's value is confirmed.
 2. **Razorpay fee handling on Route transfers** (section 4.3). Closed: Route is not used and there are no transfers (Prompt 13).
 3. **GST and tax.** ValueSkins must be GST registered to charge GST on commission. Have the CA confirm the invoice format and SAC code, and whether marketplace TDS (Income Tax section 194-O) or GST TCS obligations apply to ValueSkins. If they apply, they change the payout math. Needed before go-live.
 4. **Stuck deals.** v1 only sends reminders when a brand does not pay the commission or does not review content. Decide whether to auto-cancel after N days in v2.
-5. **Public deal amounts** in the virtual resume (section 11).
+5. **Public deal amounts and the contact email** in the virtual resume (section 11).
 6. **Phone number for Razorpay KYC.** Moot: no linked accounts any more (section 7.2).
+7. **The support address.** `SUPPORT_EMAIL` is `valueskinsfounder@gmail.com` until it is agreed (the live site uses founder@valueskins.com).
 
 ---
 
