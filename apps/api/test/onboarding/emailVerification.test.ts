@@ -131,7 +131,11 @@ describe('POST /api/me/email', () => {
 
 describe('POST /api/me/email/verify', () => {
   it('verifies the address, completes onboarding for a creator, and the token works once', async () => {
-    const { user, cookie } = await instagramUser({ role: 'CREATOR', roleLockedAt: new Date() });
+    const { user, cookie } = await instagramUser({
+      role: 'CREATOR',
+      roleLockedAt: new Date(),
+      profileLockedAt: new Date(),
+    });
     await post('/api/me/email', cookie, { email: 'verify@example.com' });
     const token = await latestEmailedToken();
 

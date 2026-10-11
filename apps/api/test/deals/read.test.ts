@@ -437,7 +437,7 @@ describe('allowedActions through GET /api/deals/:id', () => {
     });
   });
 
-  it('advance paid: the brand sees cancel disabled with the SPEC reason', async () => {
+  it('advance paid: the brand sees cancel disabled with the fee-paid reason', async () => {
     const brand = await brandWithBilling();
     const creator = await creatorWithPayout();
     const deal = await insertDeal(brand.user.id, 'ADVANCE_PAID', { creatorId: creator.user.id });
@@ -445,7 +445,8 @@ describe('allowedActions through GET /api/deals/:id', () => {
       {
         action: 'CANCEL',
         enabled: false,
-        reason: 'Cancellation is not possible after the advance is paid',
+        reason:
+          'The deal cannot be cancelled after the fee is paid. Write to us if something is wrong.',
       },
       { action: 'RAISE_DISPUTE', enabled: true, reason: null },
     ]);

@@ -35,6 +35,12 @@ export async function softDeleteAndAnonymizeUser(userId: string): Promise<void> 
         payoutVpa: null,
         payoutName: null,
         payoutVpaConsentAt: null,
+        city: null,
+        age: null,
+        ageRecordedAt: null,
+        gender: null,
+        website: null,
+        pitch: null,
       })
       .where(eq(users.id, userId));
 

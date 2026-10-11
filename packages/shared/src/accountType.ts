@@ -11,7 +11,9 @@ export const ACCOUNT_TYPE_ROLES = {
  * Creator account is a creator. Anything else, or nothing, is not accepted (null).
  */
 export function roleFromAccountType(accountType: string | null | undefined): UserRole | null {
-  if (accountType === 'BUSINESS') return ACCOUNT_TYPE_ROLES.BUSINESS;
-  if (accountType === 'MEDIA_CREATOR') return ACCOUNT_TYPE_ROLES.MEDIA_CREATOR;
+  // Meta's docs list the values as Business and Media_Creator; the API sends them in capitals.
+  const type = accountType?.toUpperCase();
+  if (type === 'BUSINESS') return ACCOUNT_TYPE_ROLES.BUSINESS;
+  if (type === 'MEDIA_CREATOR') return ACCOUNT_TYPE_ROLES.MEDIA_CREATOR;
   return null;
 }

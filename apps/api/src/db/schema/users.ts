@@ -1,4 +1,9 @@
-import { UPI_VPA_PATTERN_SOURCE } from '@valueskins/shared';
+import {
+  PROFILE_AGE_MAX,
+  PROFILE_AGE_MIN,
+  PROFILE_PITCH_MAX,
+  UPI_VPA_PATTERN_SOURCE,
+} from '@valueskins/shared';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -7,6 +12,7 @@ import {
   integer,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -14,7 +20,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
-import { userRoleEnum } from './enums.js';
+import { userGenderEnum, userRoleEnum } from './enums.js';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -33,12 +39,7 @@ export const users = pgTable(
     // Nullable: V0 allows email-only accounts before Instagram login (V0_LAUNCH 2.1).
     instagramUserId: varchar('instagram_user_id', { length: 64 }).unique(),
     username: varchar('username', { length: 255 }).notNull(),
-    // Set when an email-only account types its (unverified) Instagram username
-    // during onboarding (V0_LAUNCH 2.2).
-    instagramUsernameSetAt: timestamp('instagram_username_set_at', {
-      withTimezone: true,
-      mode: 'date',
-    }),
+    // The Instagram name until the profile is locked, then the name the user gave (REPLACEMENT_PLAN 2.4).
     name: varchar('name', { length: 255 }).notNull(),
     // Nullable: an email-only account (created via email-code login) has no
     // Instagram data at all until it links an Instagram account (V0_LAUNCH 2.1).
@@ -70,6 +71,16 @@ export const users = pgTable(
     payoutVpa: text('payout_vpa'),
     payoutName: text('payout_name'),
     payoutVpaConsentAt: timestamp('payout_vpa_consent_at', { withTimezone: true, mode: 'date' }),
+    // Profile details, saved once and then locked (REPLACEMENT_PLAN 2.4). `name` above is the
+    // locked name. The age is the age given at `ageRecordedAt`; the current age is worked out.
+    city: varchar('city', { length: 100 }),
+    age: smallint('age'),
+    ageRecordedAt: timestamp('age_recorded_at', { withTimezone: true, mode: 'date' }),
+    gender: userGenderEnum('gender'),
+    website: text('website'),
+    pitch: text('pitch'),
+    profileLockedAt: timestamp('profile_locked_at', { withTimezone: true, mode: 'date' }),
+    adultConfirmedAt: timestamp('adult_confirmed_at', { withTimezone: true, mode: 'date' }),
     ...timestamps,
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
   },
@@ -84,6 +95,14 @@ export const users = pgTable(
     check(
       'users_payout_vpa_check',
       sql`${t.payoutVpa} is null or ${t.payoutVpa} ~ ${sql.raw(`'${UPI_VPA_PATTERN_SOURCE}'`)}`,
+    ),
+    check(
+      'users_age_check',
+      sql`(${t.age} is null) = (${t.ageRecordedAt} is null) and (${t.age} is null or ${t.age} between ${sql.raw(String(PROFILE_AGE_MIN))} and ${sql.raw(String(PROFILE_AGE_MAX))})`,
+    ),
+    check(
+      'users_pitch_check',
+      sql`${t.pitch} is null or char_length(${t.pitch}) <= ${sql.raw(String(PROFILE_PITCH_MAX))}`,
     ),
   ],
 );

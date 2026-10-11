@@ -22,14 +22,14 @@ describe('email templates', () => {
     expect(content.html).toContain('482910');
   });
 
-  it('dealCancelledTemplate reflects whether the commission was kept', () => {
+  it('dealCancelledTemplate reflects whether the fee was kept', () => {
     const kept = dealCancelledTemplate({
       dealShortId: 'ABC12345',
       dealTitle: 'Summer campaign',
       reason: 'Brand changed plans',
       commissionKept: true,
     });
-    expect(kept.text).toContain('commission already paid was kept');
+    expect(kept.text).toContain('fee already paid was kept');
 
     const notKept = dealCancelledTemplate({
       dealShortId: 'ABC12345',
@@ -37,7 +37,7 @@ describe('email templates', () => {
       reason: 'Brand changed plans',
       commissionKept: false,
     });
-    expect(notKept.text).toContain('No commission was charged');
+    expect(notKept.text).toContain('No fee was charged');
   });
 
   it('adminAlertTemplate includes the subject line and details', () => {

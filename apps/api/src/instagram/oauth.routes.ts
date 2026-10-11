@@ -1,3 +1,4 @@
+import { roleFromAccountType } from '@valueskins/shared';
 import { Router } from 'express';
 import { setSessionCookie } from '../auth/cookies.js';
 import { createSession, toAuthenticatedUser } from '../auth/session.js';
@@ -9,7 +10,6 @@ import {
   exchangeForLongLivedToken,
   fetchLatestMedia,
   fetchProfile,
-  isProfessionalAccount,
 } from './client.js';
 import { AppError } from '../errors/AppError.js';
 import { completeOnboardingIfReady } from '../onboarding/onboarding.service.js';
@@ -20,7 +20,8 @@ import { attachInstagramToUser, upsertInstagramLogin } from './upsertUser.js';
 type RedirectErrorCode =
   | 'state_invalid'
   | 'instagram_failed'
-  | 'professional_account_required'
+  | 'account_type_unsupported'
+  | 'account_type_change_blocked'
   | 'must_be_logged_in'
   | 'account_linked_elsewhere';
 
@@ -72,8 +73,9 @@ export function instagramAuthRoutes(env: Env): Router {
       const longLived = await exchangeForLongLivedToken(shortLived.accessToken, env);
       const profile = await fetchProfile(longLived.accessToken);
 
-      if (!isProfessionalAccount(profile)) {
-        res.redirect(loginErrorRedirect(env, 'professional_account_required'));
+      // Only Business (brand) and Creator (creator) accounts can sign in (REPLACEMENT_PLAN 2.3).
+      if (roleFromAccountType(profile.accountType) === null) {
+        res.redirect(loginErrorRedirect(env, 'account_type_unsupported'));
         return;
       }
 
@@ -95,7 +97,7 @@ export function instagramAuthRoutes(env: Env): Router {
           engagementRate,
           env,
         });
-        // Linking Instagram removes the email-only account's username step.
+        // Linking Instagram gives an email-only account its role, which may finish onboarding.
         await completeOnboardingIfReady(state.linkUserId);
         res.redirect(`${env.WEB_ORIGIN}/home`);
         return;
@@ -124,6 +126,14 @@ export function instagramAuthRoutes(env: Env): Router {
     } catch (error) {
       if (error instanceof AppError && error.code === 'INSTAGRAM_ACCOUNT_ALREADY_LINKED') {
         res.redirect(loginErrorRedirect(env, 'account_linked_elsewhere'));
+        return;
+      }
+      if (error instanceof AppError && error.code === 'ACCOUNT_TYPE_UNSUPPORTED') {
+        res.redirect(loginErrorRedirect(env, 'account_type_unsupported'));
+        return;
+      }
+      if (error instanceof AppError && error.code === 'ACCOUNT_TYPE_CHANGE_BLOCKED') {
+        res.redirect(loginErrorRedirect(env, 'account_type_change_blocked'));
         return;
       }
       req.log?.error({ err: error }, 'instagram oauth callback failed');

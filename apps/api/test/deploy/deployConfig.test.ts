@@ -7,8 +7,8 @@ const renderYaml = readFileSync(new URL('render.yaml', REPO_ROOT), 'utf8');
 const deploymentDoc = readFileSync(new URL('docs/DEPLOYMENT.md', REPO_ROOT), 'utf8');
 
 const ALL_ENV_KEYS = Object.keys(envSchema.shape);
-// Injected by Render, or defaulted to empty and so safely omitted from the Blueprint.
-const NOT_IN_BLUEPRINT = ['PORT', 'TEST_DATABASE_URL', 'COMPANY_GSTIN'];
+// Injected by Render, or defaulted and so safely omitted from the Blueprint.
+const NOT_IN_BLUEPRINT = ['PORT', 'TEST_DATABASE_URL', 'DISPUTE_EMAIL'];
 
 function blueprintKeys(): string[] {
   return [...renderYaml.matchAll(/^\s*- key: ([A-Z_]+)\s*$/gm)].map((m) => m[1]!);
@@ -44,6 +44,11 @@ describe('render.yaml', () => {
     expect(blueprintValue('SESSION_COOKIE_NAME')).toBe('vs_session_staging');
     expect(blueprintValue('EMAIL_TRANSPORT')).toBe('resend');
     expect(blueprintValue('ENABLE_DEV_LOGIN')).toBe('true');
+    expect(blueprintValue('AUTH_EMAIL_ENABLED')).toBe('true');
+    // GST is charged (REPLACEMENT_PLAN 2.2), so the GSTIN is a value the human enters.
+    expect(blueprintValue('GST_RATE_BPS')).toBe('1800');
+    expect(renderYaml).toMatch(/- key: COMPANY_GSTIN\n\s+sync: false/);
+    expect(blueprintValue('SUPPORT_EMAIL')).toBe('valueskinsfounder@gmail.com');
     expect(blueprintValue('INSTAGRAM_REDIRECT_URI')).toBe(
       'https://api-staging.valueskins.com/api/auth/instagram/callback',
     );

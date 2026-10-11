@@ -104,6 +104,9 @@ describe('Instagram OAuth', () => {
       .where(eq(users.instagramUserId, DEFAULT_PROFILE.user_id));
     expect(user?.username).toBe('creator_handle');
     expect(user?.isAdmin).toBe(true);
+    // The role comes from the account type (BUSINESS), never from the user.
+    expect(user?.role).toBe('BRAND');
+    expect(user?.igAccountType).toBe('BUSINESS');
   });
 
   it('rejects a bad/mismatched state', async () => {
@@ -124,7 +127,7 @@ describe('Instagram OAuth', () => {
     expect(allUsers).toHaveLength(0);
   });
 
-  it('redirects with professional_account_required for a PERSONAL account', async () => {
+  it('redirects with account_type_unsupported for a PERSONAL account', async () => {
     mockInstagramHandlers({ account_type: 'PERSONAL' });
     const env = buildTestEnv();
     const app = createApp(env);
@@ -135,7 +138,7 @@ describe('Instagram OAuth', () => {
       .set('Cookie', cookie);
 
     expect(response.headers.location).toBe(
-      `${env.WEB_ORIGIN}/login?error=professional_account_required`,
+      `${env.WEB_ORIGIN}/login?error=account_type_unsupported`,
     );
     const allUsers = await db.select().from(users);
     expect(allUsers).toHaveLength(0);
@@ -196,17 +199,12 @@ describe('Instagram OAuth', () => {
     expect(allUsers).toHaveLength(1);
   });
 
-  it('link mode completes onboarding for an email-only account (the username step no longer applies)', async () => {
+  it('link mode gives an email-only account its role; onboarding then waits for the profile', async () => {
     mockInstagramHandlers();
     const env = buildTestEnv();
     const app = createApp(env);
-    const { user, cookie: sessionCookie } = await emailUser({
-      role: 'CREATOR',
-      roleLockedAt: new Date(),
-    });
-    expect(
-      (await db.select().from(users).where(eq(users.id, user.id)))[0]?.onboardingCompletedAt,
-    ).toBeNull();
+    const { user, cookie: sessionCookie } = await emailUser();
+    expect((await db.select().from(users).where(eq(users.id, user.id)))[0]?.role).toBeNull();
 
     const startResponse = await request(app)
       .get('/api/auth/instagram/start?link=1')
@@ -221,7 +219,12 @@ describe('Instagram OAuth', () => {
 
     const [after] = await db.select().from(users).where(eq(users.id, user.id));
     expect(after?.instagramUserId).toBe(DEFAULT_PROFILE.user_id);
-    expect(after?.onboardingCompletedAt).not.toBeNull();
+    expect(after?.role).toBe('BRAND');
+    expect(after?.roleLockedAt).not.toBeNull();
+    expect(after?.onboardingCompletedAt).toBeNull();
+
+    const me = await request(app).get('/api/me').set('Cookie', sessionCookie);
+    expect(me.body.onboarding.nextStep).toBe('profile');
   });
 
   it('link conflict: redirects without mutating either account', async () => {
@@ -268,7 +271,7 @@ describe('Instagram OAuth', () => {
     expect(linked[0]?.username).toBe(DEFAULT_PROFILE.username);
   });
 
-  it('re-login refreshes profile fields without resetting role or onboarding', async () => {
+  it('re-login refreshes profile fields without resetting onboarding', async () => {
     mockInstagramHandlers();
     const env = buildTestEnv();
     const app = createApp(env);
@@ -284,7 +287,7 @@ describe('Instagram OAuth', () => {
       .where(eq(users.instagramUserId, DEFAULT_PROFILE.user_id));
     await db
       .update(users)
-      .set({ role: 'CREATOR', onboardingCompletedAt: new Date() })
+      .set({ onboardingCompletedAt: new Date() })
       .where(eq(users.id, before!.id));
 
     mockInstagramHandlers({ followers_count: 9999 });
@@ -300,7 +303,7 @@ describe('Instagram OAuth', () => {
       .from(users)
       .where(eq(users.instagramUserId, DEFAULT_PROFILE.user_id));
     expect(after?.followersCount).toBe(9999);
-    expect(after?.role).toBe('CREATOR');
+    expect(after?.role).toBe('BRAND');
     expect(after?.onboardingCompletedAt).not.toBeNull();
   });
 });

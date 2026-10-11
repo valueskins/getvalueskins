@@ -18,8 +18,8 @@ export async function loadOnboardingState(userId: string): Promise<OnboardingSta
     hasInstagram: user.instagramUserId !== null,
     role: user.role,
     emailVerified: user.email !== null && user.emailVerifiedAt !== null,
+    hasProfile: user.profileLockedAt !== null,
     hasBilling: billing !== undefined,
-    instagramUsernameSet: user.instagramUsernameSetAt !== null,
     hasPayoutDetails:
       user.payoutVpa !== null && user.payoutName !== null && user.payoutVpaConsentAt !== null,
   });
@@ -27,7 +27,7 @@ export async function loadOnboardingState(userId: string): Promise<OnboardingSta
 
 /**
  * Sets onboarding_completed_at the first time every required step is done
- * (SPEC 6.4, V0_LAUNCH 2.2). Set once and never unset. Returns the state.
+ * (SPEC 6.4). Set once and never unset. Returns the state.
  */
 export async function completeOnboardingIfReady(userId: string): Promise<OnboardingState> {
   const state = await loadOnboardingState(userId);

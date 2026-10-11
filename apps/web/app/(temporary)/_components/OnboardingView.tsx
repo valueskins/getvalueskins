@@ -6,9 +6,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../../lib/temporary/api';
 import { BillingForm } from './onboarding/BillingForm';
 import { EmailForm } from './onboarding/EmailForm';
-import { InstagramUsernameForm } from './onboarding/InstagramUsernameForm';
+import { ConnectInstagram } from './onboarding/ConnectInstagram';
+import { ProfileForm } from './onboarding/ProfileForm';
 import { PayoutSection } from './onboarding/PayoutSection';
-import { RoleForm } from './onboarding/RoleForm';
 import { errorClass, headingClass, hintClass, primaryButton } from './styles';
 
 type State =
@@ -18,9 +18,9 @@ type State =
   | { kind: 'ready'; me: MeResponse };
 
 const STEP_LABEL: Record<OnboardingStep, string> = {
-  instagram_username: 'Instagram username',
-  role: 'Account type',
+  instagram: 'Instagram account',
   email: 'Verified email',
+  profile: 'Profile details',
   billing: 'Billing details',
   payout: 'UPI payout details',
 };
@@ -102,11 +102,11 @@ export function OnboardingView() {
         ))}
       </ol>
 
-      {onboarding.nextStep === 'instagram_username' ? (
-        <InstagramUsernameForm onDone={load} />
-      ) : null}
-      {onboarding.nextStep === 'role' ? <RoleForm onDone={load} /> : null}
+      {onboarding.nextStep === 'instagram' ? <ConnectInstagram /> : null}
       {onboarding.nextStep === 'email' ? <EmailForm /> : null}
+      {onboarding.nextStep === 'profile' && user.role ? (
+        <ProfileForm role={user.role} onDone={load} />
+      ) : null}
       {onboarding.nextStep === 'billing' ? <BillingForm onDone={load} /> : null}
 
       {onboarding.completed ? (

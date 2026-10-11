@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { UserRole } from '@valueskins/shared';
+import { CONNECT_INSTAGRAM_TO_CONTINUE, type UserRole } from '@valueskins/shared';
 import { AppError } from '../errors/AppError.js';
 
 export function requireUser(req: Request, _res: Response, next: NextFunction): void {
@@ -17,7 +17,7 @@ export function requireRole(role: UserRole) {
       return;
     }
     if (req.user.role === null) {
-      next(new AppError('ROLE_NOT_CHOSEN', 403, 'Choose a role before continuing'));
+      next(new AppError('INSTAGRAM_NOT_CONNECTED', 403, CONNECT_INSTAGRAM_TO_CONTINUE));
       return;
     }
     if (req.user.role !== role) {

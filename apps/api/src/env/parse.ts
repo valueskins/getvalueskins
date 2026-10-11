@@ -21,5 +21,5 @@ export function parseEnv(raw: NodeJS.ProcessEnv): Env {
   if (!result.success) {
     throw new EnvValidationError(formatZodIssues(result.error));
   }
-  return result.data;
+  return { ...result.data, DISPUTE_EMAIL: result.data.DISPUTE_EMAIL ?? result.data.SUPPORT_EMAIL };
 }

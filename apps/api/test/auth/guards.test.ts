@@ -59,10 +59,10 @@ describe('requireRole', () => {
     expect(response.status).toBe(401);
   });
 
-  it('403s ROLE_NOT_CHOSEN when role is null', async () => {
+  it('403s INSTAGRAM_NOT_CONNECTED when the account has no role (no Instagram yet)', async () => {
     const response = await request(buildApp(fixtureUser({ role: null }))).get('/require-role');
     expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('ROLE_NOT_CHOSEN');
+    expect(response.body.error.code).toBe('INSTAGRAM_NOT_CONNECTED');
   });
 
   it('403s WRONG_ROLE on a mismatched role', async () => {

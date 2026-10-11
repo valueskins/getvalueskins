@@ -88,6 +88,7 @@ const CONFIG = {
   advancePercent: 30,
   authEmailEnabled: true,
   razorpayKeyId: 'rzp_test_abc123',
+  supportEmail: 'help@example.com',
 };
 
 interface FakeOptions {

@@ -7,7 +7,12 @@ describe('roleFromAccountType', () => {
     expect(roleFromAccountType('MEDIA_CREATOR')).toBe('CREATOR');
   });
 
-  it.each(['PERSONAL', 'CREATOR', 'business', 'Business', '', ' BUSINESS', 'ADMIN'])(
+  it('ignores letter case, as Meta lists the values as Business and Media_Creator', () => {
+    expect(roleFromAccountType('Business')).toBe('BRAND');
+    expect(roleFromAccountType('Media_Creator')).toBe('CREATOR');
+  });
+
+  it.each(['PERSONAL', 'CREATOR', '', ' BUSINESS', 'ADMIN', 'BUSINESS '])(
     'does not accept %j',
     (type) => {
       expect(roleFromAccountType(type)).toBeNull();

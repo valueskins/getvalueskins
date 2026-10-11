@@ -2,14 +2,16 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { db } from '../db/client.js';
 import { users } from '../db/schema/index.js';
-import type { Env } from '../env/index.js';
+import type { ApiContext } from '../context.js';
 import { softDeleteAndAnonymizeUser } from '../meta/deletion.service.js';
 import { loadOnboardingState } from '../onboarding/onboarding.service.js';
 import { clearSessionCookie } from './cookies.js';
 import { requireUser } from './guards.js';
+import { toProfileDetails } from '../profile/profile.service.js';
 import { toMeProfile } from './profile.js';
 
-export function meRoutes(env: Env): Router {
+export function meRoutes(ctx: ApiContext): Router {
+  const { env } = ctx;
   const router = Router();
 
   router.get('/api/me', requireUser, async (req, res, next) => {
@@ -18,6 +20,7 @@ export function meRoutes(env: Env): Router {
       res.json({
         user: req.user,
         profile: row ? toMeProfile(row) : null,
+        profileDetails: row ? toProfileDetails(row, ctx.now()) : null,
         onboarding: await loadOnboardingState(req.user!.id),
       });
     } catch (error) {

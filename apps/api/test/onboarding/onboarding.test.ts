@@ -32,113 +32,24 @@ const post = (path: string, cookie: string, body: object) =>
 
 describe('every onboarding route needs a session', () => {
   it.each([
-    ['post', '/api/me/role'],
-    ['post', '/api/me/instagram-username'],
     ['post', '/api/me/email'],
     ['post', '/api/me/email/resend'],
     ['post', '/api/me/email/verify'],
     ['put', '/api/me/billing'],
+    ['put', '/api/me/profile'],
   ] as const)('%s %s answers 401 with no session', async (method, path) => {
     const response = await request(app)[method](path).set('Origin', origin).send({});
     expect(response.status).toBe(401);
   });
 });
 
-describe('POST /api/me/role', () => {
-  it('sets the role once and locks it', async () => {
-    const { user, cookie } = await instagramUser();
-
-    const response = await post('/api/me/role', cookie, { role: 'CREATOR' });
-
-    expect(response.status).toBe(200);
-    const row = await userRow(user.id);
-    expect(row.role).toBe('CREATOR');
-    expect(row.roleLockedAt).not.toBeNull();
-  });
-
-  it('answers 409 ROLE_ALREADY_SET on a second call and never overwrites', async () => {
-    const { user, cookie } = await instagramUser();
-    await post('/api/me/role', cookie, { role: 'CREATOR' });
-
-    const second = await post('/api/me/role', cookie, { role: 'BRAND' });
-
-    expect(second.status).toBe(409);
-    expect(second.body.error.code).toBe('ROLE_ALREADY_SET');
-    expect((await userRow(user.id)).role).toBe('CREATOR');
-  });
-
-  it('lets exactly one of two simultaneous requests win', async () => {
-    const { user, cookie } = await instagramUser();
-
-    const results = await Promise.all([
-      post('/api/me/role', cookie, { role: 'CREATOR' }),
-      post('/api/me/role', cookie, { role: 'BRAND' }),
-    ]);
-
-    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
-    expect(['CREATOR', 'BRAND']).toContain((await userRow(user.id)).role);
-  });
-
-  it('rejects a role that is not CREATOR or BRAND', async () => {
+describe('the role and typed-username routes are gone', () => {
+  it.each([
+    ['/api/me/role', { role: 'BRAND' }],
+    ['/api/me/instagram-username', { username: 'someone' }],
+  ])('POST %s answers 404', async (path, body) => {
     const { cookie } = await instagramUser();
-    const response = await post('/api/me/role', cookie, { role: 'ADMIN' });
-    expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('VALIDATION_ERROR');
-  });
-
-  it('applies to email sign-in accounts too', async () => {
-    const { user, cookie } = await emailUser();
-    expect((await post('/api/me/role', cookie, { role: 'BRAND' })).status).toBe(200);
-    expect((await userRow(user.id)).role).toBe('BRAND');
-  });
-});
-
-describe('POST /api/me/instagram-username (email sign-in only)', () => {
-  it('stores the normalized handle and marks the step done', async () => {
-    const { user, cookie } = await emailUser({ username: 'placeholder' });
-
-    const response = await post('/api/me/instagram-username', cookie, { username: '  @Jane.Doe ' });
-
-    expect(response.status).toBe(200);
-    const row = await userRow(user.id);
-    expect(row.username).toBe('jane.doe');
-    expect(row.instagramUsernameSetAt).not.toBeNull();
-  });
-
-  it('can be changed again until Instagram is connected', async () => {
-    const { user, cookie } = await emailUser();
-    await post('/api/me/instagram-username', cookie, { username: 'first' });
-    const second = await post('/api/me/instagram-username', cookie, { username: 'second' });
-
-    expect(second.status).toBe(200);
-    expect((await userRow(user.id)).username).toBe('second');
-  });
-
-  it('does not require the handle to be unique (it is unverified)', async () => {
-    const a = await emailUser();
-    const b = await emailUser();
-    expect(
-      (await post('/api/me/instagram-username', a.cookie, { username: 'shared' })).status,
-    ).toBe(200);
-    expect(
-      (await post('/api/me/instagram-username', b.cookie, { username: 'shared' })).status,
-    ).toBe(200);
-  });
-
-  it('answers 409 INSTAGRAM_ALREADY_CONNECTED for an Instagram account', async () => {
-    const { user, cookie } = await instagramUser({ username: 'realhandle' });
-
-    const response = await post('/api/me/instagram-username', cookie, { username: 'other' });
-
-    expect(response.status).toBe(409);
-    expect(response.body.error.code).toBe('INSTAGRAM_ALREADY_CONNECTED');
-    expect((await userRow(user.id)).username).toBe('realhandle');
-  });
-
-  it('rejects an invalid handle', async () => {
-    const { cookie } = await emailUser();
-    const response = await post('/api/me/instagram-username', cookie, { username: 'bad name!' });
-    expect(response.status).toBe(400);
+    expect((await post(path, cookie, body)).status).toBe(404);
   });
 });
 
@@ -192,7 +103,7 @@ describe('PUT /api/me/billing (brands)', () => {
     expect((await put(cookie, { ...billing, extra: true })).status).toBe(400);
   });
 
-  it('is for brands only: a creator gets 403 WRONG_ROLE, no role gets 403 ROLE_NOT_CHOSEN', async () => {
+  it('is for brands only: a creator gets 403 WRONG_ROLE, an account with no role gets 403 INSTAGRAM_NOT_CONNECTED', async () => {
     const creator = await instagramUser({ role: 'CREATOR', roleLockedAt: new Date() });
     const noRole = await instagramUser();
 
@@ -202,55 +113,67 @@ describe('PUT /api/me/billing (brands)', () => {
     expect(asCreator.status).toBe(403);
     expect(asCreator.body.error.code).toBe('WRONG_ROLE');
     expect(withoutRole.status).toBe(403);
-    expect(withoutRole.body.error.code).toBe('ROLE_NOT_CHOSEN');
+    expect(withoutRole.body.error.code).toBe('INSTAGRAM_NOT_CONNECTED');
   });
 });
 
 describe('GET /api/me onboarding object and onboarding_completed_at', () => {
   const getMe = async (cookie: string) =>
     (await request(app).get('/api/me').set('Cookie', cookie)).body;
+  const putProfile = (cookie: string, body: object) =>
+    request(app).put('/api/me/profile').set('Origin', origin).set('Cookie', cookie).send(body);
+  const creatorProfile = {
+    name: 'Asha Rao',
+    city: 'Pune',
+    age: 24,
+    gender: 'FEMALE',
+    adultConfirmed: true,
+  };
 
-  it('Instagram creator: role, then email (the email step is covered in emailVerification.test.ts)', async () => {
-    const { user, cookie } = await instagramUser();
+  const ids = (me: { onboarding: { steps: { id: string }[] } }) =>
+    me.onboarding.steps.map((s) => s.id);
+
+  it('Instagram creator: email, then profile, then an optional UPI step; no role step', async () => {
+    const { user, cookie } = await instagramUser({
+      role: 'CREATOR',
+      igAccountType: 'MEDIA_CREATOR',
+    });
 
     let me = await getMe(cookie);
-    expect(me.onboarding.nextStep).toBe('role');
-    expect(me.onboarding.completed).toBe(false);
-
-    await post('/api/me/role', cookie, { role: 'CREATOR' });
-    me = await getMe(cookie);
+    expect(ids(me)).toEqual(['instagram', 'email', 'profile', 'payout']);
     expect(me.onboarding.nextStep).toBe('email');
-    expect((await userRow(user.id)).onboardingCompletedAt).toBeNull();
-  });
+    expect(me.onboarding.completed).toBe(false);
+    expect(me.profileDetails).toBeNull();
 
-  it('email creator: username, role; complete without needing an email step', async () => {
-    const { user, cookie } = await emailUser();
-
-    let me = await getMe(cookie);
-    expect(me.onboarding.steps.map((s: { id: string }) => s.id)).toEqual([
-      'instagram_username',
-      'role',
-      'email',
-    ]);
-    expect(me.onboarding.nextStep).toBe('instagram_username');
-
-    await post('/api/me/instagram-username', cookie, { username: 'creator1' });
+    await db
+      .update(users)
+      .set({ email: 'c@example.com', emailVerifiedAt: new Date() })
+      .where(eq(users.id, user.id));
     me = await getMe(cookie);
-    expect(me.onboarding.nextStep).toBe('role');
+    expect(me.onboarding.nextStep).toBe('profile');
     expect((await userRow(user.id)).onboardingCompletedAt).toBeNull();
 
-    await post('/api/me/role', cookie, { role: 'CREATOR' });
+    expect((await putProfile(cookie, creatorProfile)).status).toBe(200);
     me = await getMe(cookie);
     expect(me.onboarding.completed).toBe(true);
     expect(me.onboarding.nextStep).toBeNull();
     expect((await userRow(user.id)).onboardingCompletedAt).not.toBeNull();
   });
 
-  it('email brand: also needs billing before it completes', async () => {
-    const { user, cookie } = await emailUser();
-    await post('/api/me/instagram-username', cookie, { username: 'brand1' });
-    await post('/api/me/role', cookie, { role: 'BRAND' });
+  it('Instagram brand: profile, then billing before it completes', async () => {
+    const { user, cookie } = await instagramUser({
+      role: 'BRAND',
+      email: 'b@example.com',
+      emailVerifiedAt: new Date(),
+    });
+    expect(ids(await getMe(cookie))).toEqual(['instagram', 'email', 'profile', 'billing']);
 
+    await putProfile(cookie, {
+      name: 'Brand Co',
+      city: 'Goa',
+      website: 'https://brand.example',
+      adultConfirmed: true,
+    });
     expect((await getMe(cookie)).onboarding.nextStep).toBe('billing');
     expect((await userRow(user.id)).onboardingCompletedAt).toBeNull();
 
@@ -264,19 +187,36 @@ describe('GET /api/me onboarding object and onboarding_completed_at', () => {
     expect((await userRow(user.id)).onboardingCompletedAt).not.toBeNull();
   });
 
-  it('is set once and never unset', async () => {
+  it('an email-only account has no role, so it cannot finish until Instagram is connected', async () => {
     const { user, cookie } = await emailUser();
-    await post('/api/me/instagram-username', cookie, { username: 'stays' });
-    await post('/api/me/role', cookie, { role: 'CREATOR' });
+
+    const me = await getMe(cookie);
+    expect(ids(me)).toEqual(['instagram', 'email']);
+    expect(me.onboarding.nextStep).toBe('instagram');
+    expect(me.onboarding.completed).toBe(false);
+
+    const profile = await putProfile(cookie, creatorProfile);
+    expect(profile.status).toBe(403);
+    expect(profile.body.error.code).toBe('INSTAGRAM_NOT_CONNECTED');
+    expect((await userRow(user.id)).onboardingCompletedAt).toBeNull();
+  });
+
+  it('is set once and never unset', async () => {
+    const { user, cookie } = await instagramUser({
+      role: 'CREATOR',
+      email: 'once@example.com',
+      emailVerifiedAt: new Date(),
+    });
+    await putProfile(cookie, creatorProfile);
     const first = (await userRow(user.id)).onboardingCompletedAt;
     expect(first).not.toBeNull();
 
-    await post('/api/me/instagram-username', cookie, { username: 'changed' });
+    await putProfile(cookie, creatorProfile);
     expect((await userRow(user.id)).onboardingCompletedAt?.getTime()).toBe(first?.getTime());
   });
 
   it('lists the payout step for a creator without making it required', async () => {
-    const { cookie } = await emailUser({ instagramUsernameSetAt: new Date(), role: 'CREATOR' });
+    const { cookie } = await instagramUser({ role: 'CREATOR' });
     const me = await getMe(cookie);
 
     expect(me.onboarding.steps.find((s: { id: string }) => s.id === 'payout')).toEqual({

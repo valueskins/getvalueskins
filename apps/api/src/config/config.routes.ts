@@ -13,6 +13,7 @@ export function configRoutes({ env }: ApiContext): Router {
       advancePercent: ADVANCE_PERCENT,
       authEmailEnabled: env.AUTH_EMAIL_ENABLED,
       razorpayKeyId: env.RAZORPAY_KEY_ID,
+      supportEmail: env.SUPPORT_EMAIL,
     };
     res.set('Cache-Control', 'public, max-age=60');
     res.json(body);

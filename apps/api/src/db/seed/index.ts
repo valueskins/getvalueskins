@@ -63,6 +63,11 @@ export async function seed(options: SeedOptions = {}): Promise<void> {
         email: `${brand.username}@example.com`,
         emailVerifiedAt: new Date(),
         onboardingCompletedAt: new Date(),
+        city: brand.city,
+        website: brand.website,
+        pitch: brand.pitch ?? null,
+        profileLockedAt: new Date(),
+        adultConfirmedAt: new Date(),
       })
       .returning();
     if (!row) throw new Error(`failed to insert brand ${brand.username}`);
@@ -94,6 +99,12 @@ export async function seed(options: SeedOptions = {}): Promise<void> {
         email: `${creator.username}@example.com`,
         emailVerifiedAt: new Date(),
         onboardingCompletedAt: new Date(),
+        city: creator.city,
+        age: creator.age,
+        ageRecordedAt: new Date(),
+        gender: creator.gender,
+        profileLockedAt: new Date(),
+        adultConfirmedAt: new Date(),
         payoutVpa: creator.payout?.vpa ?? null,
         payoutName: creator.payout?.name ?? null,
         payoutVpaConsentAt: creator.payout ? new Date() : null,

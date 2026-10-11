@@ -1,25 +1,26 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED } from '@valueskins/shared';
+import { ACCOUNT_TYPE_UNSUPPORTED } from '@valueskins/shared';
 import AuthErrorPage from '../app/(temporary)/auth/error/page';
 import { GENERIC_AUTH_ERROR, authErrorMessage } from '../lib/temporary/authErrors';
 import { temporaryRedirects } from '../lib/temporary/redirects';
 
 describe('/auth/error', () => {
-  it('shows the professional account copy for professional_account_required', async () => {
+  it('shows the Business or Creator account copy for account_type_unsupported', async () => {
     render(
       await AuthErrorPage({
-        searchParams: Promise.resolve({ error: 'professional_account_required' }),
+        searchParams: Promise.resolve({ error: 'account_type_unsupported' }),
       }),
     );
-    expect(screen.getByText(INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED)).toBeInTheDocument();
+    expect(screen.getByText(ACCOUNT_TYPE_UNSUPPORTED)).toBeInTheDocument();
   });
 
   it('maps every code the API can send to its own message', () => {
     for (const code of [
       'state_invalid',
       'instagram_failed',
-      'professional_account_required',
+      'account_type_unsupported',
+      'account_type_change_blocked',
       'must_be_logged_in',
       'account_linked_elsewhere',
     ]) {

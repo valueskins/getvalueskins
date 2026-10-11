@@ -24,8 +24,10 @@ afterAll(closeDb);
 
 const REASON = 'Plans changed';
 
-const ALLOWED: DealStatus[] = ['OPEN', 'CONFIRMED', 'COMMISSION_PAID'];
-const AFTER_ADVANCE: DealStatus[] = [
+const ALLOWED: DealStatus[] = ['OPEN', 'CONFIRMED'];
+// From the moment the fee is paid only an admin can cancel (REPLACEMENT_PLAN 2.6).
+const AFTER_FEE: DealStatus[] = [
+  'COMMISSION_PAID',
   'ADVANCE_PAID',
   'CONTENT_UPLOADED',
   'REVISION_REQUESTED',
@@ -71,10 +73,11 @@ describe('POST /api/deals/:id/cancel', () => {
       0,
     );
     expect(await sentEmails('DEAL_CANCELLED')).toHaveLength(0);
-    if (AFTER_ADVANCE.includes(status)) {
+    if (AFTER_FEE.includes(status)) {
       expect(res.body.error).toMatchObject({
         code: 'CANCELLATION_NOT_POSSIBLE',
-        message: 'Cancellation is not possible after the advance is paid',
+        message:
+          'The deal cannot be cancelled after the fee is paid. Write to us if something is wrong.',
       });
     } else {
       expect(res.body.error.code).toBe('INVALID_TRANSITION');
@@ -95,13 +98,13 @@ describe('POST /api/deals/:id/cancel', () => {
     const emails = await sentEmails('DEAL_CANCELLED');
     expect(emails.map((e) => e.toEmail)).toEqual([brand.user.email]);
     expect(emails[0]?.bodyText).toContain(REASON);
-    expect(emails[0]?.bodyText).toContain('No commission was charged');
+    expect(emails[0]?.bodyText).toContain('No fee was charged');
   });
 
-  it('emails the brand and the confirmed creator, and says the commission was kept from COMMISSION_PAID', async () => {
+  it('emails the brand and the confirmed creator from CONFIRMED', async () => {
     const brand = await brandWithBilling();
     const creator = await creatorWithPayout();
-    const deal = await insertDeal(brand.user.id, 'COMMISSION_PAID', { creatorId: creator.user.id });
+    const deal = await insertDeal(brand.user.id, 'CONFIRMED', { creatorId: creator.user.id });
 
     await api.send('post', `/api/deals/${deal.id}/cancel`, brand.cookie, { reason: REASON });
 
@@ -111,18 +114,9 @@ describe('POST /api/deals/:id/cancel', () => {
     );
     for (const email of emails) {
       expect(email.dealId).toBe(deal.id);
-      expect(email.bodyText).toContain('commission already paid was kept');
+      expect(email.bodyText).toContain('No fee was charged');
+      expect(email.bodyText).toContain(env.SUPPORT_EMAIL);
     }
-  });
-
-  it('says no commission was charged when cancelling from CONFIRMED', async () => {
-    const brand = await brandWithBilling();
-    const creator = await creatorWithPayout();
-    const deal = await insertDeal(brand.user.id, 'CONFIRMED', { creatorId: creator.user.id });
-    await api.send('post', `/api/deals/${deal.id}/cancel`, brand.cookie, { reason: REASON });
-    const emails = await sentEmails('DEAL_CANCELLED');
-    expect(emails).toHaveLength(2);
-    expect(emails.every((e) => e.bodyText.includes('No commission was charged'))).toBe(true);
   });
 
   it('requires a reason', async () => {

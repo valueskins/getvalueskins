@@ -29,7 +29,8 @@ describe('creatorProfileSchema', () => {
 
   it('needs every field and the 18 or older tick', () => {
     for (const key of Object.keys(creator)) {
-      const { [key as keyof typeof creator]: _omitted, ...rest } = creator;
+      const rest: Record<string, unknown> = { ...creator };
+      delete rest[key];
       expect(creatorProfileSchema.safeParse(rest).success).toBe(false);
     }
     expect(creatorProfileSchema.safeParse({ ...creator, adultConfirmed: false }).success).toBe(

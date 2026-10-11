@@ -17,7 +17,7 @@ export function resumeRoutes(ctx: ApiContext): Router {
       const key = String(req.params.id);
       let resume = cache.get(key);
       if (!resume) {
-        resume = await loadResume(key);
+        resume = await loadResume(key, ctx.now());
         cache.set(key, resume);
       }
       res.set('Cache-Control', `private, max-age=${RESUME_CACHE_SECONDS}`);
