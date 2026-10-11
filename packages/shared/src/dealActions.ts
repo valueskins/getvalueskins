@@ -2,7 +2,7 @@ import {
   ADD_BILLING_TO_PUBLISH,
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
-  CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
+  CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   ADD_UPI_TO_APPLY,
   NO_APPLICATIONS_YET,
   CREATOR_HAS_NO_UPI,
@@ -66,14 +66,16 @@ export interface DealActionsInput {
   publishIssues: readonly string[];
 }
 
-const POST_ADVANCE_STATUSES: readonly DealStatus[] = [
+/** The fee is paid, so only an admin can cancel (REPLACEMENT_PLAN 2.6). */
+const FEE_PAID_STATUSES: readonly DealStatus[] = [
+  'COMMISSION_PAID',
   'ADVANCE_PAID',
   'CONTENT_UPLOADED',
   'REVISION_REQUESTED',
   'APPROVED',
 ];
 
-const CANCELLABLE_STATUSES: readonly DealStatus[] = ['OPEN', 'CONFIRMED', 'COMMISSION_PAID'];
+const CANCELLABLE_STATUSES: readonly DealStatus[] = ['OPEN', 'CONFIRMED'];
 
 /**
  * SPEC 12: a dispute can be raised from CONFIRMED onward, so the deal needs a confirmed creator
@@ -131,8 +133,8 @@ function brandActions(input: DealActionsInput): DealActionState[] {
   }
   if (CANCELLABLE_STATUSES.includes(status)) {
     actions.push(on('CANCEL'));
-  } else if (POST_ADVANCE_STATUSES.includes(status)) {
-    actions.push(off('CANCEL', CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE));
+  } else if (FEE_PAID_STATUSES.includes(status)) {
+    actions.push(off('CANCEL', CANCELLATION_NOT_POSSIBLE_AFTER_FEE));
   }
   return actions;
 }

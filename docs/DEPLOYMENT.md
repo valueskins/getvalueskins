@@ -93,7 +93,7 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
    - **Alert email:** `valueskinsfounder@gmail.com`
    - **Active events** to tick: `payment.captured`, `payment.failed`, `order.paid`. Only the commission goes through Razorpay (the advance and final are direct UPI payments), so no transfer or Route events are needed. Any other event is stored and ignored.
    - In test mode Razorpay may ask for an OTP; its docs give `754081` for test mode.
-6. Payment capture must be **automatic** (**Accounts & Settings**, the payment capture setting). The API creates Orders without a capture flag; with manual capture, payments stop at `authorized` and the API answers "not captured" instead of moving the deal.
+5. Payment capture must be **automatic** (**Accounts & Settings**, the payment capture setting). The API creates Orders without a capture flag; with manual capture, payments stop at `authorized` and the API answers "not captured" instead of moving the deal.
 
 The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on staging. Never put a live key on staging.
 
@@ -112,19 +112,20 @@ Until the domain is verified, sends fail and are recorded as FAILED in the `emai
 2. Connect GitHub and pick `valueskins/getvalueskins`. Branch `main`. Render reads `render.yaml`.
 3. Render lists the web service `valueskins-api-staging` and the database `valueskins-staging-db`, and asks for the variables marked "sync: false". Enter them:
 
-   | Variable                   | Value                                                                               |
-   | -------------------------- | ----------------------------------------------------------------------------------- |
-   | `INSTAGRAM_APP_ID`         | from section 5                                                                      |
-   | `INSTAGRAM_APP_SECRET`     | from section 5                                                                      |
-   | `META_APP_SECRET`          | from section 5                                                                      |
-   | `RAZORPAY_KEY_ID`          | from section 6 (`rzp_test_...`)                                                     |
-   | `RAZORPAY_KEY_SECRET`      | from section 6                                                                      |
-   | `RAZORPAY_WEBHOOK_SECRET`  | from section 6 step 3                                                               |
-   | `RESEND_API_KEY`           | from section 7                                                                      |
-   | `ADMIN_INSTAGRAM_USER_IDS` | `none` for now (you set the real id in section 14)                                  |
-   | `COMPANY_ADDRESS`          | the company address                                                                 |
-   | `COMPANY_STATE`            | the company state, for example `Karnataka`                                          |
-   | `COMMISSION_SAC_CODE`      | the SAC code your CA confirms (SPEC 21); `000000` is fine on staging while GST is 0 |
+   | Variable                   | Value                                                                                 |
+   | -------------------------- | ------------------------------------------------------------------------------------- |
+   | `INSTAGRAM_APP_ID`         | from section 5                                                                        |
+   | `INSTAGRAM_APP_SECRET`     | from section 5                                                                        |
+   | `META_APP_SECRET`          | from section 5                                                                        |
+   | `RAZORPAY_KEY_ID`          | from section 6 (`rzp_test_...`)                                                       |
+   | `RAZORPAY_KEY_SECRET`      | from section 6                                                                        |
+   | `RAZORPAY_WEBHOOK_SECRET`  | from section 6 step 3                                                                 |
+   | `RESEND_API_KEY`           | from section 7                                                                        |
+   | `ADMIN_INSTAGRAM_USER_IDS` | `none` for now (you set the real id in section 14)                                    |
+   | `COMPANY_ADDRESS`          | the company address                                                                   |
+   | `COMPANY_STATE`            | the company state, for example `Karnataka`                                            |
+   | `COMPANY_GSTIN`            | the company GSTIN. Staging charges GST at 18%, so the API refuses to start without it |
+   | `COMMISSION_SAC_CODE`      | the SAC code your CA confirms (SPEC 21)                                               |
 
 4. Click **Deploy Blueprint** (or **Apply**). If Render rejects `plan: free` on the database, open Render's Blueprint spec page, find the current identifier for the free Postgres plan, and change that one line in `render.yaml`. Do not switch to a paid tier by accident. If it rejects the web plan `0.5c-512mb`, use the identifier Render's compute plans page lists for the 512 MB, 0.5 CPU plan (formerly "Starter").
 5. Wait for the first deploy. The build installs, builds `packages/shared` and the API; the pre-deploy command then runs the database migrations; the service starts only when `/api/health` answers.
@@ -211,7 +212,7 @@ Expected: `{"ok":true}`. A bad signature gives `403 INVALID_SIGNED_REQUEST`.
 
 Register it in section 6 step 4. To check it end to end, pay a commission (section 13 step 12) and watch the payment become `CAPTURED` from the webhook.
 
-Razorpay's dashboard shows each delivery and its response code. A healthy delivery answers `200`. A `400` means the signature did not match: the `RAZORPAY_WEBHOOK_SECRET` on Render and the secret in the webhook form differ. A processing problem does not change the `200`: it is recorded on the event row and emailed to `DISPUTE_EMAIL` as an "Admin alert".
+Razorpay's dashboard shows each delivery and its response code. A healthy delivery answers `200`. A `400` means the signature did not match: the `RAZORPAY_WEBHOOK_SECRET` on Render and the secret in the webhook form differ. A processing problem does not change the `200`: it is recorded on the event row and emailed to `DISPUTE_EMAIL` (which is `SUPPORT_EMAIL` unless you set it) as an "Admin alert".
 
 ## 13. Verification run-through
 
@@ -223,15 +224,16 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 4. `https://staging.valueskins.com/dev/login`: enter a username, click **Dev login**. You land on `/me`. Click **Log out**.
 5. **Email sign-in:** **Sign in with email**, enter your email, **Send code**. The email arrives from `notifications@valueskins.com` (check spam). Enter the code. You land on `/me` showing "No Instagram account is linked". Click **Log out**.
 6. **Instagram sign-in:** **Continue with Instagram** with the tester account. Approve the permission. You land on `/me` showing username, name, picture, followers, posts and engagement rate.
-7. A personal (non-professional) Instagram account shows the "needs an Instagram Professional account" message on `/auth/error`.
+7. A personal Instagram account, or any account that is not Business or Creator, shows "ValueSkins needs a public Instagram Business or Creator account..." on `/auth/error`. An Instagram **Business** account signs in as a brand and a **Creator** account as a creator, with no account type question.
 8. In Render, **Logs** shows requests and no errors.
 9. **Creator UPI payout details.** Sign in as a creator with a verified email (the email sign-in or an Instagram sign-in plus `/onboarding`). Open `https://staging.valueskins.com/onboarding`:
-   1. **Choose your account type:** Creator. Save. (This cannot be undone: use a fresh test account, or a different one for each role.)
-   2. **Instagram sign-in only:** enter an email, **Send verification link**, open the emailed link in the same browser, then click **Continue**. (Email sign-in accounts skip this: their email is already verified. They are asked for their Instagram username first.)
-   3. The page now shows **Payout setup**. Enter a UPI ID such as `yourname@okaxis`, the name on the account as your UPI app shows it, read the warning ("We do not verify UPI IDs..."), tick the consent box and click **Save UPI details**. A bank account number, PAN or IFSC code is refused with a message.
-   4. Expected: the page shows the UPI ID masked, like `yo•••@okaxis`, with the name and the consent date, and a **Change UPI details** button. The full ID never appears again. `GET /api/me/payout-upi` returns the same masked form.
-   5. Without a saved UPI ID the creator cannot apply ("Add your UPI ID to apply"), and a brand cannot confirm that creator. Nothing is created in Razorpay.
-10. **Brand billing** (optional check): sign in with a second account, choose **Brand**, add an email if needed, fill in **Billing details**. A GSTIN, if entered, must be valid.
+   1. **Instagram sign-in:** the page shows "Is this you?". There is no account type question: the role comes from the Instagram account type. (An email-only account is asked to **Connect Instagram** first and cannot finish setting up until it does.)
+   2. Enter an email, **Send verification link**, open the emailed link in the same browser, then click **Continue**.
+   3. **Your profile:** a creator gives name, city, age (18 to 99) and gender, and ticks "I am 18 or older"; a brand gives name, city, website and, if it wants, a hiring pitch. It saves once and is then locked: a second save answers `409 PROFILE_LOCKED` with the support address.
+   4. The page now shows **Payout setup**. Enter a UPI ID such as `yourname@okaxis`, the name on the account as your UPI app shows it, read the warning ("We do not verify UPI IDs..."), tick the consent box and click **Save UPI details**. A bank account number, PAN or IFSC code is refused with a message.
+   5. Expected: the page shows the UPI ID masked, like `yo•••@okaxis`, with the name and the consent date, and a **Change UPI details** button. The full ID never appears again. `GET /api/me/payout-upi` returns the same masked form.
+   6. Without a saved UPI ID the creator cannot apply ("Add your UPI ID to apply"), and a brand cannot confirm that creator. Nothing is created in Razorpay.
+10. **Brand billing** (optional check): sign in with a second account that is a Business Instagram account, add an email and a profile if needed, fill in **Billing details**. A GSTIN, if entered, must be valid.
 11. **Deal flow, draft to CONFIRMED (curl).** There is no deals screen yet, so this uses the API directly. You need `curl` and `jq`, two email addresses you can read (one brand, one creator), and a Render **Shell** for the payout fallback. Each person gets a cookie file, so run everything in one terminal session:
 
     ```bash
@@ -240,14 +242,15 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     # call METHOD PATH COOKIEFILE [JSON]  (Origin is required on every non-GET request)
     call() { curl -sS -X "$1" "$API$2" -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -b "$3" -c "$3" ${4:+-d "$4"}; echo; }
 
-    # 1. Sign in by email code. Read the 6-digit code from the email, then verify.
-    call POST /auth/email/start brand.jar '{"email":"brand-test@example.com"}'
-    call POST /auth/email/verify brand.jar '{"email":"brand-test@example.com","code":"123456"}'
-    # 2. Onboard the brand: role (permanent), typed Instagram username, billing.
-    call POST /me/role brand.jar '{"role":"BRAND"}'
-    call POST /me/instagram-username brand.jar '{"username":"test_brand"}'
+    # 1. Sign in with dev login (staging only). In dev login the role stands in for the Instagram account type.
+    call POST /dev/login brand.jar '{"username":"test_brand","role":"BRAND"}'
+    # 2. Onboard the brand: verified email (open the emailed link, copy the token from its address), profile (saved once), billing.
+    call POST /me/email brand.jar '{"email":"brand-test@example.com"}'
+    call POST /me/email/verify brand.jar '{"token":"PASTE-THE-TOKEN"}'
+    call PUT /me/profile brand.jar '{"name":"Test Brand","city":"Bengaluru","website":"https://brand.example","adultConfirmed":true}'
     call PUT /me/billing brand.jar '{"billingName":"Test Brand Pvt Ltd","billingAddress":"1 Main Road, Bengaluru","billingState":"Karnataka"}'
-    # 3. Do the same for the creator (role CREATOR, creator.jar, a second email, no billing).
+    # 3. Do the same for the creator: role CREATOR, creator.jar, a second email, and a profile of
+    #    {"name":"Test Creator","city":"Pune","age":24,"gender":"FEMALE","adultConfirmed":true}. No billing.
 
     # 4. Read the public config the web app will use.
     curl -sS $API/config
@@ -279,7 +282,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     call GET /users/$(call GET /me creator.jar | jq -r .user.id)/resume brand.jar
     ```
 
-    Expected: every call answers with JSON and no `error`; the deal ends `CONFIRMED`; emails 1, 2 and 3 arrive; a second `confirm` answers `409`. To cancel instead: `call POST /deals/$DEAL/cancel brand.jar '{"reason":"changed plans"}'` while the deal is `OPEN`, `CONFIRMED` or `COMMISSION_PAID`.
+    Expected: every call answers with JSON and no `error`; the deal ends `CONFIRMED`; emails 1, 2 and 3 arrive; a second `confirm` answers `409`. To cancel instead: `call POST /deals/$DEAL/cancel brand.jar '{"reason":"changed plans"}'` while the deal is `OPEN` or `CONFIRMED`. Once the fee is paid (`COMMISSION_PAID` onward) the brand's cancel answers `409 CANCELLATION_NOT_POSSIBLE`; only an admin can cancel then (section 13 step 13).
 
 12. **The three payments (test mode).** Prerequisites: step 11 done so a deal is `CONFIRMED` with a creator who has saved a UPI ID (step 9); the webhook from section 6 step 4 registered with the payment events ticked; automatic capture on (section 6 step 6). The commission uses a Razorpay test card or test UPI id from Razorpay's test-payment page; nothing real is charged. The advance and final are paid outside Razorpay and need no money to move.
 
@@ -302,6 +305,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
        ```
 
        To try the other path first, say it did not arrive: `call POST /direct-payments/$DP/not-received creator.jar '{"reason":"Nothing arrived"}'` (emails 18 and an admin alert; the deal stays in `COMMISSION_PAID`), then record again with another reference.
+
     3. **Check the UPI link and QR code on a phone.** Open `https://staging.valueskins.com/deals/<DEAL>/pay` as the brand while the advance is due. It shows the payee name, the UPI ID, the amount, **Open in a UPI app** and a QR code. Scan the QR code, or open the link on a phone with a UPI app: the app must show the creator's name on the account and exactly the advance amount. **You do not need to send the money**: close the app, then record any reference (6 to 40 characters) and confirm as the creator.
     4. **Upload and approve.** With the deal in `ADVANCE_PAID`:
 
@@ -311,6 +315,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
        ```
 
        To try a revision first: `call POST /deals/$DEAL/feedback brand.jar '{"feedback":"Please reshoot the intro"}'` (email 7), then upload again.
+
     5. **Final: the same, with `"stage":"FINAL"`.** `GET /deals/$DEAL/direct-payment` now returns the final; record it and confirm as the creator. Expected: `COMPLETED`, email 9 to both with the final payment record attached, then email 10 with the deal report.
     6. **The four PDFs.** Download them as the brand (or the creator) and open them:
 
@@ -320,7 +325,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
        Expected: four PDFs with the rupee sign showing, the numbers `VS/...` on the invoice and `VS-PR/...` on the two payment records, and the wording "Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money." on the records. The creator's UPI ID is masked on every document, and the deal report lists every direct payment, a not-received one included. `call GET /deals/$DEAL/emails brand.jar` and `call GET /deals/$DEAL/events brand.jar` show the deal's communication history and timeline.
 
-    Deals paid through Route before Prompt 13 have no payment records: use a fresh deal. With GST 0 the commission document is titled "Invoice" with no tax lines.
+    Deals paid through Route before Prompt 13 have no payment records: use a fresh deal. On staging the commission document is a GST tax invoice: ₹750 plus 18% GST is ₹885.
 
     The fee is the only Razorpay payment: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"` shows the commission as `CAPTURED`, and `direct_payments` holds the other two: `q "select stage, amount_paise, reference, confirmed_at, disputed_at from direct_payments where deal_id = '$DEAL' order by recorded_at"`. The three amounts add up to the budget.
 
@@ -339,7 +344,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     DISPUTE=PASTE-THE-DISPUTE-ID
     acall POST /admin/disputes/$DISPUTE/resolve '{"resolution":"Checked and settled","refundReference":"rfnd_test_1"}'
 
-    # 3. Find a deal, see everything about it, and force-cancel a stuck one (ADVANCE_PAID to APPROVED only). Email 11 goes to both parties.
+    # 3. Find a deal, see everything about it, and force-cancel a stuck one (COMMISSION_PAID to APPROVED). Email 11 goes to both parties.
     acall GET '/admin/deals?q=SHORTID'                     # the short id is on the deal and in every email
     acall GET /admin/deals/$DEAL
     acall POST /admin/deals/$DEAL/cancel '{"note":"Creator unreachable; refunded in the Razorpay dashboard","refundReference":"rfnd_test_1"}'
@@ -405,7 +410,7 @@ Submission text for reviewers: the staging URL, the step-by-step above, and the 
 
 **Switch features off without code.**
 
-- Email sign-in: Render `AUTH_EMAIL_ENABLED=false`; Vercel `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=false` and redeploy.
+- Email sign-in: Render `AUTH_EMAIL_ENABLED=false` (production must always have it `false`: the API refuses to start otherwise); Vercel `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=false` and redeploy.
 - Dev login: Render `ENABLE_DEV_LOGIN=false`; Vercel `NEXT_PUBLIC_ENABLE_DEV_LOGIN=false` and redeploy.
 
 **Undo a merge.** Revert the pull request on GitHub; Render and Vercel deploy `main` again.
@@ -446,15 +451,16 @@ Only one free Postgres can be active per Render workspace.
 | `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>`                      | `render.yaml`                                                                                            |
 | `EMAIL_TRANSPORT`          | `resend`                                                         | `render.yaml`; `console` is refused in production                                                        |
 | `ADMIN_INSTAGRAM_USER_IDS` | prompted (`none`, then your id)                                  | section 14                                                                                               |
-| `DISPUTE_EMAIL`            | `valueskinsfounder@gmail.com`                                    | `render.yaml`                                                                                            |
+| `SUPPORT_EMAIL`            | `valueskinsfounder@gmail.com`                                    | `render.yaml`. The one address users write to: every email footer, the reply-to and error messages       |
+| `DISPUTE_EMAIL`            | omitted (defaults to `SUPPORT_EMAIL`)                            | optional: where disputes and admin alerts go, if not the support address                                 |
 | `ENABLE_DEV_LOGIN`         | `true`                                                           | `render.yaml`; must be false or absent in production                                                     |
 | `COMPANY_LEGAL_NAME`       | `Valueskins Private Limited`                                     | `render.yaml`                                                                                            |
 | `COMPANY_ADDRESS`          | prompted                                                         | you                                                                                                      |
 | `COMPANY_STATE`            | prompted                                                         | you                                                                                                      |
-| `COMPANY_GSTIN`            | omitted (defaults to empty)                                      | set when GST-registered; required once `GST_RATE_BPS` is above 0                                         |
+| `COMPANY_GSTIN`            | prompted                                                         | your GSTIN; required while `GST_RATE_BPS` is above 0, which is the default                               |
 | `COMMISSION_SAC_CODE`      | prompted                                                         | your CA (SPEC 21)                                                                                        |
-| `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`                                                                                            |
-| `GST_RATE_BPS`             | `0`                                                              | `render.yaml` (V0_LAUNCH 2.6)                                                                            |
+| `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`; staging and tests only, the API refuses `true` when `NODE_ENV=production`                 |
+| `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                    |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                         |
 
 ### Vercel, project `valueskins-staging-web`
@@ -489,19 +495,22 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 ## 20. Troubleshooting
 
-| Symptom                                                                       | Likely cause and fix                                                                                                                                                                                                                                          |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Instagram says "Invalid redirect_uri"                                         | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                                                       |
-| After Instagram you land on `/auth/error?error=state_invalid`                 | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                                                              |
-| `/auth/error?error=professional_account_required`                             | The Instagram account is a personal account. Switch it to Professional in Instagram settings.                                                                                                                                                                 |
-| Sign-in works but `/me` says you are signed out                               | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                                                    |
-| API returns `403 ORIGIN_MISMATCH`                                             | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                                                      |
-| "Sign in with email" button missing                                           | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` is not `true` on Vercel, or you did not redeploy after setting it.                                                                                                                                                           |
-| Email routes return 404                                                       | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                                                 |
-| Emails do not arrive                                                          | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                                                |
-| Render deploy fails with `Invalid environment`                                | A required variable is missing or wrong; the log names it.                                                                                                                                                                                                    |
-| Render build fails on `--frozen-lockfile`                                     | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                                                                                                                                          |
-| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`                  | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                                                                                                                                           |
-| Everyone gets `429`                                                           | See the client IP limitation in section 19.                                                                                                                                                                                                                   |
-| Webhook deliveries show `400`                                                 | `RAZORPAY_WEBHOOK_SECRET` on Render differs from the secret in the Razorpay webhook form.                                                                                                                                                                     |
-| `/dev/login` is a 404                                                         | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                                                             |
+| Symptom                                                                           | Likely cause and fix                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instagram says "Invalid redirect_uri"                                             | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                       |
+| After Instagram you land on `/auth/error?error=state_invalid`                     | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                              |
+| `/auth/error?error=account_type_unsupported`                                      | The Instagram account is not a Business or Creator account (a personal account, or Meta sent no account type). Switch it to a Professional Business or Creator account in Instagram settings.                                 |
+| `/auth/error?error=account_type_change_blocked`                                   | The account's Instagram type changed (Business to Creator or back), but it already has deals or applications in its old role. Write to `SUPPORT_EMAIL`; the account type is not changed automatically once there is activity. |
+| `409 PROFILE_LOCKED`                                                              | The profile is saved once. To correct it, update the row by hand (Render Shell: set the fields and, to let the user save again, `profile_locked_at = null`).                                                                  |
+| Render deploy fails with `COMPANY_GSTIN is required when GST_RATE_BPS is above 0` | GST is charged by default. Set `COMPANY_GSTIN` in Render, or set `GST_RATE_BPS=0` on a test service that should not charge GST.                                                                                               |
+| Sign-in works but `/me` says you are signed out                                   | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                    |
+| API returns `403 ORIGIN_MISMATCH`                                                 | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                      |
+| "Sign in with email" button missing                                               | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` is not `true` on Vercel, or you did not redeploy after setting it.                                                                                                                           |
+| Email routes return 404                                                           | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                 |
+| Emails do not arrive                                                              | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                |
+| Render deploy fails with `Invalid environment`                                    | A required variable is missing or wrong; the log names it.                                                                                                                                                                    |
+| Render build fails on `--frozen-lockfile`                                         | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                                                                                                          |
+| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`                      | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                                                                                                           |
+| Everyone gets `429`                                                               | See the client IP limitation in section 19.                                                                                                                                                                                   |
+| Webhook deliveries show `400`                                                     | `RAZORPAY_WEBHOOK_SECRET` on Render differs from the secret in the Razorpay webhook form.                                                                                                                                     |
+| `/dev/login` is a 404                                                             | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                             |

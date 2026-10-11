@@ -78,10 +78,11 @@ describe('PUT /api/me/payout-upi', () => {
       email: 'new.creator@example.com',
       emailVerifiedAt: new Date(),
       instagramUserId: 'ig-new-creator',
+      profileLockedAt: new Date(),
     });
     const res = await save(creator.cookie);
     expect(res.status).toBe(200);
-    // Email verified and role chosen: onboarding completes with or without the payout step.
+    // Email verified and profile saved: onboarding completes with or without the payout step.
     expect(res.body.onboarding.completed).toBe(true);
   });
 
@@ -131,7 +132,7 @@ describe('PUT /api/me/payout-upi', () => {
 
     expect((await save(brand.cookie)).status).toBe(403);
     expect((await save(brand.cookie)).body.error.code).toBe('WRONG_ROLE');
-    expect((await save(noRole.cookie)).body.error.code).toBe('ROLE_NOT_CHOSEN');
+    expect((await save(noRole.cookie)).body.error.code).toBe('INSTAGRAM_NOT_CONNECTED');
     expect((await save(undefined)).status).toBe(401);
     expect((await row(brand.user.id)).payoutVpa).toBeNull();
   });

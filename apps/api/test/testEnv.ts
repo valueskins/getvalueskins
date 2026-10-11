@@ -22,7 +22,7 @@ const BASE_RAW_ENV: NodeJS.ProcessEnv = {
   EMAIL_FROM: 'notifications@valueskins.com',
   EMAIL_TRANSPORT: 'console',
   ADMIN_INSTAGRAM_USER_IDS: '',
-  DISPUTE_EMAIL: 'valueskinsfounder@gmail.com',
+  SUPPORT_EMAIL: 'valueskinsfounder@gmail.com',
   ENABLE_DEV_LOGIN: 'true',
   COMPANY_LEGAL_NAME: 'Valueskins Private Limited',
   COMPANY_ADDRESS: '123 MG Road, Bengaluru',

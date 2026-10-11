@@ -1,6 +1,6 @@
 import {
   ADD_BILLING_TO_PUBLISH,
-  CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
+  CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   computeBreakdown,
   validateDealForPublish,
   type DealStatus,
@@ -16,9 +16,11 @@ import { loadOwnedDeal } from './access.js';
 import { hasBillingDetails } from './dealDetail.js';
 import { transitionDeal, type AfterCommitTask, type Deal, type DealPatch } from './stateMachine.js';
 
-/** SPEC 5.2: the statuses a brand can cancel from. */
-const CANCELLABLE: readonly DealStatus[] = ['OPEN', 'CONFIRMED', 'COMMISSION_PAID'];
-const POST_ADVANCE: readonly DealStatus[] = [
+/** SPEC 5.2, REPLACEMENT_PLAN 2.6: a brand cancels free until it pays the fee. */
+const CANCELLABLE: readonly DealStatus[] = ['OPEN', 'CONFIRMED'];
+/** The fee is paid, so only an admin can cancel (through a dispute). */
+const FEE_PAID: readonly DealStatus[] = [
+  'COMMISSION_PAID',
   'ADVANCE_PAID',
   'CONTENT_UPLOADED',
   'REVISION_REQUESTED',
@@ -104,8 +106,8 @@ export async function publishDeal(
 
 function assertCancellable(status: DealStatus): void {
   if (CANCELLABLE.includes(status)) return;
-  if (POST_ADVANCE.includes(status)) {
-    throw new AppError('CANCELLATION_NOT_POSSIBLE', 409, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE);
+  if (FEE_PAID.includes(status)) {
+    throw new AppError('CANCELLATION_NOT_POSSIBLE', 409, CANCELLATION_NOT_POSSIBLE_AFTER_FEE);
   }
   if (status === 'DRAFT') {
     throw new AppError(
@@ -154,7 +156,7 @@ export function cancellationEmailTasks(
   ];
 }
 
-/** Brand cancels from OPEN, CONFIRMED or COMMISSION_PAID (SPEC 5.2); email 11 to the brand and a confirmed creator. */
+/** Brand cancels from OPEN or CONFIRMED (SPEC 5.2); email 11 to the brand and a confirmed creator. */
 export async function cancelDeal(
   ctx: ApiContext,
   user: AuthenticatedUser,
@@ -163,7 +165,6 @@ export async function cancelDeal(
 ): Promise<Deal> {
   const deal = await loadOwnedDeal(rawId, user.id);
   assertCancellable(deal.status);
-  const commissionKept = deal.status === 'COMMISSION_PAID';
 
   return transitionDeal({
     dealId: deal.id,
@@ -177,6 +178,7 @@ export async function cancelDeal(
       cancellationReason: reason,
     },
     note: reason,
-    afterCommit: cancellationEmailTasks(ctx, reason, commissionKept),
+    // The fee is only paid from COMMISSION_PAID, so a brand cancel never keeps one.
+    afterCommit: cancellationEmailTasks(ctx, reason, false),
   });
 }

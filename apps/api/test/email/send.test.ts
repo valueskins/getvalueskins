@@ -93,6 +93,23 @@ describe('send()', () => {
     expect(rows[0]?.providerMessageId).toBe('email_abc123');
   });
 
+  it('sets the reply-to to SUPPORT_EMAIL and ends the text and HTML with the support line', async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post('https://api.resend.com/emails', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: 'email_reply' });
+      }),
+    );
+    const env = buildTestEnv({ EMAIL_TRANSPORT: 'resend', SUPPORT_EMAIL: 'help@example.com' });
+
+    await send('SIGN_IN_CODE', 'user@example.com', { code: '123456', expiresInMinutes: 10 }, env);
+
+    expect(body.reply_to).toEqual(['help@example.com']);
+    expect(String(body.text).endsWith('Questions? Write to help@example.com.')).toBe(true);
+    expect(String(body.html)).toContain('Questions? Write to help@example.com.');
+  });
+
   it('persists dealId, userId, cc, and attachment filenames', async () => {
     const env = buildTestEnv({ EMAIL_TRANSPORT: 'console' });
     const [user] = await db

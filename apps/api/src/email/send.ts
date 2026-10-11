@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { emailLog } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { logger } from '../logging/logger.js';
+import { withSupportFooter } from './footer.js';
 import { templateRegistry } from './templates/index.js';
 import { sendConsole } from './transports/consoleTransport.js';
 import { sendResend } from './transports/resendTransport.js';
@@ -80,12 +81,14 @@ export async function resendStored(
 }
 
 async function deliver(
-  content: EmailContent,
+  rawContent: EmailContent,
   template: string,
   to: string,
   env: Env,
   options: SendOptions,
 ): Promise<SendResult> {
+  // Every email, first send or resend, ends with the support address (REPLACEMENT_PLAN 2.7).
+  const content = withSupportFooter(rawContent, env);
   const [row] = await db
     .insert(emailLog)
     .values({

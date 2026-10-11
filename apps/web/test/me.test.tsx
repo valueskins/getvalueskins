@@ -23,7 +23,7 @@ const user = {
 const onboarding = {
   completed: true,
   nextStep: null,
-  steps: [{ id: 'role', done: true, required: true }],
+  steps: [{ id: 'instagram', done: true, required: true }],
 };
 
 const profile = {
@@ -48,7 +48,9 @@ beforeEach(() => {
 
 describe('/me', () => {
   it('shows the fetched Instagram profile data', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ user, profile, onboarding }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ user, profile, profileDetails: null, onboarding }));
     vi.stubGlobal('fetch', fetchMock);
     render(<MePage />);
 
@@ -70,11 +72,14 @@ describe('/me', () => {
   it('says there are not enough posts when the engagement rate is null', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ user, profile: { ...profile, engagementRate: null }, onboarding }),
-        ),
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          user,
+          profile: { ...profile, engagementRate: null },
+          profileDetails: null,
+          onboarding,
+        }),
+      ),
     );
     render(<MePage />);
 
@@ -88,6 +93,7 @@ describe('/me', () => {
         jsonResponse({
           user: { ...user, instagramUserId: null, role: null, email: 'a@example.com' },
           profile: null,
+          profileDetails: null,
           onboarding,
         }),
       ),
@@ -122,7 +128,7 @@ describe('/me', () => {
   it('logs out and returns to the home page', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ user, profile, onboarding }))
+      .mockResolvedValueOnce(jsonResponse({ user, profile, profileDetails: null, onboarding }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     render(<MePage />);
@@ -138,7 +144,7 @@ describe('/me', () => {
   it('deletes the account only after the confirm dialog is accepted', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ user, profile, onboarding }))
+      .mockResolvedValueOnce(jsonResponse({ user, profile, profileDetails: null, onboarding }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     const confirmMock = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
@@ -165,6 +171,7 @@ describe('/me setup link', () => {
         jsonResponse({
           user,
           profile,
+          profileDetails: null,
           onboarding: { completed: false, nextStep: 'email', steps: [] },
         }),
       ),

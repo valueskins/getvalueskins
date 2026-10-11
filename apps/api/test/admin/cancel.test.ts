@@ -23,14 +23,16 @@ beforeAll(resetDb);
 beforeEach(truncateAll);
 afterAll(closeDb);
 
-const POST_ADVANCE: DealStatus[] = [
+// The fee is paid, so the brand cannot cancel from here on (REPLACEMENT_PLAN 2.6).
+const FEE_PAID: DealStatus[] = [
+  'COMMISSION_PAID',
   'ADVANCE_PAID',
   'CONTENT_UPLOADED',
   'REVISION_REQUESTED',
   'APPROVED',
 ];
-/** An admin can cancel from COMMISSION_PAID on (SPEC 5.2); the brand only until then. */
-const ADMIN_CANCELLABLE: DealStatus[] = ['COMMISSION_PAID', ...POST_ADVANCE];
+/** An admin can cancel from COMMISSION_PAID to APPROVED (SPEC 5.2). */
+const ADMIN_CANCELLABLE: DealStatus[] = FEE_PAID;
 const NOTE = 'Creator stopped responding; refunding the brand';
 
 const adminCancel = (cookie: string, dealId: string, body: object = { note: NOTE }) =>
@@ -104,7 +106,7 @@ describe('POST /api/admin/deals/:id/cancel', () => {
     for (const mail of mails) {
       expect(mail.dealId).toBe(deal.id);
       expect(mail.bodyText).toContain(NOTE);
-      expect(mail.bodyText).toContain('The commission already paid was kept.');
+      expect(mail.bodyText).toContain('The fee already paid was kept.');
     }
   });
 
@@ -146,8 +148,8 @@ describe('POST /api/admin/deals/:id/cancel', () => {
   });
 });
 
-describe('who can cancel after the advance', () => {
-  it.each(POST_ADVANCE)(
+describe('who can cancel once the fee is paid', () => {
+  it.each(FEE_PAID)(
     'from %s the brand cannot, the creator cannot, the admin can',
     async (status) => {
       const { brand, creator, deal } = await dealAt(status);

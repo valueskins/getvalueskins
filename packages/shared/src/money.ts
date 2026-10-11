@@ -53,8 +53,8 @@ export function roundHalfUp(numerator: number, denominator: number): number {
 }
 
 /**
- * `gstRateBps` defaults to the standard config rate but can be overridden —
- * V0 launches at 0% until ValueSkins is GST-registered (see docs/V0_LAUNCH.md 2.6).
+ * `gstRateBps` defaults to the standard config rate. The API passes its `GST_RATE_BPS` env
+ * value, so a deal's fee is the flat commission plus GST at the rate live when it is published.
  */
 export function computeBreakdown(
   budgetPaise: number,

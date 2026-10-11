@@ -19,6 +19,7 @@ describe('GET /api/config', () => {
       advancePercent: 30,
       authEmailEnabled: false,
       razorpayKeyId: env.RAZORPAY_KEY_ID,
+      supportEmail: env.SUPPORT_EMAIL,
     });
     expect(res.headers['cache-control']).toBe('public, max-age=60');
   });

@@ -35,7 +35,8 @@ export function devLoginRoutes(env: Env): Router {
             instagramUserId: `dev_${input.username}`,
             username: input.username,
             name: input.username,
-            igAccountType: 'BUSINESS',
+            // The role is a dev-only shortcut, so the account type is set to match it.
+            igAccountType: input.role === 'BRAND' ? 'BUSINESS' : 'MEDIA_CREATOR',
             role: input.role,
             roleLockedAt: new Date(),
             igTokenEncrypted: 'dev-fake-token',

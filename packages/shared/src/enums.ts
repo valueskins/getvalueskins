@@ -3,6 +3,10 @@ export { DEAL_STATUSES, type DealStatus } from './dealStateMachine.js';
 export const USER_ROLES = ['CREATOR', 'BRAND'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
+/** Profile gender options (SPEC 6.4, REPLACEMENT_PLAN 2.4). */
+export const USER_GENDERS = ['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'] as const;
+export type UserGender = (typeof USER_GENDERS)[number];
+
 export const CANCELLED_BY_ROLES = ['BRAND', 'ADMIN'] as const;
 export type CancelledByRole = (typeof CANCELLED_BY_ROLES)[number];
 

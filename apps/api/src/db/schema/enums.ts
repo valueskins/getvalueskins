@@ -1,5 +1,6 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 import {
+  USER_GENDERS,
   USER_ROLES,
   DEAL_STATUSES,
   CANCELLED_BY_ROLES,
@@ -14,6 +15,7 @@ import {
 } from '@valueskins/shared';
 
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
+export const userGenderEnum = pgEnum('user_gender', USER_GENDERS);
 export const dealStatusEnum = pgEnum('deal_status', DEAL_STATUSES);
 export const cancelledByRoleEnum = pgEnum('cancelled_by_role', CANCELLED_BY_ROLES);
 export const applicationStatusEnum = pgEnum('application_status', APPLICATION_STATUSES);

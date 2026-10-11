@@ -12,7 +12,7 @@ export class StartupGuardError extends Error {
 
 /**
  * Pure: never touches process.exit. Each check corresponds to a rule that
- * must never be broken (CLAUDE.md rule 4, 8; SPEC 6.2, V0_LAUNCH 2.6).
+ * must never be broken (CLAUDE.md rule 4, 8; SPEC 6.2, 19).
  */
 export function getStartupGuardViolations(env: Env): string[] {
   const violations: string[] = [];
@@ -38,6 +38,11 @@ export function getStartupGuardViolations(env: Env): string[] {
   // verification links) at debug level — never acceptable in production (SPEC 20).
   if (env.NODE_ENV === 'production' && env.EMAIL_TRANSPORT === 'console') {
     violations.push('EMAIL_TRANSPORT must not be "console" when NODE_ENV=production');
+  }
+
+  // Production sign-in is Instagram only (REPLACEMENT_PLAN 2.3, CLAUDE.md 5).
+  if (env.NODE_ENV === 'production' && env.AUTH_EMAIL_ENABLED) {
+    violations.push('AUTH_EMAIL_ENABLED must not be true when NODE_ENV=production');
   }
 
   return violations;

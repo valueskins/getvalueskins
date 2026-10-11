@@ -14,6 +14,25 @@ describe('parseEnv', () => {
     expect(env.ADMIN_INSTAGRAM_USER_IDS).toEqual([]);
   });
 
+  it('defaults DISPUTE_EMAIL to SUPPORT_EMAIL, and keeps an explicit one', () => {
+    const base = buildRawTestEnv({ SUPPORT_EMAIL: 'help@example.com' });
+    delete base.DISPUTE_EMAIL;
+
+    expect(parseEnv(base).DISPUTE_EMAIL).toBe('help@example.com');
+    expect(parseEnv({ ...base, DISPUTE_EMAIL: 'disputes@example.com' }).DISPUTE_EMAIL).toBe(
+      'disputes@example.com',
+    );
+  });
+
+  it('requires SUPPORT_EMAIL, and a valid address', () => {
+    const raw = buildRawTestEnv();
+    delete raw.SUPPORT_EMAIL;
+    expect(() => parseEnv(raw)).toThrow(EnvValidationError);
+    expect(() => parseEnv(buildRawTestEnv({ SUPPORT_EMAIL: 'not-an-email' }))).toThrow(
+      EnvValidationError,
+    );
+  });
+
   it('throws EnvValidationError when a required var is missing', () => {
     const raw = buildRawTestEnv();
     delete raw.SESSION_SECRET;

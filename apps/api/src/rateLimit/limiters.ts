@@ -52,6 +52,14 @@ export const consumeApplyLimit = createKeyedLimiter({
   keyPrefix: 'apply',
 });
 
+/** SPEC 13: saving the profile details, 10 per hour per user. */
+export const profileLimiter = createRateLimiter({
+  points: 10,
+  duration: 60 * 60,
+  keyPrefix: 'profile',
+  keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
+});
+
 /** SPEC 13: saving payout UPI details, 10 per hour per creator. */
 export const payoutUpiLimiter = createRateLimiter({
   points: 10,

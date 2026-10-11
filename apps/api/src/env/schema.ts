@@ -1,3 +1,4 @@
+import { GST_RATE_BPS as DEFAULT_GST_RATE_BPS } from '@valueskins/shared';
 import { z } from 'zod';
 
 const requiredString = z.string().min(1);
@@ -40,7 +41,10 @@ export const envSchema = z.object({
         .map((v) => v.trim())
         .filter(Boolean),
     ),
-  DISPUTE_EMAIL: z.string().email(),
+  // The one address users write to (email footer, reply-to, error copy). REPLACEMENT_PLAN 2.7.
+  SUPPORT_EMAIL: z.string().email(),
+  // Disputes and admin alerts go here. Defaults to SUPPORT_EMAIL (see parseEnv).
+  DISPUTE_EMAIL: z.string().email().optional(),
   ENABLE_DEV_LOGIN: booleanFlag,
   COMPANY_LEGAL_NAME: requiredString,
   COMPANY_ADDRESS: requiredString,
@@ -49,7 +53,14 @@ export const envSchema = z.object({
   COMPANY_GSTIN: z.string().default(''),
   COMMISSION_SAC_CODE: requiredString,
   AUTH_EMAIL_ENABLED: booleanFlag,
-  GST_RATE_BPS: z.coerce.number().int().min(0).max(10_000),
+  // Blank counts as unset: z.coerce.number() would turn '' into 0 and silently drop the GST.
+  GST_RATE_BPS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(0).max(10_000).default(DEFAULT_GST_RATE_BPS),
+  ),
 });
 
-export type Env = z.infer<typeof envSchema>;
+type ParsedEnv = z.infer<typeof envSchema>;
+
+/** The validated environment. `DISPUTE_EMAIL` is always set: it falls back to `SUPPORT_EMAIL`. */
+export type Env = Omit<ParsedEnv, 'DISPUTE_EMAIL'> & { DISPUTE_EMAIL: string };

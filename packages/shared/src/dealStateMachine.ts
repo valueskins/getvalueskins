@@ -40,7 +40,6 @@ export const DEAL_TRANSITIONS: readonly DealTransition[] = [
   { from: 'CONFIRMED', to: 'CANCELLED', roles: ['BRAND'] },
   // The creator confirms the direct UPI payment arrived (REPLACEMENT_PLAN 2.1): never the brand's claim.
   { from: 'COMMISSION_PAID', to: 'ADVANCE_PAID', roles: ['CREATOR'] },
-  { from: 'COMMISSION_PAID', to: 'CANCELLED', roles: ['BRAND'] },
   { from: 'ADVANCE_PAID', to: 'CONTENT_UPLOADED', roles: ['CREATOR'] },
   { from: 'CONTENT_UPLOADED', to: 'REVISION_REQUESTED', roles: ['BRAND'] },
   { from: 'CONTENT_UPLOADED', to: 'APPROVED', roles: ['BRAND'] },

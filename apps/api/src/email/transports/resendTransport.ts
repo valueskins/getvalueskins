@@ -28,7 +28,7 @@ export async function sendResend(
     subject: content.subject,
     text: content.text,
     html: content.html,
-    replyTo: ['valueskinsfounder@gmail.com'],
+    replyTo: [env.SUPPORT_EMAIL],
     attachments: options.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
   });
 

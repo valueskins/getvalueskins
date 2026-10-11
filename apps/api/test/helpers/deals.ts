@@ -25,7 +25,13 @@ export const READY_DRAFT = {
 let counter = 0;
 const uniqueEmail = (prefix: string) => `${prefix}-${++counter}@example.com`;
 
-const ONBOARDED = () => ({ roleLockedAt: new Date(), onboardingCompletedAt: new Date() });
+const ONBOARDED = () => ({
+  roleLockedAt: new Date(),
+  onboardingCompletedAt: new Date(),
+  profileLockedAt: new Date(),
+  adultConfirmedAt: new Date(),
+  city: 'Pune',
+});
 
 /** A brand that finished onboarding: verified email and billing details. */
 export async function brandWithBilling(
@@ -36,6 +42,7 @@ export async function brandWithBilling(
     email: uniqueEmail('brand'),
     emailVerifiedAt: new Date(),
     ...ONBOARDED(),
+    website: 'https://brand.example',
     ...overrides,
   });
   await db.insert(brandBilling).values({
@@ -64,10 +71,13 @@ export async function creatorWithPayout(
     email: uniqueEmail('creator'),
     emailVerifiedAt: new Date(),
     instagramUserId: `ig-creator-${counter}`,
-    igAccountType: 'CREATOR',
+    igAccountType: 'MEDIA_CREATOR',
     followersCount: 5000,
     engagementRate: '3.50',
     ...ONBOARDED(),
+    age: 25,
+    ageRecordedAt: new Date(),
+    gender: 'FEMALE' as const,
     ...(payout
       ? {
           payoutVpa: testVpa(counter),

@@ -87,7 +87,8 @@ services:
         value: resend
       - key: ADMIN_INSTAGRAM_USER_IDS
         sync: false
-      - key: DISPUTE_EMAIL
+      # The address users write to. DISPUTE_EMAIL is omitted on purpose: it defaults to this.
+      - key: SUPPORT_EMAIL
         value: valueskinsfounder@gmail.com
       - key: ENABLE_DEV_LOGIN
         value: 'true'
@@ -99,10 +100,11 @@ services:
         sync: false
       - key: COMPANY_STATE
         sync: false
-      # COMPANY_GSTIN is omitted on purpose: it defaults to empty, and a startup
-      # guard requires it once GST_RATE_BPS is above 0 (V0_LAUNCH 2.6).
+      # GST is charged (REPLACEMENT_PLAN 2.2), so a startup guard requires the GSTIN.
+      - key: COMPANY_GSTIN
+        sync: false
       - key: COMMISSION_SAC_CODE
         sync: false
       - key: GST_RATE_BPS
-        value: '0'
+        value: '1800'
       # TEST_DATABASE_URL is omitted on purpose: Vitest-only, defaults to empty.

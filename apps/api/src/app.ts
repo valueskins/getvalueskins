@@ -23,6 +23,7 @@ import { metaRoutes } from './meta/meta.routes.js';
 import { onboardingRoutes } from './onboarding/onboarding.routes.js';
 import type { PaymentsDeps } from './payments/types.js';
 import { paymentRoutes } from './payments/payments.routes.js';
+import { profileRoutes } from './profile/profile.routes.js';
 import { payoutRoutes } from './payout/payout.routes.js';
 import { type RazorpayClientOptions, createRazorpayClient } from './razorpay/client.js';
 import { globalUserLimiter } from './rateLimit/limiters.js';
@@ -74,8 +75,9 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
 
   app.use(healthRoutes());
   app.use(configRoutes(ctx));
-  app.use(meRoutes(env));
+  app.use(meRoutes(ctx));
   app.use(onboardingRoutes(env));
+  app.use(profileRoutes(ctx));
   app.use(payoutRoutes(ctx));
   app.use(dealRoutes(ctx));
   app.use(reviewRoutes(ctx));

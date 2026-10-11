@@ -1,23 +1,18 @@
 import type { UserRole } from './enums.js';
 
-/** Steps in the order they are asked (SPEC 6.4, V0_LAUNCH 2.2). */
-export const ONBOARDING_STEPS = [
-  'instagram_username',
-  'role',
-  'email',
-  'billing',
-  'payout',
-] as const;
+/** Steps in the order they are asked (SPEC 6.4, REPLACEMENT_PLAN 2.4). */
+export const ONBOARDING_STEPS = ['instagram', 'email', 'profile', 'billing', 'payout'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export interface OnboardingInput {
   /** True once an Instagram account is linked (Instagram sign-in, or linked later). */
   hasInstagram: boolean;
+  /** Set from the Instagram account type, so null only for an email-only account with no Instagram. */
   role: UserRole | null;
   emailVerified: boolean;
+  /** The profile details are saved (and locked). */
+  hasProfile: boolean;
   hasBilling: boolean;
-  /** True once an email-only account has typed its Instagram username. */
-  instagramUsernameSet: boolean;
   /** The UPI ID, the name on the account and the consent are all saved (REPLACEMENT_PLAN 2.1). */
   hasPayoutDetails: boolean;
 }
@@ -40,18 +35,18 @@ export interface OnboardingState {
 /**
  * Pure: which onboarding steps apply to a user, which are done, and which is
  * next. Used by the API (to set onboarding_completed_at and to answer GET /me)
- * and by the web app. Both sign-in methods are covered: an email-only account
- * has a verified email already and instead types an Instagram username; an
- * Instagram account has no username step and verifies an email.
+ * and by the web app. The role comes from the Instagram account type, so an
+ * email-only account has no role-dependent steps and cannot finish until it
+ * connects Instagram (REPLACEMENT_PLAN 2.3).
  */
 export function computeOnboarding(input: OnboardingInput): OnboardingState {
-  const steps: OnboardingStepState[] = [];
-
-  if (!input.hasInstagram) {
-    steps.push({ id: 'instagram_username', done: input.instagramUsernameSet, required: true });
+  const steps: OnboardingStepState[] = [
+    { id: 'instagram', done: input.hasInstagram, required: true },
+    { id: 'email', done: input.emailVerified, required: true },
+  ];
+  if (input.role !== null) {
+    steps.push({ id: 'profile', done: input.hasProfile, required: true });
   }
-  steps.push({ id: 'role', done: input.role !== null, required: true });
-  steps.push({ id: 'email', done: input.emailVerified, required: true });
   if (input.role === 'BRAND') {
     steps.push({ id: 'billing', done: input.hasBilling, required: true });
   }

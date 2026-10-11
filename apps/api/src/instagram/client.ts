@@ -95,7 +95,8 @@ export interface InstagramProfile {
   userId: string;
   username: string;
   name: string | null;
-  accountType: 'BUSINESS' | 'MEDIA_CREATOR' | 'PERSONAL' | string;
+  /** BUSINESS or MEDIA_CREATOR are accepted (roleFromAccountType); the API may send other values or none. */
+  accountType: string | undefined;
   profilePictureUrl: string | null;
   followersCount: number;
   followsCount: number;
@@ -126,10 +127,6 @@ export async function fetchProfile(accessToken: string): Promise<InstagramProfil
     mediaCount: json.media_count ?? 0,
     biography: json.biography ?? null,
   };
-}
-
-export function isProfessionalAccount(profile: InstagramProfile): boolean {
-  return profile.accountType !== 'PERSONAL';
 }
 
 export interface MediaEngagement {
