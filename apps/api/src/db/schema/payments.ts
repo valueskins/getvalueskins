@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  check,
   index,
   integer,
   jsonb,
@@ -16,11 +17,10 @@ import { v7 as uuidv7 } from 'uuid';
 import { deals } from './deals.js';
 import { users } from './users.js';
 import {
+  directPaymentStageEnum,
   invoiceKindEnum,
   paymentStatusEnum,
   paymentTypeEnum,
-  transferStatusEnum,
-  transferTypeEnum,
 } from './enums.js';
 
 const timestamps = {
@@ -67,8 +67,14 @@ export const payments = pgTable(
   ],
 );
 
-export const transfers = pgTable(
-  'transfers',
+/**
+ * A direct brand-to-creator UPI payment for the advance or the final (REPLACEMENT_PLAN 2.1).
+ * The brand records the UPI reference; only the confirmed creator's "received" moves the deal.
+ * A confirmed or disputed row is never edited or deleted: a correction is a new row.
+ * `paid_to_vpa` is the UPI ID the brand was shown; it is never returned in full.
+ */
+export const directPayments = pgTable(
+  'direct_payments',
   {
     id: uuid('id')
       .primaryKey()
@@ -76,33 +82,43 @@ export const transfers = pgTable(
     dealId: uuid('deal_id')
       .notNull()
       .references(() => deals.id, { onDelete: 'restrict' }),
-    paymentId: uuid('payment_id')
-      .notNull()
-      .references(() => payments.id, { onDelete: 'restrict' }),
-    creatorId: uuid('creator_id')
+    stage: directPaymentStageEnum('stage').notNull(),
+    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
+    reference: varchar('reference', { length: 40 }).notNull(),
+    paidToVpa: text('paid_to_vpa').notNull(),
+    note: text('note'),
+    recordedBy: uuid('recorded_by')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
-    type: transferTypeEnum('type').notNull(),
-    amountPaise: bigint('amount_paise', { mode: 'number' }).notNull(),
-    razorpayTransferId: varchar('razorpay_transfer_id', { length: 255 }).unique(),
-    status: transferStatusEnum('status').notNull().default('PENDING'),
-    failureReason: text('failure_reason'),
-    processedAt: timestamp('processed_at', { withTimezone: true, mode: 'date' }),
-    // Razorpay's transfer fee and tax (SPEC 17). Null when not recorded.
-    razorpayFeePaise: bigint('razorpay_fee_paise', { mode: 'number' }),
-    razorpayTaxPaise: bigint('razorpay_tax_paise', { mode: 'number' }),
-    // Manual completion, e.g. a bank transfer done outside Razorpay Route (V0_LAUNCH 2.1-adjacent).
-    manualReference: text('manual_reference'),
-    manualById: uuid('manual_by_id').references(() => users.id, { onDelete: 'set null' }),
-    manualAt: timestamp('manual_at', { withTimezone: true, mode: 'date' }),
-    ...timestamps,
+    recordedAt: timestamp('recorded_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    confirmedBy: uuid('confirmed_by').references(() => users.id, { onDelete: 'restrict' }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'date' }),
+    disputedAt: timestamp('disputed_at', { withTimezone: true, mode: 'date' }),
+    disputeReason: text('dispute_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
-    index('transfers_deal_id_idx').on(t.dealId),
-    index('transfers_payment_id_idx').on(t.paymentId),
-    index('transfers_creator_id_idx').on(t.creatorId),
-    index('transfers_status_idx').on(t.status),
-    index('transfers_manual_by_id_idx').on(t.manualById),
+    index('direct_payments_deal_id_idx').on(t.dealId),
+    index('direct_payments_recorded_by_idx').on(t.recordedBy),
+    index('direct_payments_confirmed_by_idx').on(t.confirmedBy),
+    // One live record per deal and stage: a confirmed one counts, a disputed one does not.
+    uniqueIndex('direct_payments_one_live_per_stage_idx')
+      .on(t.dealId, t.stage)
+      .where(sql`${t.disputedAt} is null`),
+    check(
+      'direct_payments_not_confirmed_and_disputed_check',
+      sql`${t.confirmedAt} is null or ${t.disputedAt} is null`,
+    ),
+    check(
+      'direct_payments_confirmed_by_check',
+      sql`(${t.confirmedBy} is null) = (${t.confirmedAt} is null)`,
+    ),
+    check(
+      'direct_payments_dispute_reason_check',
+      sql`(${t.disputeReason} is null) = (${t.disputedAt} is null)`,
+    ),
   ],
 );
 
@@ -115,9 +131,11 @@ export const invoices = pgTable(
     dealId: uuid('deal_id')
       .notNull()
       .references(() => deals.id, { onDelete: 'restrict' }),
-    paymentId: uuid('payment_id')
-      .notNull()
-      .references(() => payments.id, { onDelete: 'restrict' }),
+    // The commission invoice belongs to a Razorpay payment, a payment record to a direct payment.
+    paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'restrict' }),
+    directPaymentId: uuid('direct_payment_id').references(() => directPayments.id, {
+      onDelete: 'restrict',
+    }),
     kind: invoiceKindEnum('kind').notNull(),
     number: varchar('number', { length: 32 }).notNull().unique(),
     financialYear: varchar('financial_year', { length: 7 }).notNull(),
@@ -127,9 +145,18 @@ export const invoices = pgTable(
   },
   (t) => [
     index('invoices_deal_id_idx').on(t.dealId),
-    // One invoice or receipt per payment (SPEC 7.4).
+    // One invoice per payment, one payment record per direct payment (SPEC 7.4).
     uniqueIndex('invoices_payment_id_unique_idx').on(t.paymentId),
+    uniqueIndex('invoices_direct_payment_id_unique_idx').on(t.directPaymentId),
     index('invoices_financial_year_idx').on(t.financialYear),
+    check(
+      'invoices_one_source_check',
+      sql`(${t.paymentId} is not null) <> (${t.directPaymentId} is not null)`,
+    ),
+    check(
+      'invoices_kind_source_check',
+      sql`(${t.kind} = 'COMMISSION_TAX_INVOICE') = (${t.paymentId} is not null)`,
+    ),
   ],
 );
 

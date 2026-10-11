@@ -71,8 +71,8 @@ async function dumpDatabase(): Promise<string> {
 
 describe('no payer details anywhere (CLAUDE.md rule 5, SPEC 20)', () => {
   it('after orders, a failed attempt, verify and every payment webhook', async () => {
-    const f = await dealWithOrder(call, 'advance');
-    const paymentId = razorpayCaptured(razorpay, f, 'advance');
+    const f = await dealWithOrder(call, 'commission');
+    const paymentId = razorpayCaptured(razorpay, f, 'commission');
 
     await deliverWebhook(app, paymentFailedEvent(f.orderId, 'pay_bad'));
     await deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount));

@@ -146,3 +146,19 @@ export function splitGst(gstPaise: number, sameState: boolean): GstSplit {
   const cgstPaise = Math.floor(gstPaise / 2);
   return { cgstPaise, sgstPaise: gstPaise - cgstPaise, igstPaise: 0 };
 }
+
+/**
+ * Paise as a plain rupee amount with exactly two decimals ("2734.50"), for the `am` field of a
+ * upi://pay link. Integer math only: no division, no floats.
+ */
+export function paiseToDecimalString(paise: number): string {
+  if (!Number.isSafeInteger(paise) || paise < 0) {
+    throw new MoneyError(
+      'NOT_SAFE_INTEGER',
+      `paise must be a non-negative safe integer, got ${paise}`,
+    );
+  }
+  const rupees = BigInt(paise) / 100n;
+  const remainder = BigInt(paise) % 100n;
+  return `${rupees}.${remainder.toString().padStart(2, '0')}`;
+}

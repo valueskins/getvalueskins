@@ -6,8 +6,8 @@ import { cursorPageQuerySchema } from './pagination.js';
 /** `:kind` in GET /deals/:id/documents/:kind (SPEC 16). */
 export const DOCUMENT_KINDS = [
   'commission-invoice',
-  'advance-receipt',
-  'final-receipt',
+  'advance-payment-record',
+  'final-payment-record',
   'adp',
 ] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);

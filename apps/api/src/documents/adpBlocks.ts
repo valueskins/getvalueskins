@@ -1,4 +1,10 @@
-import { formatInr, formatIst, formatIstDate } from '@valueskins/shared';
+import {
+  PAYMENT_RECORD_DISCLAIMER,
+  formatInr,
+  formatIst,
+  formatIstDate,
+  type DirectPaymentView,
+} from '@valueskins/shared';
 import type { AdpData } from './adpData.js';
 import type { Block } from './blocks.js';
 import { invoiceBlocks } from './invoiceBlocks.js';
@@ -17,6 +23,17 @@ function dateOnly(value: string | null): string {
 
 function instant(value: Date | null): string {
   return value === null ? 'Not yet' : formatIst(value);
+}
+
+/** One line for the status column: when it was confirmed, or why it was disputed. */
+function paymentStatusText(p: DirectPaymentView): string {
+  if (p.status === 'CONFIRMED' && p.confirmedAt) {
+    return `Confirmed ${formatIst(new Date(p.confirmedAt))}`;
+  }
+  if (p.status === 'DISPUTED' && p.disputedAt) {
+    return `Not received ${formatIst(new Date(p.disputedAt))}: ${p.disputeReason ?? 'no reason given'}`;
+  }
+  return 'Awaiting the creator';
 }
 
 function fee(paise: number | null): string {
@@ -85,8 +102,8 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
 
   const documents = [
     ['Commission tax invoice', data.invoices.commission],
-    ['Advance receipt', data.invoices.advance],
-    ['Final receipt', data.invoices.final],
+    ['Advance payment record', data.invoices.advance],
+    ['Final payment record', data.invoices.final],
   ] as const;
   for (const [heading, snapshot] of documents) {
     blocks.push({ kind: 'pageBreak' });
@@ -119,19 +136,22 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
         },
     { kind: 'row', label: 'Final approval', value: instant(deal.approvedAt) },
 
-    { kind: 'heading', text: 'Transfers' },
-    data.transfers.length === 0
-      ? { kind: 'text', text: `Transfers: ${NONE_YET}` }
+    { kind: 'heading', text: 'Direct payments (brand to creator, by UPI)' },
+    { kind: 'text', text: PAYMENT_RECORD_DISCLAIMER },
+    data.directPayments.length === 0
+      ? { kind: 'text', text: `Direct payments: ${NONE_YET}` }
       : {
           kind: 'table',
-          head: ['Type', 'Razorpay transfer id', 'Status', 'Amount'],
-          widths: [0.15, 0.4, 0.2, 0.25],
-          alignRight: [3],
-          rows: data.transfers.map((t) => [
-            t.type,
-            t.razorpayTransferId ?? 'Not created yet',
-            t.status,
-            formatInr(t.amountPaise),
+          head: ['Stage', 'Amount', 'UPI reference', 'Paid to', 'Recorded', 'Status'],
+          widths: [0.1, 0.14, 0.2, 0.2, 0.18, 0.18],
+          alignRight: [1],
+          rows: data.directPayments.map((p) => [
+            p.stage,
+            formatInr(p.amountPaise),
+            p.reference,
+            p.maskedVpa,
+            formatIst(new Date(p.recordedAt)),
+            paymentStatusText(p),
           ]),
         },
   );
@@ -144,11 +164,6 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
     feeRows.push([`Payment: ${p.type}`, fee(p.feePaise), fee(p.taxPaise)]);
     if (p.feePaise !== null || p.taxPaise !== null) recorded = true;
     absorbed += (p.feePaise ?? 0) + (p.taxPaise ?? 0);
-  }
-  for (const t of data.transfers) {
-    feeRows.push([`Transfer: ${t.type}`, fee(t.feePaise), fee(t.taxPaise)]);
-    if (t.feePaise !== null || t.taxPaise !== null) recorded = true;
-    absorbed += (t.feePaise ?? 0) + (t.taxPaise ?? 0);
   }
   blocks.push(
     { kind: 'heading', text: 'Razorpay fees absorbed by ValueSkins (for information)' },

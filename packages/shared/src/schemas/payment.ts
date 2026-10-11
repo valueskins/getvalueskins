@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { PAYMENT_STATUSES, PAYMENT_TYPES, type PaymentType } from '../enums.js';
 import { dealDetailSchema } from './deal.js';
 
-/** `:type` in POST /deals/:id/payments/:type/order (SPEC 7.3). */
-export const PAYMENT_TYPE_PARAMS = ['commission', 'advance', 'final'] as const;
+/** `:type` in POST /deals/:id/payments/:type/order (SPEC 7.3). Only the commission goes through Razorpay. */
+export const PAYMENT_TYPE_PARAMS = ['commission'] as const;
 export const paymentTypeParamSchema = z.enum(PAYMENT_TYPE_PARAMS);
 export type PaymentTypeParam = z.infer<typeof paymentTypeParamSchema>;
 

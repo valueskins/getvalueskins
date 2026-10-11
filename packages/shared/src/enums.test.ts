@@ -9,8 +9,7 @@ import {
   INVOICE_KINDS,
   PAYMENT_STATUSES,
   PAYMENT_TYPES,
-  TRANSFER_STATUSES,
-  TRANSFER_TYPES,
+  DIRECT_PAYMENT_STAGES,
   USER_ROLES,
 } from './enums.js';
 
@@ -31,11 +30,14 @@ describe('SPEC section 15 enums', () => {
     expect(USER_ROLES).toEqual(['CREATOR', 'BRAND']);
     expect(CANCELLED_BY_ROLES).toEqual(['BRAND', 'ADMIN']);
     expect(APPLICATION_STATUSES).toEqual(['APPLIED', 'CONFIRMED', 'REJECTED']);
-    expect(PAYMENT_TYPES).toEqual(['COMMISSION', 'ADVANCE', 'FINAL']);
+    expect(PAYMENT_TYPES).toEqual(['COMMISSION']);
     expect(PAYMENT_STATUSES).toEqual(['CREATED', 'CAPTURED', 'FAILED']);
-    expect(TRANSFER_TYPES).toEqual(['ADVANCE', 'FINAL']);
-    expect(TRANSFER_STATUSES).toEqual(['PENDING', 'PROCESSED', 'FAILED', 'REVERSED']);
-    expect(INVOICE_KINDS).toEqual(['COMMISSION_TAX_INVOICE', 'ADVANCE_RECEIPT', 'FINAL_RECEIPT']);
+    expect(DIRECT_PAYMENT_STAGES).toEqual(['ADVANCE', 'FINAL']);
+    expect(INVOICE_KINDS).toEqual([
+      'COMMISSION_TAX_INVOICE',
+      'ADVANCE_PAYMENT_RECORD',
+      'FINAL_PAYMENT_RECORD',
+    ]);
     expect(DEAL_EVENT_ACTOR_TYPES).toEqual(['USER', 'SYSTEM', 'ADMIN']);
     expect(EMAIL_LOG_STATUSES).toEqual(['QUEUED', 'SENT', 'FAILED']);
     expect(DISPUTE_STATUSES).toEqual(['OPEN', 'RESOLVED']);

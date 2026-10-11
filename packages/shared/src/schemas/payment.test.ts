@@ -4,8 +4,9 @@ import { paymentTypeFromParam, paymentTypeParamSchema, paymentVerifySchema } fro
 describe('payment schemas', () => {
   it('maps the URL type to the payment enum', () => {
     expect(paymentTypeFromParam('commission')).toBe('COMMISSION');
-    expect(paymentTypeFromParam('advance')).toBe('ADVANCE');
-    expect(paymentTypeFromParam('final')).toBe('FINAL');
+    // Only the commission goes through Razorpay; the creator's share is a direct payment.
+    expect(paymentTypeParamSchema.safeParse('advance').success).toBe(false);
+    expect(paymentTypeParamSchema.safeParse('final').success).toBe(false);
     expect(paymentTypeParamSchema.safeParse('refund').success).toBe(false);
     expect(paymentTypeParamSchema.safeParse('ADVANCE').success).toBe(false);
   });

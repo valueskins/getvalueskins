@@ -6,7 +6,7 @@ import {
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { brandBilling, users } from '../../src/db/schema/index.js';
+import { brandBilling, directPayments, users } from '../../src/db/schema/index.js';
 import { eq } from 'drizzle-orm';
 import { createUserWithSession } from '../helpers/auth.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
@@ -376,24 +376,64 @@ describe('allowedActions through GET /api/deals/:id', () => {
     ]);
   });
 
-  it('the advance and the final are disabled with a reason until direct payments exist', async () => {
+  it('the advance and the final: the brand pays by UPI once the creator has a UPI ID', async () => {
     const brand = await brandWithBilling();
     const creator = await creatorWithPayout();
-    const reason = 'Paying the creator directly is not available yet';
+    const noUpi = await creatorWithPayout(null);
 
-    const commissionPaid = await insertDeal(brand.user.id, 'COMMISSION_PAID', {
+    const advance = await insertDeal(brand.user.id, 'COMMISSION_PAID', {
       creatorId: creator.user.id,
     });
-    expect(await actions(brand.cookie, commissionPaid.id)).toContainEqual({
+    expect(await actions(brand.cookie, advance.id)).toContainEqual({
+      action: 'PAY_ADVANCE',
+      enabled: true,
+      reason: null,
+    });
+    const final = await insertDeal(brand.user.id, 'APPROVED', { creatorId: creator.user.id });
+    expect(await actions(brand.cookie, final.id)).toContainEqual({
+      action: 'PAY_FINAL',
+      enabled: true,
+      reason: null,
+    });
+
+    const stuck = await insertDeal(brand.user.id, 'COMMISSION_PAID', { creatorId: noUpi.user.id });
+    expect(await actions(brand.cookie, stuck.id)).toContainEqual({
       action: 'PAY_ADVANCE',
       enabled: false,
-      reason,
+      reason: 'The creator has not added a UPI ID yet',
     });
-    const approved = await insertDeal(brand.user.id, 'APPROVED', { creatorId: creator.user.id });
-    expect(await actions(brand.cookie, approved.id)).toContainEqual({
-      action: 'PAY_FINAL',
+  });
+
+  it('the creator is offered the confirmation only once a payment is recorded', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    const deal = await insertDeal(brand.user.id, 'COMMISSION_PAID', { creatorId: creator.user.id });
+    const confirmOf = async () =>
+      (await actions(creator.cookie, deal.id)).find((a) => a.action === 'CONFIRM_PAYMENT_RECEIVED');
+
+    expect(await confirmOf()).toEqual({
+      action: 'CONFIRM_PAYMENT_RECEIVED',
       enabled: false,
-      reason,
+      reason: 'The brand has not recorded a payment yet',
+    });
+    await db.insert(directPayments).values({
+      dealId: deal.id,
+      stage: 'ADVANCE',
+      amountPaise: deal.advancePaise!,
+      reference: 'UTR123456',
+      paidToVpa: 'someone@okaxis',
+      recordedBy: brand.user.id,
+    });
+    expect(await confirmOf()).toEqual({
+      action: 'CONFIRM_PAYMENT_RECEIVED',
+      enabled: true,
+      reason: null,
+    });
+    // The brand now waits for the creator.
+    expect((await actions(brand.cookie, deal.id)).find((a) => a.action === 'PAY_ADVANCE')).toEqual({
+      action: 'PAY_ADVANCE',
+      enabled: false,
+      reason: 'Waiting for the creator to confirm the payment you recorded',
     });
   });
 

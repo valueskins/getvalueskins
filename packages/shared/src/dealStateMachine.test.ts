@@ -19,33 +19,40 @@ describe('canTransition: every allowed transition', () => {
     ['OPEN', 'CANCELLED', 'BRAND'],
     ['CONFIRMED', 'COMMISSION_PAID', 'SYSTEM'],
     ['CONFIRMED', 'CANCELLED', 'BRAND'],
-    ['COMMISSION_PAID', 'ADVANCE_PAID', 'SYSTEM'],
+    ['COMMISSION_PAID', 'ADVANCE_PAID', 'CREATOR'],
     ['COMMISSION_PAID', 'CANCELLED', 'BRAND'],
     ['ADVANCE_PAID', 'CONTENT_UPLOADED', 'CREATOR'],
     ['CONTENT_UPLOADED', 'REVISION_REQUESTED', 'BRAND'],
     ['CONTENT_UPLOADED', 'APPROVED', 'BRAND'],
     ['REVISION_REQUESTED', 'CONTENT_UPLOADED', 'CREATOR'],
-    ['APPROVED', 'COMPLETED', 'SYSTEM'],
+    ['APPROVED', 'COMPLETED', 'CREATOR'],
+    ['COMMISSION_PAID', 'CANCELLED', 'ADMIN'],
     ['ADVANCE_PAID', 'CANCELLED', 'ADMIN'],
     ['CONTENT_UPLOADED', 'CANCELLED', 'ADMIN'],
     ['REVISION_REQUESTED', 'CANCELLED', 'ADMIN'],
     ['APPROVED', 'CANCELLED', 'ADMIN'],
   ];
 
-  it('has exactly 16 rows in the transition table', () => {
-    expect(DEAL_TRANSITIONS).toHaveLength(16);
+  it('has exactly 17 rows in the transition table', () => {
+    expect(DEAL_TRANSITIONS).toHaveLength(17);
   });
 
   it.each(cases)('allows %s -> %s for %s', (from, to, role) => {
     expect(canTransition(from, to, role)).toBe(true);
   });
 
-  it.each(cases)('rejects %s -> %s for every role except %s', (from, to, allowedRole) => {
-    for (const role of ACTOR_ROLES) {
-      if (role === allowedRole) continue;
-      expect(canTransition(from, to, role)).toBe(false);
-    }
-  });
+  it.each(cases)(
+    'rejects %s -> %s for every role that has no row for it (not %s)',
+    (from, to, row) => {
+      // A pair can have more than one row (COMMISSION_PAID -> CANCELLED: the brand and an admin).
+      const allowed = cases.filter((c) => c[0] === from && c[1] === to).map((c) => c[2]);
+      expect(allowed).toContain(row);
+      for (const role of ACTOR_ROLES) {
+        if (allowed.includes(role)) continue;
+        expect(canTransition(from, to, role)).toBe(false);
+      }
+    },
+  );
 });
 
 describe('canTransition: exhaustive matrix', () => {

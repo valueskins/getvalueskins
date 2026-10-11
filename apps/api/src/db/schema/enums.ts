@@ -6,8 +6,7 @@ import {
   APPLICATION_STATUSES,
   PAYMENT_TYPES,
   PAYMENT_STATUSES,
-  TRANSFER_TYPES,
-  TRANSFER_STATUSES,
+  DIRECT_PAYMENT_STAGES,
   INVOICE_KINDS,
   DEAL_EVENT_ACTOR_TYPES,
   EMAIL_LOG_STATUSES,
@@ -20,8 +19,7 @@ export const cancelledByRoleEnum = pgEnum('cancelled_by_role', CANCELLED_BY_ROLE
 export const applicationStatusEnum = pgEnum('application_status', APPLICATION_STATUSES);
 export const paymentTypeEnum = pgEnum('payment_type', PAYMENT_TYPES);
 export const paymentStatusEnum = pgEnum('payment_status', PAYMENT_STATUSES);
-export const transferTypeEnum = pgEnum('transfer_type', TRANSFER_TYPES);
-export const transferStatusEnum = pgEnum('transfer_status', TRANSFER_STATUSES);
+export const directPaymentStageEnum = pgEnum('direct_payment_stage', DIRECT_PAYMENT_STAGES);
 export const invoiceKindEnum = pgEnum('invoice_kind', INVOICE_KINDS);
 export const dealEventActorTypeEnum = pgEnum('deal_event_actor_type', DEAL_EVENT_ACTOR_TYPES);
 export const emailLogStatusEnum = pgEnum('email_log_status', EMAIL_LOG_STATUSES);

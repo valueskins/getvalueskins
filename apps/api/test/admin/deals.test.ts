@@ -86,7 +86,7 @@ describe('GET /api/admin/deals', () => {
 });
 
 describe('GET /api/admin/deals/:id', () => {
-  it("returns the deal with its events, payments, transfers, emails and disputes, and only this deal's", async () => {
+  it("returns the deal with its events, payments, direct payments, emails and disputes, and only this deal's", async () => {
     const admin = await adminUser();
     const brand = await brandWithBilling();
     const creator = await creatorWithPayout();
@@ -109,7 +109,7 @@ describe('GET /api/admin/deals/:id', () => {
     expect(res.body.deal).toMatchObject({ id: deal.id, status: 'CONTENT_UPLOADED' });
     expect(res.body.events).toEqual([]);
     expect(res.body.payments).toEqual([]);
-    expect(res.body.transfers).toEqual([]);
+    expect(res.body.directPayments).toEqual([]);
     expect(res.body.disputes).toHaveLength(1);
     expect(res.body.disputes[0]).toMatchObject({ subject: `About ${deal.shortId}` });
     expect(res.body.emails).toHaveLength(1);

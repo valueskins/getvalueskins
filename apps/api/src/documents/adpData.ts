@@ -1,4 +1,9 @@
-import { invoiceSnapshotSchema, type InvoiceSnapshot } from '@valueskins/shared';
+import {
+  invoiceSnapshotSchema,
+  type CommissionSnapshot,
+  type DirectPaymentView,
+  type PaymentRecordSnapshot,
+} from '@valueskins/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import {
@@ -8,11 +13,11 @@ import {
   deals,
   invoices,
   payments,
-  transfers,
   users,
 } from '../db/schema/index.js';
 import { notFound } from '../deals/access.js';
 import type { Deal } from '../deals/stateMachine.js';
+import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
 
 export interface AdpParty {
   username: string;
@@ -27,22 +32,16 @@ export interface AdpData {
   brand: AdpParty;
   brandBilling: { billingName: string; gstin: string | null } | null;
   creator: AdpParty | null;
-  /** In the order commission invoice, advance receipt, final receipt. */
+  /** In the order commission invoice, advance payment record, final payment record. */
   invoices: {
-    commission: InvoiceSnapshot | null;
-    advance: InvoiceSnapshot | null;
-    final: InvoiceSnapshot | null;
+    commission: CommissionSnapshot | null;
+    advance: PaymentRecordSnapshot | null;
+    final: PaymentRecordSnapshot | null;
   };
   uploads: Array<{ link: string; uploadedAt: Date }>;
   feedbacks: Array<{ text: string; at: Date }>;
-  transfers: Array<{
-    type: string;
-    razorpayTransferId: string | null;
-    status: string;
-    amountPaise: number;
-    feePaise: number | null;
-    taxPaise: number | null;
-  }>;
+  /** Every direct payment record, disputed and awaiting ones included, oldest first. */
+  directPayments: DirectPaymentView[];
   payments: Array<{
     type: string;
     razorpayPaymentId: string | null;
@@ -88,9 +87,15 @@ export async function loadAdpData(dealId: string): Promise<AdpData> {
     .limit(1);
 
   const invoiceRows = await db.select().from(invoices).where(eq(invoices.dealId, dealId));
-  const snapshotOf = (kind: string): InvoiceSnapshot | null => {
+  const snapshotOf = <
+    K extends 'COMMISSION_TAX_INVOICE' | 'ADVANCE_PAYMENT_RECORD' | 'FINAL_PAYMENT_RECORD',
+  >(
+    kind: K,
+  ) => {
     const row = invoiceRows.find((r) => r.kind === kind);
-    return row ? invoiceSnapshotSchema.parse(row.snapshot) : null;
+    if (!row) return null;
+    const snapshot = invoiceSnapshotSchema.parse(row.snapshot);
+    return snapshot as Extract<typeof snapshot, { kind: K }>;
   };
 
   const uploads = await db
@@ -111,11 +116,7 @@ export async function loadAdpData(dealId: string): Promise<AdpData> {
     .from(payments)
     .where(eq(payments.dealId, dealId))
     .orderBy(asc(payments.createdAt));
-  const transferRows = await db
-    .select()
-    .from(transfers)
-    .where(eq(transfers.dealId, dealId))
-    .orderBy(asc(transfers.createdAt));
+  const directPaymentRows = await listDirectPaymentRows(dealId);
 
   return {
     deal,
@@ -124,22 +125,15 @@ export async function loadAdpData(dealId: string): Promise<AdpData> {
     creator,
     invoices: {
       commission: snapshotOf('COMMISSION_TAX_INVOICE'),
-      advance: snapshotOf('ADVANCE_RECEIPT'),
-      final: snapshotOf('FINAL_RECEIPT'),
+      advance: snapshotOf('ADVANCE_PAYMENT_RECORD'),
+      final: snapshotOf('FINAL_PAYMENT_RECORD'),
     },
     uploads,
     // Each revision request stores the feedback text as the event note (the deal row keeps only the latest).
     feedbacks: eventRows
       .filter((r) => r.event.toStatus === 'REVISION_REQUESTED' && r.event.note)
       .map((r) => ({ text: r.event.note as string, at: r.event.createdAt })),
-    transfers: transferRows.map((t) => ({
-      type: t.type,
-      razorpayTransferId: t.razorpayTransferId,
-      status: t.status,
-      amountPaise: t.amountPaise,
-      feePaise: t.razorpayFeePaise,
-      taxPaise: t.razorpayTaxPaise,
-    })),
+    directPayments: directPaymentRows.map(toDirectPaymentView),
     payments: paymentRows
       .filter((p) => p.status === 'CAPTURED')
       .map((p) => ({

@@ -5,6 +5,7 @@ import {
   MoneyError,
   computeBreakdown,
   formatInr,
+  paiseToDecimalString,
   roundHalfUp,
   rupeesToPaise,
   splitGst,
@@ -254,5 +255,30 @@ describe('splitGst', () => {
   it('rejects negative and fractional amounts', () => {
     expect(() => splitGst(-1, true)).toThrow();
     expect(() => splitGst(1.5, false)).toThrow();
+  });
+});
+
+describe('paiseToDecimalString', () => {
+  it.each([
+    [0, '0.00'],
+    [5, '0.05'],
+    [100, '1.00'],
+    [273450, '2734.50'],
+    [88500, '885.00'],
+    [Number.MAX_SAFE_INTEGER, '90071992547409.91'],
+  ])('%d paise is %s', (paise, expected) => {
+    expect(paiseToDecimalString(paise)).toBe(expected);
+  });
+
+  it('refuses a negative, a fraction, a NaN and an unsafe integer', () => {
+    for (const bad of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => paiseToDecimalString(bad)).toThrow(MoneyError);
+    }
+  });
+
+  it('agrees with computeBreakdown for an advance and a final', () => {
+    const b = computeBreakdown(10_000_00, 1800);
+    expect(paiseToDecimalString(b.advancePaise)).toBe((b.advancePaise / 100).toFixed(2));
+    expect(paiseToDecimalString(b.finalPaise)).toBe((b.finalPaise / 100).toFixed(2));
   });
 });

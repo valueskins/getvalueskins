@@ -25,12 +25,3 @@ export const adminCancelSchema = z
   .strict();
 
 export type AdminCancelInput = z.infer<typeof adminCancelSchema>;
-
-/** POST /admin/transfers/:id/mark-manual: where the money was paid from, e.g. a bank transfer reference. */
-export const markManualSchema = z
-  .object({
-    reference: z.string().trim().min(1).max(REFUND_REFERENCE_MAX),
-  })
-  .strict();
-
-export type MarkManualInput = z.infer<typeof markManualSchema>;

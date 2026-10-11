@@ -5,7 +5,9 @@ import {
   CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
   ADD_UPI_TO_APPLY,
   NO_APPLICATIONS_YET,
-  DIRECT_PAYMENT_NOT_AVAILABLE,
+  CREATOR_HAS_NO_UPI,
+  NO_PAYMENT_RECORDED_YET,
+  WAITING_FOR_CREATOR_TO_CONFIRM,
   UPLOAD_LIMIT_REACHED,
 } from './copy.js';
 import { MAX_CONTENT_UPLOADS_PER_DEAL } from './config.js';
@@ -22,6 +24,7 @@ export const DEAL_ACTIONS = [
   'PAY_COMMISSION',
   'PAY_ADVANCE',
   'PAY_FINAL',
+  'CONFIRM_PAYMENT_RECEIVED',
   'UPLOAD_CONTENT',
   'SEND_FEEDBACK',
   'APPROVE',
@@ -54,6 +57,10 @@ export interface DealActionsInput {
   payoutSet: boolean;
   /** The deal has a confirmed creator (a cancelled deal may never have had one). */
   hasCreator: boolean;
+  /** The deal's confirmed creator has saved a UPI ID, a name and consent (the brand pays to it). */
+  creatorPayoutSet: boolean;
+  /** A direct payment for the stage that is due is recorded and waits for the creator. */
+  pendingRecord: boolean;
   hasBilling: boolean;
   /** Messages from validateDealForPublish for the draft, empty when it is ready. */
   publishIssues: readonly string[];
@@ -112,10 +119,8 @@ function brandActions(input: DealActionsInput): DealActionState[] {
 
   const actions: DealActionState[] = [];
   if (status === 'CONFIRMED') actions.push(on('PAY_COMMISSION'));
-  if (status === 'COMMISSION_PAID') {
-    actions.push(off('PAY_ADVANCE', DIRECT_PAYMENT_NOT_AVAILABLE));
-  }
-  if (status === 'APPROVED') actions.push(off('PAY_FINAL', DIRECT_PAYMENT_NOT_AVAILABLE));
+  if (status === 'COMMISSION_PAID') actions.push(payAction('PAY_ADVANCE', input));
+  if (status === 'APPROVED') actions.push(payAction('PAY_FINAL', input));
   if (status === 'CONTENT_UPLOADED') actions.push(on('SEND_FEEDBACK'), on('APPROVE'));
   if (status === 'OPEN') {
     actions.push(
@@ -132,6 +137,13 @@ function brandActions(input: DealActionsInput): DealActionState[] {
   return actions;
 }
 
+/** PAY_ADVANCE and PAY_FINAL mean "pay by UPI and record it" (REPLACEMENT_PLAN 2.1). */
+function payAction(action: 'PAY_ADVANCE' | 'PAY_FINAL', input: DealActionsInput): DealActionState {
+  if (input.pendingRecord) return off(action, WAITING_FOR_CREATOR_TO_CONFIRM);
+  if (!input.creatorPayoutSet) return off(action, CREATOR_HAS_NO_UPI);
+  return on(action);
+}
+
 function creatorActions(input: DealActionsInput): DealActionState[] {
   if (input.status !== 'OPEN') return [];
   if (input.hasApplied) return [off('APPLY', ALREADY_APPLIED_MESSAGE)];
@@ -141,6 +153,13 @@ function creatorActions(input: DealActionsInput): DealActionState[] {
 }
 
 function confirmedCreatorActions(input: DealActionsInput): DealActionState[] {
+  if (input.status === 'COMMISSION_PAID' || input.status === 'APPROVED') {
+    return [
+      input.pendingRecord
+        ? on('CONFIRM_PAYMENT_RECEIVED')
+        : off('CONFIRM_PAYMENT_RECEIVED', NO_PAYMENT_RECORDED_YET),
+    ];
+  }
   if (input.status === 'ADVANCE_PAID' || input.status === 'REVISION_REQUESTED') {
     return [
       input.uploadCount >= MAX_CONTENT_UPLOADS_PER_DEAL

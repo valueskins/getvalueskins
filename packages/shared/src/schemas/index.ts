@@ -9,6 +9,7 @@ export * from './dispute.js';
 export * from './email.js';
 export * from './billing.js';
 export * from './payoutUpi.js';
+export * from './directPayment.js';
 export * from './me.js';
 export * from './onboarding.js';
 export * from './pagination.js';

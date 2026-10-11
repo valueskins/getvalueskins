@@ -1,22 +1,18 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
-import { payments, transfers } from '../db/schema/index.js';
+import { payments } from '../db/schema/index.js';
 import { findDeal } from '../deals/access.js';
 import { transitionDeal, type AfterCommitTask, type Deal, type Tx } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
-import { logger } from '../logging/logger.js';
-import type { RazorpayTransfer } from '../razorpay/schemas.js';
 import { issueInvoice } from '../invoices/issueInvoice.js';
 import { companyFromEnv, type CompanyDetails } from '../invoices/snapshot.js';
 import { alertAdmin } from './alerts.js';
 import { captureEmailTasks } from './captureEmails.js';
 import { mapRazorpayError } from './errors.js';
-import { mapTransferStatus, secondsToDate, transferFailureReason } from './transfers.service.js';
 import { PAYMENT_RULES, type PaymentsDeps } from './types.js';
 
 type PaymentRow = typeof payments.$inferSelect;
-type TransferInsert = typeof transfers.$inferInsert;
 
 export type CaptureResult =
   | { kind: 'ignored' }
@@ -27,15 +23,9 @@ export type CaptureResult =
 /** Thrown inside the capture transaction when another caller already recorded this payment. */
 class AlreadyCaptured extends Error {}
 
-const DEAL_COLUMN = {
-  COMMISSION: 'commissionPaidAt',
-  ADVANCE: 'advancePaidAt',
-  FINAL: 'completedAt',
-} as const;
-
 /**
  * The one place a payment becomes CAPTURED (SPEC 7.3). The verify endpoint and the
- * payment.captured, order.paid and transfer webhooks all call it, in any order and any
+ * payment.captured and order.paid webhooks all call it, in any order and any
  * number of times; the payment row lock and the deal's conditional status update make
  * exactly one caller do the work.
  *
@@ -85,13 +75,9 @@ export async function markPaymentCaptured(
   const deal = await findDeal(row.dealId);
   if (!deal) throw new Error(`payment ${row.id} has no deal`);
   const rules = PAYMENT_RULES[row.type];
-  const transfer = rules.transfersToCreator ? await planTransfer(deps, deal, row, paymentId) : null;
 
   const fees: CaptureFees = { feePaise: remote.fee ?? null, taxPaise: remote.tax ?? null };
   const afterCommit: AfterCommitTask[] = [...captureEmailTasks(deps, row)];
-  if (transfer?.status === 'FAILED') {
-    afterCommit.push(async (moved) => alertTransferFailed(deps, moved, transfer));
-  }
 
   try {
     await transitionDeal({
@@ -99,10 +85,10 @@ export async function markPaymentCaptured(
       from: rules.from,
       to: rules.to,
       actor: { role: 'SYSTEM' },
-      patch: { [DEAL_COLUMN[row.type]]: deps.now() },
+      patch: { commissionPaidAt: deps.now() },
       metadata: { paymentId: row.id, razorpayPaymentId: paymentId, type: row.type },
       within: (tx, updated) =>
-        recordCapture(tx, row, paymentId, deps.now(), transfer, fees, {
+        recordCapture(tx, row, paymentId, deps.now(), fees, {
           deal: updated,
           company: companyFromEnv(deps.env),
         }),
@@ -112,7 +98,7 @@ export async function markPaymentCaptured(
   } catch (error) {
     if (error instanceof AlreadyCaptured) return { kind: 'already_captured' };
     if (error instanceof AppError && error.code === 'INVALID_TRANSITION') {
-      return recordWithoutTransition(deps, row, paymentId, transfer, fees);
+      return recordWithoutTransition(deps, row, paymentId, fees);
     }
     if (isUniqueViolation(error)) return recordDuplicate(deps, row, paymentId);
     throw error;
@@ -125,7 +111,7 @@ interface CaptureFees {
 }
 
 /**
- * The payment, transfer and invoice rows, written inside the deal transition's transaction.
+ * The payment and invoice rows, written inside the deal transition's transaction.
  * `invoice` is given only when the deal moves: a payment recorded on a deal that cannot take
  * it is going to be refunded by hand, so it gets no invoice (SPEC 7.3, 7.4).
  */
@@ -134,7 +120,6 @@ async function recordCapture(
   row: PaymentRow,
   paymentId: string,
   now: Date,
-  transfer: TransferInsert | null,
   fees: CaptureFees,
   invoice?: { deal: Deal; company: CompanyDetails },
 ): Promise<void> {
@@ -151,12 +136,10 @@ async function recordCapture(
     .where(and(eq(payments.id, row.id), inArray(payments.status, ['CREATED', 'FAILED'])))
     .returning({ id: payments.id });
   if (!updated) throw new AlreadyCaptured();
-  if (transfer) await tx.insert(transfers).values(transfer);
   if (invoice) {
     await issueInvoice(tx, {
       deal: invoice.deal,
       payment: { ...row, razorpayPaymentId: paymentId },
-      transferId: transfer?.razorpayTransferId ?? null,
       now,
       company: invoice.company,
     });
@@ -172,7 +155,6 @@ async function recordWithoutTransition(
   deps: PaymentsDeps,
   row: PaymentRow,
   paymentId: string,
-  transfer: TransferInsert | null,
   fees: CaptureFees,
 ): Promise<CaptureResult> {
   try {
@@ -184,7 +166,7 @@ async function recordWithoutTransition(
         .for('update')
         .limit(1);
       if (!locked || locked.status === 'CAPTURED') return 'already' as const;
-      await recordCapture(tx, row, paymentId, deps.now(), transfer, fees);
+      await recordCapture(tx, row, paymentId, deps.now(), fees);
       return 'recorded' as const;
     });
     if (outcome === 'already') return { kind: 'already_captured' };
@@ -239,79 +221,4 @@ async function recordDuplicate(
       'which already has a captured payment of that type. Refund it manually in Razorpay.',
   );
   return { kind: 'already_captured' };
-}
-
-/**
- * The transfer row for an advance or final payment. Razorpay creates the transfer once the
- * payment is captured, so it is usually listed already; if not, a PENDING row without an id is
- * stored and the first transfer webhook fills the id in.
- */
-async function planTransfer(
-  deps: PaymentsDeps,
-  deal: Deal,
-  row: PaymentRow,
-  paymentId: string,
-): Promise<TransferInsert> {
-  if (!deal.creatorId) throw new Error(`deal ${deal.id} has no creator for a ${row.type} payment`);
-  let listed: RazorpayTransfer[] = [];
-  try {
-    listed = (await deps.razorpay.fetchPaymentTransfers(paymentId)).items;
-  } catch (error) {
-    // The capture matters more than the list; the transfer webhook completes the row.
-    logger.warn(
-      { dealId: deal.id, error: error instanceof Error ? error.message : 'unknown' },
-      'could not list transfers for a captured payment',
-    );
-  }
-  // An order made before the rail changed carries one transfer for the full amount.
-  const match = listed.find((t) => t.amount === row.amountPaise) ?? null;
-
-  if (match) {
-    // Amounts only, for the fee report (SPEC 4.3). No personal data is involved.
-    logger.info(
-      {
-        dealId: deal.id,
-        transferId: match.id,
-        amount: match.amount,
-        fees: match.fees,
-        tax: match.tax,
-        status: match.status,
-      },
-      'route transfer listed for a captured payment',
-    );
-  }
-
-  return {
-    dealId: deal.id,
-    paymentId: row.id,
-    creatorId: deal.creatorId,
-    type: row.type as 'ADVANCE' | 'FINAL',
-    amountPaise: row.amountPaise,
-    razorpayTransferId: match?.id ?? null,
-    status: match ? mapTransferStatus(match.status) : 'PENDING',
-    failureReason: match ? transferFailureReason(match) : null,
-    processedAt: match ? secondsToDate(match.processed_at) : null,
-    razorpayFeePaise: match?.fees ?? null,
-    razorpayTaxPaise: match?.tax ?? null,
-  };
-}
-
-/** Alert A1 for a transfer that failed (SPEC 7.3): the deal still advances, the admin sorts the payout. */
-export async function alertTransferFailed(
-  deps: PaymentsDeps,
-  deal: Deal,
-  transfer: {
-    razorpayTransferId?: string | null;
-    type: string;
-    amountPaise: number;
-    failureReason?: string | null;
-  },
-): Promise<void> {
-  await alertAdmin(
-    deps.env,
-    'Transfer to creator failed',
-    `Deal ${deal.shortId}: the ${transfer.type} transfer of ${transfer.amountPaise} paise ` +
-      `(${transfer.razorpayTransferId ?? 'no transfer id yet'}) failed: ${transfer.failureReason ?? 'no reason given'}. ` +
-      'The brand has paid and the deal has moved on. Check Razorpay and pay the creator.',
-  );
 }

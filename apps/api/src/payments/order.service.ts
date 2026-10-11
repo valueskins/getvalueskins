@@ -1,5 +1,4 @@
 import {
-  PAYMENT_RAIL_CHANGED,
   paymentTypeFromParam,
   type PaymentOrderResponse,
   type PaymentTypeParam,
@@ -15,13 +14,8 @@ import type { CreateOrderBody } from '../razorpay/client.js';
 import { mapRazorpayError } from './errors.js';
 import { PAYMENT_RULES, type PaymentsDeps } from './types.js';
 
-function amountFor(deal: Deal, type: 'COMMISSION' | 'ADVANCE' | 'FINAL'): number {
-  const amount =
-    type === 'COMMISSION'
-      ? deal.commissionTotalPaise
-      : type === 'ADVANCE'
-        ? deal.advancePaise
-        : deal.finalPaise;
+function amountFor(deal: Deal, type: 'COMMISSION'): number {
+  const amount = deal.commissionTotalPaise;
   if (amount === null || !Number.isSafeInteger(amount) || amount <= 0) {
     throw new Error(`deal ${deal.id} has no frozen ${type} amount`);
   }
@@ -32,8 +26,8 @@ function amountFor(deal: Deal, type: 'COMMISSION' | 'ADVANCE' | 'FINAL'): number
  * POST /deals/:id/payments/:type/order (SPEC 7.3). The caller is the deal's brand and the
  * deal is in the status in which this payment is due. One open Order per deal and type: an
  * unpaid one (CREATED, or FAILED after a declined attempt) is reused. Only the commission is
- * paid through Razorpay: the advance and final are paid by the brand directly to the creator's
- * UPI ID (REPLACEMENT_PLAN 2.1), so those two answer 409 until Prompt 13 builds that.
+ * paid through Razorpay: the advance and final are direct UPI payments (REPLACEMENT_PLAN 2.1),
+ * recorded through the direct-payment endpoints, so `:type` can only be `commission`.
  */
 export async function createOrReuseOrder(
   deps: PaymentsDeps,
@@ -45,9 +39,6 @@ export async function createOrReuseOrder(
   const rules = PAYMENT_RULES[type];
   const deal = await loadOwnedDeal(rawDealId, user.id);
 
-  if (rules.transfersToCreator) {
-    throw new AppError('PAYMENT_RAIL_CHANGED', 409, PAYMENT_RAIL_CHANGED);
-  }
   if (deal.status !== rules.from) {
     throw new AppError(
       'WRONG_DEAL_STATUS',

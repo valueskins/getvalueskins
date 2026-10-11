@@ -19,8 +19,6 @@ const ROUTES: Array<{ method: 'get' | 'post'; path: string; body?: object }> = [
   { method: 'get', path: '/api/admin/deals' },
   { method: 'get', path: `/api/admin/deals/${ID}` },
   { method: 'post', path: `/api/admin/deals/${ID}/cancel`, body: { note: 'x' } },
-  { method: 'post', path: `/api/admin/transfers/${ID}/retry`, body: {} },
-  { method: 'post', path: `/api/admin/transfers/${ID}/mark-manual`, body: { reference: 'UTR1' } },
   { method: 'post', path: `/api/admin/emails/${ID}/resend`, body: {} },
   { method: 'get', path: '/api/admin/disputes' },
   { method: 'post', path: `/api/admin/disputes/${ID}/resolve`, body: { resolution: 'x' } },
@@ -59,6 +57,13 @@ describe('admin routes answer 404 to everyone who is not an admin', () => {
       if (res.status === 404) expect(res.body.error.code).toBe('NOT_FOUND');
     }
     expect((await call(ROUTES[0]!, admin.cookie)).status).toBe(200);
-    expect((await call(ROUTES[6]!, admin.cookie)).status).toBe(200);
+    expect(
+      (
+        await call(
+          ROUTES.find((r) => r.path === '/api/admin/disputes')!,
+          admin.cookie,
+        )
+      ).status,
+    ).toBe(200);
   });
 });

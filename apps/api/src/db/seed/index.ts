@@ -20,7 +20,7 @@ const TABLES_IN_DELETE_ORDER = [
   'disputes',
   'invoices',
   'invoice_counters',
-  'transfers',
+  'direct_payments',
   'payments',
   'content_uploads',
   'applications',
@@ -105,19 +105,23 @@ export async function seed(options: SeedOptions = {}): Promise<void> {
   }
 
   const activeCreatorIds = creatorIds.slice(0, 3);
+  const activeCreatorVpas = CREATOR_FIXTURES.slice(0, 3).map((c) => c.payout?.vpa ?? '');
   const applicantCreatorId = creatorIds[3];
   if (!applicantCreatorId) throw new Error('expected a 4th creator with no UPI details');
 
   for (const [index, status] of SEED_DEAL_STATUSES.entries()) {
     const brandId = brandIds[index % brandIds.length];
     const confirmedCreatorId = activeCreatorIds[index % activeCreatorIds.length];
-    if (!brandId || !confirmedCreatorId) throw new Error('brand/creator fixtures missing');
+    const confirmedCreatorVpa = activeCreatorVpas[index % activeCreatorIds.length];
+    if (!brandId || !confirmedCreatorId || !confirmedCreatorVpa)
+      throw new Error('brand/creator fixtures missing');
 
     await insertDealAtCheckpoint(db, {
       status,
       index,
       brandId,
       confirmedCreatorId,
+      confirmedCreatorVpa,
       applicantCreatorId,
       budgetRupees: 10_000,
       applicationDeadline: '2026-11-01',

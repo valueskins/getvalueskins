@@ -5,7 +5,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { deals, emailLog, payments, webhookEvents } from '../../src/db/schema/index.js';
+import { emailLog, payments, webhookEvents } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { NOW, brandWithBilling, http as api } from '../helpers/deals.js';
 import {
@@ -24,7 +24,6 @@ import {
   dealState,
   dealWithOrder,
   emails,
-  insertOrder,
   razorpayCaptured,
   type PaymentKind,
 } from './fixture.js';
@@ -57,20 +56,12 @@ afterAll(async () => {
 const verify = (cookie: string, body: object) =>
   call.send('post', '/api/payments/verify', cookie, body);
 
-const DATE_COLUMN = {
-  commission: 'commissionPaidAt',
-  advance: 'advancePaidAt',
-  final: 'completedAt',
-} as const;
+const DATE_COLUMN = { commission: 'commissionPaidAt' } as const;
 
-const EMAILS = {
-  commission: ['COMMISSION_PAID_BRAND', 'COMMISSION_PAID_CREATOR'],
-  advance: ['ADVANCE_PAID', 'ADVANCE_PAID'],
-  final: ['FINAL_PAYMENT_DONE', 'FINAL_PAYMENT_DONE', 'DEAL_REPORT_READY', 'DEAL_REPORT_READY'],
-} as const;
+const EMAILS = { commission: ['COMMISSION_PAID_BRAND', 'COMMISSION_PAID_CREATOR'] } as const;
 
 describe('POST /api/payments/verify', () => {
-  it.each(['commission', 'advance', 'final'] as PaymentKind[])(
+  it.each(['commission'] as PaymentKind[])(
     '%s: marks the payment captured, moves the deal, records the event and sends the emails',
     async (kind) => {
       const f = await dealWithOrder(call, kind);
@@ -98,80 +89,13 @@ describe('POST /api/payments/verify', () => {
       expect(row).toMatchObject({ status: 'CAPTURED', razorpayPaymentId: paymentId });
       expect(row?.capturedAt?.toISOString()).toBe(NOW.toISOString());
 
-      if (kind === 'commission') {
-        expect(state.transfers).toHaveLength(0);
-        expect(razorpay.fetchTransfersCalls).toHaveLength(0);
-      } else {
-        expect(state.transfers).toMatchObject([
-          {
-            type: kind.toUpperCase(),
-            amountPaise: f.amount,
-            razorpayTransferId: 'trf_mock1',
-            status: 'PROCESSED',
-            creatorId: f.creator.user.id,
-            paymentId: row?.id,
-          },
-        ]);
-      }
-
       const sent = (await db.select().from(emailLog)).filter((e) => e.dealId === f.deal.id);
       expect(sent.map((e) => e.template).sort()).toEqual([...EMAILS[kind]].sort());
-      const twice = kind === 'final';
       expect(sent.map((e) => e.toEmail).sort()).toEqual(
-        (twice
-          ? [f.brand.user.email, f.brand.user.email, f.creator.user.email, f.creator.user.email]
-          : [f.brand.user.email, f.creator.user.email]
-        ).sort(),
+        [f.brand.user.email, f.creator.user.email].sort(),
       );
     },
   );
-
-  it('carries a deal from CONFIRMED through all three payments to COMPLETED', async () => {
-    const f = await dealWithOrder(call, 'commission');
-    await verify(
-      f.brand.cookie,
-      verifyBody(f.orderId, razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_c' })),
-    );
-    expect((await dealState(f.deal.id)).deal.status).toBe('COMMISSION_PAID');
-
-    // The API no longer creates advance or final orders; one that exists still captures.
-    const advance = { ...(await insertOrder(f.deal, 'advance')), accountId: f.accountId };
-    await verify(
-      f.brand.cookie,
-      verifyBody(
-        advance.orderId,
-        razorpayCaptured(razorpay, advance, 'advance', { paymentId: 'pay_a' }),
-      ),
-    );
-    expect((await dealState(f.deal.id)).deal.status).toBe('ADVANCE_PAID');
-
-    await db.update(deals).set({ status: 'APPROVED' }).where(eq(deals.id, f.deal.id));
-
-    const final = { ...(await insertOrder(f.deal, 'final')), accountId: f.accountId };
-    const done = await verify(
-      f.brand.cookie,
-      verifyBody(
-        final.orderId,
-        razorpayCaptured(razorpay, final, 'final', {
-          paymentId: 'pay_f',
-          transfer: { id: 'trf_final' },
-        }),
-      ),
-    );
-    expect(done.body.deal.status).toBe('COMPLETED');
-
-    const state = await dealState(f.deal.id);
-    expect(state.transfers.map((t) => [t.type, t.status]).sort()).toEqual([
-      ['ADVANCE', 'PROCESSED'],
-      ['FINAL', 'PROCESSED'],
-    ]);
-    expect(
-      state.deal.commissionPaidAt && state.deal.advancePaidAt && state.deal.completedAt,
-    ).toBeTruthy();
-    // The three payments add up to the budget (SPEC 4.2 invariant).
-    const all = await db.select().from(payments).where(eq(payments.dealId, f.deal.id));
-    expect(all.reduce((sum, p) => sum + p.amountPaise, 0)).toBe(state.deal.budgetPaise);
-  });
 
   describe('bad signature', () => {
     it.each([
@@ -229,49 +153,42 @@ describe('verify and webhooks in any order, and repeated', () => {
     const state = await dealState(f.deal.id);
     expect(state.deal.status).toBe(NEXT_STATUS[kind]);
     expect(state.events).toHaveLength(1);
-    expect(state.transfers).toHaveLength(kind === 'commission' ? 0 : 1);
-    // Emails 4, 5 or 9 go to both parties; the final also sends email 10 to both.
+    // Email 4 goes to both parties.
     expect((await db.select().from(emailLog)).filter((e) => e.dealId === f.deal.id)).toHaveLength(
-      kind === 'final' ? 4 : 2,
+      2,
     );
     expect(await db.select().from(payments).where(eq(payments.dealId, f.deal.id))).toHaveLength(1);
   }
 
-  it.each(['commission', 'advance', 'final'] as PaymentKind[])(
-    '%s: verify first, then the webhook',
-    async (kind) => {
-      const f = await dealWithOrder(call, kind);
-      const paymentId = razorpayCaptured(razorpay, f, kind);
-      await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
-      const { response } = await deliverWebhook(
-        app,
-        paymentCapturedEvent(f.orderId, paymentId, f.amount),
-      );
-      expect(response.status).toBe(200);
-      await expectPaidOnce(f, kind);
-      // The webhook found it already captured and did not even ask Razorpay.
-      expect(razorpay.fetchPaymentCalls).toEqual([paymentId]);
-    },
-  );
+  it.each(['commission'] as PaymentKind[])('%s: verify first, then the webhook', async (kind) => {
+    const f = await dealWithOrder(call, kind);
+    const paymentId = razorpayCaptured(razorpay, f, kind);
+    await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
+    const { response } = await deliverWebhook(
+      app,
+      paymentCapturedEvent(f.orderId, paymentId, f.amount),
+    );
+    expect(response.status).toBe(200);
+    await expectPaidOnce(f, kind);
+    // The webhook found it already captured and did not even ask Razorpay.
+    expect(razorpay.fetchPaymentCalls).toEqual([paymentId]);
+  });
 
-  it.each(['commission', 'advance', 'final'] as PaymentKind[])(
-    '%s: webhook first, then verify',
-    async (kind) => {
-      const f = await dealWithOrder(call, kind);
-      const paymentId = razorpayCaptured(razorpay, f, kind);
-      await deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount));
-      expect((await dealState(f.deal.id)).deal.status).toBe(NEXT_STATUS[kind]);
+  it.each(['commission'] as PaymentKind[])('%s: webhook first, then verify', async (kind) => {
+    const f = await dealWithOrder(call, kind);
+    const paymentId = razorpayCaptured(razorpay, f, kind);
+    await deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount));
+    expect((await dealState(f.deal.id)).deal.status).toBe(NEXT_STATUS[kind]);
 
-      const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
-      expect(res.status).toBe(200);
-      expect(res.body.payment.status).toBe('CAPTURED');
-      await expectPaidOnce(f, kind);
-    },
-  );
+    const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
+    expect(res.status).toBe(200);
+    expect(res.body.payment.status).toBe('CAPTURED');
+    await expectPaidOnce(f, kind);
+  });
 
   it('payment.captured and order.paid together, and the same event delivered twice', async () => {
-    const f = await dealWithOrder(call, 'advance');
-    const paymentId = razorpayCaptured(razorpay, f, 'advance');
+    const f = await dealWithOrder(call, 'commission');
+    const paymentId = razorpayCaptured(razorpay, f, 'commission');
     const captured = paymentCapturedEvent(f.orderId, paymentId, f.amount);
 
     await deliverWebhook(app, captured, { eventId: 'evt_dup' });
@@ -279,7 +196,7 @@ describe('verify and webhooks in any order, and repeated', () => {
     await deliverWebhook(app, captured, { eventId: 'evt_replay' }); // same body, a new event id
     await deliverWebhook(app, orderPaidEvent(f.orderId, paymentId, f.amount));
 
-    await expectPaidOnce(f, 'advance');
+    await expectPaidOnce(f, 'commission');
     const stored = await db.select().from(webhookEvents);
     expect(stored.map((e) => e.error)).toEqual([null, null, null]);
     expect(stored).toHaveLength(3);
@@ -294,7 +211,7 @@ describe('verify and webhooks in any order, and repeated', () => {
     await expectPaidOnce(f, 'commission');
   });
 
-  it.each(['commission', 'advance'] as PaymentKind[])(
+  it.each(['commission'] as PaymentKind[])(
     '%s: verify racing a webhook records exactly one capture',
     async (kind) => {
       const f = await dealWithOrder(call, kind);
@@ -365,8 +282,8 @@ describe('what Razorpay says is what counts', () => {
   });
 
   it('amount mismatch through the webhook: recorded on the event and alerted, deal unchanged', async () => {
-    const f = await dealWithOrder(call, 'advance');
-    const paymentId = razorpayCaptured(razorpay, f, 'advance');
+    const f = await dealWithOrder(call, 'commission');
+    const paymentId = razorpayCaptured(razorpay, f, 'commission');
     razorpay.payments.get(paymentId)!.amount = f.amount + 1;
 
     const { eventId } = await deliverWebhook(
@@ -375,8 +292,7 @@ describe('what Razorpay says is what counts', () => {
     );
     const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, eventId));
     expect(event?.error).toContain('Razorpay captured');
-    expect((await dealState(f.deal.id)).deal.status).toBe('COMMISSION_PAID');
-    expect((await dealState(f.deal.id)).transfers).toHaveLength(0);
+    expect((await dealState(f.deal.id)).deal.status).toBe('CONFIRMED');
     expect(await emails('ADMIN_ALERT')).toHaveLength(1);
   });
 
@@ -498,7 +414,7 @@ describe('a payment on a deal in the wrong status', () => {
 
 describe('payment.failed', () => {
   it('records the reason, leaves the deal unchanged and keeps the order payable', async () => {
-    const f = await dealWithOrder(call, 'advance');
+    const f = await dealWithOrder(call, 'commission');
     const { response } = await deliverWebhook(
       app,
       paymentFailedEvent(f.orderId, 'pay_bad', 'Card declined by the bank'),
@@ -511,16 +427,15 @@ describe('payment.failed', () => {
       razorpayPaymentId: null,
     });
     const state = await dealState(f.deal.id);
-    expect(state.deal.status).toBe('COMMISSION_PAID');
-    expect(state.deal.advancePaidAt).toBeNull();
+    expect(state.deal.status).toBe('CONFIRMED');
+    expect(state.deal.commissionPaidAt).toBeNull();
     expect(state.events).toHaveLength(0);
-    expect(state.transfers).toHaveLength(0);
     expect(await db.select().from(emailLog)).toHaveLength(0);
 
     // The same order is still payable, and a late capture on it goes through.
-    const paymentId = razorpayCaptured(razorpay, f, 'advance');
+    const paymentId = razorpayCaptured(razorpay, f, 'commission');
     const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
-    expect(res.body.deal.status).toBe('ADVANCE_PAID');
+    expect(res.body.deal.status).toBe('COMMISSION_PAID');
     expect((await paymentRow(f.orderId))?.failureReason).toBeNull();
   });
 

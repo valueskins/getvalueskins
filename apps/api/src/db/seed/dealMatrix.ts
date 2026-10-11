@@ -6,7 +6,7 @@ import {
   type DealStatus,
 } from '@valueskins/shared';
 import { v7 as uuidv7 } from 'uuid';
-import { issueInvoice } from '../../invoices/issueInvoice.js';
+import { issueInvoice, issuePaymentRecord } from '../../invoices/issueInvoice.js';
 import type { CompanyDetails } from '../../invoices/snapshot.js';
 import type { db as Database } from '../client.js';
 import {
@@ -14,8 +14,8 @@ import {
   contentUploads,
   deals,
   dealEvents,
+  directPayments,
   payments,
-  transfers,
 } from '../schema/index.js';
 
 interface TransitionStep {
@@ -35,7 +35,7 @@ const TO_COMMISSION_PAID: TransitionStep[] = [
 ];
 const TO_ADVANCE_PAID: TransitionStep[] = [
   ...TO_COMMISSION_PAID,
-  { from: 'COMMISSION_PAID', to: 'ADVANCE_PAID', actorRole: 'SYSTEM' },
+  { from: 'COMMISSION_PAID', to: 'ADVANCE_PAID', actorRole: 'CREATOR' },
 ];
 const TO_CONTENT_UPLOADED: TransitionStep[] = [
   ...TO_ADVANCE_PAID,
@@ -51,7 +51,7 @@ const TO_APPROVED: TransitionStep[] = [
 ];
 const TO_COMPLETED: TransitionStep[] = [
   ...TO_APPROVED,
-  { from: 'APPROVED', to: 'COMPLETED', actorRole: 'SYSTEM' },
+  { from: 'APPROVED', to: 'COMPLETED', actorRole: 'CREATOR' },
 ];
 const TO_CANCELLED: TransitionStep[] = [
   ...TO_CONFIRMED,
@@ -88,11 +88,13 @@ export interface DealCheckpointInput {
   dealDeadline: string;
   /** Seller details frozen into the seeded invoices. */
   company: CompanyDetails;
+  /** The confirmed creator's seeded UPI ID, snapshotted on each direct payment. */
+  confirmedCreatorVpa: string;
 }
 
 /**
  * Inserts one deal frozen at `status`, plus the deal_events, applications,
- * payments, transfers, and content_uploads rows a real transitionDeal() flow
+ * payments, direct payments, and content_uploads rows a real transitionDeal() flow
  * would have produced getting it there.
  */
 export async function insertDealAtCheckpoint(
@@ -221,53 +223,54 @@ export async function insertDealAtCheckpoint(
       await issueInvoice(db, {
         deal: dealRow,
         payment: { ...commissionPayment, razorpayPaymentId: `pay_seed_${input.index}_commission` },
-        transferId: null,
         now,
         company: input.company,
       });
     }
   }
 
-  const seedTransferred = async (type: 'ADVANCE' | 'FINAL', amountPaise: number) => {
-    const key = type.toLowerCase();
-    const [payment] = await db
-      .insert(payments)
+  /** A direct UPI payment the brand recorded and the creator confirmed, with its payment record. */
+  const seedDirectPayment = async (stage: 'ADVANCE' | 'FINAL', amountPaise: number) => {
+    const key = stage.toLowerCase();
+    const [record] = await db
+      .insert(directPayments)
       .values({
         dealId,
-        type,
+        stage,
         amountPaise,
-        razorpayOrderId: `order_seed_${input.index}_${key}`,
-        razorpayPaymentId: `pay_seed_${input.index}_${key}`,
-        status: 'CAPTURED',
-        capturedAt: now,
-        ...seedFees(amountPaise, 2),
+        reference: `SEEDUTR${input.index}${key}`,
+        paidToVpa: input.confirmedCreatorVpa,
+        recordedBy: input.brandId,
+        recordedAt: now,
+        confirmedBy: input.confirmedCreatorId,
+        confirmedAt: now,
       })
       .returning();
-    if (!payment) return;
-
-    const transferId = `trf_seed_${input.index}_${key}`;
-    await db.insert(transfers).values({
-      dealId,
-      paymentId: payment.id,
-      creatorId: input.confirmedCreatorId,
-      type,
-      amountPaise,
-      razorpayTransferId: transferId,
-      status: 'PROCESSED',
-      processedAt: now,
-      ...seedFees(amountPaise, 0.25),
-    });
-    await issueInvoice(db, {
+    if (!record) return;
+    await issuePaymentRecord(db, {
       deal: dealRow,
-      payment: { ...payment, razorpayPaymentId: `pay_seed_${input.index}_${key}` },
-      transferId,
+      directPayment: { ...record, recordedAt: now },
       now,
       company: input.company,
     });
   };
 
-  if (breakdown && isAdvancePaid) await seedTransferred('ADVANCE', breakdown.advancePaise);
-  if (breakdown && isCompleted) await seedTransferred('FINAL', breakdown.finalPaise);
+  // One disputed attempt before the confirmed one, so the report shows a record that did not arrive.
+  if (breakdown && input.status === 'ADVANCE_PAID') {
+    await db.insert(directPayments).values({
+      dealId,
+      stage: 'ADVANCE',
+      amountPaise: breakdown.advancePaise,
+      reference: `SEEDUTR${input.index}first`,
+      paidToVpa: input.confirmedCreatorVpa,
+      recordedBy: input.brandId,
+      recordedAt: now,
+      disputedAt: now,
+      disputeReason: 'Seed data: the first payment did not arrive',
+    });
+  }
+  if (breakdown && isAdvancePaid) await seedDirectPayment('ADVANCE', breakdown.advancePaise);
+  if (breakdown && isCompleted) await seedDirectPayment('FINAL', breakdown.finalPaise);
 }
 
 export const SEED_DEAL_STATUSES: readonly DealStatus[] = DEAL_STATUSES;

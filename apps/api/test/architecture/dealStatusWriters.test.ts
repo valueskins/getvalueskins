@@ -69,3 +69,34 @@ describe('who may touch users.payout_vpa', () => {
     expect(writers(/payoutVpa\b/).filter((file) => file.endsWith('.routes.ts'))).toEqual([]);
   });
 });
+
+/**
+ * REPLACEMENT_PLAN 2.1: a direct payment record is never edited or deleted once it is confirmed
+ * or disputed, and the UPI ID it snapshotted is never returned in full. So only the service writes
+ * the table, and only the code that builds a masked view or a document may read the ID.
+ */
+describe('who may touch direct_payments', () => {
+  const writers = (pattern: RegExp) =>
+    sourceFiles(SRC)
+      .filter((file) => pattern.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(SRC, file))
+      .sort();
+
+  it('only the direct payments service and the seed write the table, and nothing deletes from it', () => {
+    expect(writers(/\.(insert|update)\(directPayments\)/)).toEqual([
+      'db/seed/dealMatrix.ts',
+      'directPayments/directPayments.service.ts',
+    ]);
+    expect(writers(/\.delete\(directPayments\)/)).toEqual([]);
+  });
+
+  it('only the service, the masked view, the document issuer and the seed handle paid_to_vpa', () => {
+    expect(writers(/paidToVpa\b/)).toEqual([
+      'db/schema/payments.ts',
+      'db/seed/dealMatrix.ts',
+      'directPayments/directPayments.service.ts',
+      'directPayments/view.ts',
+      'invoices/issueInvoice.ts',
+    ]);
+  });
+});

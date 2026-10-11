@@ -1,11 +1,6 @@
 import type { http } from './deals.js';
 import { verifyBody } from './payments.js';
-import {
-  dealWithOrder,
-  insertOrder,
-  razorpayCaptured,
-  type PaymentKind,
-} from '../payments/fixture.js';
+import { dealWithOrder, razorpayCaptured, recordAndConfirm } from '../payments/fixture.js';
 import type { OrdersMockState } from '../payments/razorpayOrdersMock.js';
 
 type Api = ReturnType<typeof http>;
@@ -15,8 +10,9 @@ export const DRIVE_LINK = 'https://drive.google.com/file/d/lifecycle/view';
 let counter = 0;
 
 /**
- * Takes a brand and creator through a deal with the real endpoints: commission, advance,
- * upload, approve, final. Stops after `upTo`. Razorpay is the msw mock.
+ * Takes a brand and creator through a deal with the real endpoints: the commission through the
+ * Razorpay mock, then the advance (recorded by the brand, confirmed by the creator), upload,
+ * approve and the final the same way. Stops after `upTo`.
  */
 export async function runDeal(
   call: Api,
@@ -24,33 +20,25 @@ export async function runDeal(
   upTo: 'COMMISSION_PAID' | 'ADVANCE_PAID' | 'CONTENT_UPLOADED' | 'APPROVED' | 'COMPLETED',
 ) {
   const first = await dealWithOrder(call, 'commission');
-  const { brand, creator, deal, accountId } = first;
+  const { brand, creator, deal } = first;
 
-  async function pay(kind: PaymentKind, order: { orderId: string; amount: number }) {
-    counter += 1;
-    const paymentId = razorpayCaptured(
-      razorpay,
-      { orderId: order.orderId, amount: order.amount, accountId },
-      kind,
-      { paymentId: `pay_l${counter}`, transfer: { id: `trf_l${counter}` } },
-    );
-    const res = await call.send(
-      'post',
-      '/api/payments/verify',
-      brand.cookie,
-      verifyBody(order.orderId, paymentId),
-    );
-    if (res.status !== 200)
-      throw new Error(`verify failed: ${res.status} ${JSON.stringify(res.body)}`);
-    return paymentId;
+  counter += 1;
+  const paymentId = razorpayCaptured(razorpay, first, 'commission', {
+    paymentId: `pay_l${counter}`,
+  });
+  const verified = await call.send(
+    'post',
+    '/api/payments/verify',
+    brand.cookie,
+    verifyBody(first.orderId, paymentId),
+  );
+  if (verified.status !== 200) {
+    throw new Error(`verify failed: ${verified.status} ${JSON.stringify(verified.body)}`);
   }
-  // Advance and final orders are not created by the API any more; an existing one still captures.
-  const orderFor = (kind: 'advance' | 'final') => insertOrder(deal, kind);
 
-  const paymentIds: Record<string, string> = {};
-  paymentIds.commission = await pay('commission', first);
+  const paymentIds: Record<string, string> = { commission: paymentId };
   if (upTo !== 'COMMISSION_PAID') {
-    paymentIds.advance = await pay('advance', await orderFor('advance'));
+    paymentIds.advance = await recordAndConfirm(call, first, 'ADVANCE');
   }
   if (upTo === 'CONTENT_UPLOADED' || upTo === 'APPROVED' || upTo === 'COMPLETED') {
     const res = await call.send('post', `/api/deals/${deal.id}/content`, creator.cookie, {
@@ -63,7 +51,7 @@ export async function runDeal(
     if (res.status !== 200) throw new Error(`approve failed: ${res.status}`);
   }
   if (upTo === 'COMPLETED') {
-    paymentIds.final = await pay('final', await orderFor('final'));
+    paymentIds.final = await recordAndConfirm(call, first, 'FINAL');
   }
-  return { brand, creator, deal, accountId, paymentIds };
+  return { brand, creator, deal, paymentIds };
 }
