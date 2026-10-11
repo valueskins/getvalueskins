@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { MIN_BUDGET_PAISE } from './config.js';
+import { COMMISSION_PERCENT_BPS, MIN_BUDGET_PAISE } from './config.js';
 import {
   MoneyError,
   computeBreakdown,
@@ -26,17 +26,17 @@ describe('computeBreakdown', () => {
     });
   });
 
-  it('matches the SPEC 4.2 worked example for budget ₹50,000', () => {
+  it('matches the SPEC 4.2 worked example for budget ₹50,000: the fee is still ₹885', () => {
     const breakdown = computeBreakdown(5_000_000);
 
     expect(breakdown).toEqual({
       budgetPaise: 5_000_000,
-      commissionBasePaise: 250_000,
-      commissionGstPaise: 45_000,
-      commissionTotalPaise: 295_000,
-      creatorAmountPaise: 4_705_000,
-      advancePaise: 1_411_500,
-      finalPaise: 3_293_500,
+      commissionBasePaise: 75_000,
+      commissionGstPaise: 13_500,
+      commissionTotalPaise: 88_500,
+      creatorAmountPaise: 4_911_500,
+      advancePaise: 1_473_450,
+      finalPaise: 3_438_050,
     });
   });
 
@@ -56,17 +56,35 @@ describe('computeBreakdown', () => {
     );
   });
 
-  describe('crossover at ₹15,000 between the flat and percent commission', () => {
-    it('uses the flat commission just below the crossover (₹14,999)', () => {
-      expect(computeBreakdown(1_499_900).commissionBasePaise).toBe(75_000);
+  describe('flat fee (REPLACEMENT_PLAN 2.2)', () => {
+    it.each([
+      ['₹5,000', 500_000],
+      ['₹14,999', 1_499_900],
+      ['₹15,001', 1_500_100],
+      ['₹50,000', 5_000_000],
+      ['₹1,00,000', 10_000_000],
+      ['₹1 crore', 1_000_000_000],
+    ])('charges ₹750 + 18%% GST = ₹885 at a budget of %s', (_label, budgetPaise) => {
+      const breakdown = computeBreakdown(budgetPaise, 1800);
+
+      expect(breakdown.commissionBasePaise).toBe(75_000);
+      expect(breakdown.commissionGstPaise).toBe(13_500);
+      expect(breakdown.commissionTotalPaise).toBe(88_500);
     });
 
-    it('gives the same amount for both paths exactly at the crossover (₹15,000)', () => {
-      expect(computeBreakdown(1_500_000).commissionBasePaise).toBe(75_000);
+    it('has no percentage component', () => {
+      expect(COMMISSION_PERCENT_BPS).toBe(0);
     });
 
-    it('uses the percent commission just above the crossover (₹15,001)', () => {
-      expect(computeBreakdown(1_500_100).commissionBasePaise).toBe(75_005);
+    it('splits what is left 30 / 70 and adds back to the budget at ₹1,00,000', () => {
+      const breakdown = computeBreakdown(10_000_000, 1800);
+
+      expect(breakdown.creatorAmountPaise).toBe(9_911_500);
+      expect(breakdown.advancePaise).toBe(2_973_450);
+      expect(breakdown.finalPaise).toBe(6_938_050);
+      expect(breakdown.commissionTotalPaise + breakdown.advancePaise + breakdown.finalPaise).toBe(
+        10_000_000,
+      );
     });
   });
 
@@ -100,24 +118,24 @@ describe('computeBreakdown', () => {
     });
   });
 
-  it('rounds an exact .5 paise GST boundary up, not down or to even (budget ₹15,005)', () => {
-    const breakdown = computeBreakdown(1_500_500);
+  it('rounds an exact .5 paise GST boundary up, not down or to even (rate 18.01%)', () => {
+    const breakdown = computeBreakdown(1_500_500, 1801);
 
-    // commissionBasePaise = 75,025 (exact); GST = 75,025 * 1800 / 10000 = 13,504.5 exactly.
-    expect(breakdown.commissionBasePaise).toBe(75_025);
-    expect(breakdown.commissionGstPaise).toBe(13_505);
+    // commissionBasePaise = 75,000; GST = 75,000 * 1801 / 10000 = 13,507.5 exactly.
+    expect(breakdown.commissionBasePaise).toBe(75_000);
+    expect(breakdown.commissionGstPaise).toBe(13_508);
     expect(breakdown).toEqual({
       budgetPaise: 1_500_500,
-      commissionBasePaise: 75_025,
-      commissionGstPaise: 13_505,
-      commissionTotalPaise: 88_530,
-      creatorAmountPaise: 1_411_970,
-      advancePaise: 423_591,
-      finalPaise: 988_379,
+      commissionBasePaise: 75_000,
+      commissionGstPaise: 13_508,
+      commissionTotalPaise: 88_508,
+      creatorAmountPaise: 1_411_992,
+      advancePaise: 423_598,
+      finalPaise: 988_394,
     });
   });
 
-  describe('configurable GST rate (V0_LAUNCH 2.6)', () => {
+  describe('configurable GST rate (the API passes its GST_RATE_BPS)', () => {
     it('charges no GST at all when gstRateBps is 0', () => {
       const breakdown = computeBreakdown(1_000_000, 0);
 

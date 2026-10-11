@@ -20,7 +20,6 @@ describe('canTransition: every allowed transition', () => {
     ['CONFIRMED', 'COMMISSION_PAID', 'SYSTEM'],
     ['CONFIRMED', 'CANCELLED', 'BRAND'],
     ['COMMISSION_PAID', 'ADVANCE_PAID', 'CREATOR'],
-    ['COMMISSION_PAID', 'CANCELLED', 'BRAND'],
     ['ADVANCE_PAID', 'CONTENT_UPLOADED', 'CREATOR'],
     ['CONTENT_UPLOADED', 'REVISION_REQUESTED', 'BRAND'],
     ['CONTENT_UPLOADED', 'APPROVED', 'BRAND'],
@@ -33,8 +32,8 @@ describe('canTransition: every allowed transition', () => {
     ['APPROVED', 'CANCELLED', 'ADMIN'],
   ];
 
-  it('has exactly 17 rows in the transition table', () => {
-    expect(DEAL_TRANSITIONS).toHaveLength(17);
+  it('has exactly 16 rows in the transition table', () => {
+    expect(DEAL_TRANSITIONS).toHaveLength(16);
   });
 
   it.each(cases)('allows %s -> %s for %s', (from, to, role) => {
@@ -44,7 +43,7 @@ describe('canTransition: every allowed transition', () => {
   it.each(cases)(
     'rejects %s -> %s for every role that has no row for it (not %s)',
     (from, to, row) => {
-      // A pair can have more than one row (COMMISSION_PAID -> CANCELLED: the brand and an admin).
+      // A pair can have more than one row (OPEN -> CANCELLED has only the brand; later stages only an admin).
       const allowed = cases.filter((c) => c[0] === from && c[1] === to).map((c) => c[2]);
       expect(allowed).toContain(row);
       for (const role of ACTOR_ROLES) {
@@ -53,6 +52,36 @@ describe('canTransition: every allowed transition', () => {
       }
     },
   );
+});
+
+describe('cancelling (REPLACEMENT_PLAN 2.6)', () => {
+  it('a brand can cancel only in OPEN and CONFIRMED', () => {
+    for (const from of DEAL_STATUSES) {
+      expect(canTransition(from, 'CANCELLED', 'BRAND')).toBe(
+        from === 'OPEN' || from === 'CONFIRMED',
+      );
+    }
+  });
+
+  it('a creator and the system never cancel', () => {
+    for (const from of DEAL_STATUSES) {
+      expect(canTransition(from, 'CANCELLED', 'CREATOR')).toBe(false);
+      expect(canTransition(from, 'CANCELLED', 'SYSTEM')).toBe(false);
+    }
+  });
+
+  it('an admin can cancel from COMMISSION_PAID to APPROVED only', () => {
+    const allowed = [
+      'COMMISSION_PAID',
+      'ADVANCE_PAID',
+      'CONTENT_UPLOADED',
+      'REVISION_REQUESTED',
+      'APPROVED',
+    ];
+    for (const from of DEAL_STATUSES) {
+      expect(canTransition(from, 'CANCELLED', 'ADMIN')).toBe(allowed.includes(from));
+    }
+  });
 });
 
 describe('canTransition: exhaustive matrix', () => {

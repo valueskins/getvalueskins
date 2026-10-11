@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES } from '../enums.js';
+import { USER_GENDERS, USER_ROLES } from '../enums.js';
 
 /** One of the last completed deals on a resume (SPEC 11). */
 export const resumeDealSchema = z.object({
@@ -26,6 +26,21 @@ export const resumeResponseSchema = z.object({
     igAccountType: z.string().nullable(),
     followersCount: z.number().nullable(),
     engagementRate: z.number().nullable(),
+    /** The profile details saved once and locked (REPLACEMENT_PLAN 2.4); null until they are saved. */
+    city: z.string().nullable(),
+    /** The current age, worked out from the age given and when it was given. */
+    age: z.number().int().nullable(),
+    gender: z.enum(USER_GENDERS).nullable(),
+    website: z.string().nullable(),
+    pitch: z.string().nullable(),
+    /** The verified email, shown because there is no chat (REPLACEMENT_PLAN 2.5). */
+    contactEmail: z.string().nullable(),
+    memberSince: z.string(),
+  }),
+  /** Across all completed deals, not only the last 10. */
+  stats: z.object({
+    completedDealsCount: z.number().int().min(0),
+    totalValuePaise: z.number().int().min(0),
   }),
   completedDeals: z.array(resumeDealSchema).max(10),
 });

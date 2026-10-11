@@ -7,6 +7,7 @@ export const appConfigResponseSchema = z.object({
   advancePercent: z.number().int().min(0).max(100),
   authEmailEnabled: z.boolean(),
   razorpayKeyId: z.string(),
+  supportEmail: z.string(),
 });
 
 export type AppConfigResponse = z.infer<typeof appConfigResponseSchema>;

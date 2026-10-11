@@ -10,8 +10,8 @@ export const SIGN_IN_WITH_EMAIL = 'Sign in with email';
 // Disabled-button reasons (SPEC 18)
 export const APPLICATIONS_CLOSED = 'Applications closed';
 export const ADD_UPI_TO_APPLY = 'Add your UPI ID to apply';
-export const CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE =
-  'Cancellation is not possible after the advance is paid';
+export const CANCELLATION_NOT_POSSIBLE_AFTER_FEE =
+  'The deal cannot be cancelled after the fee is paid. Write to us if something is wrong.';
 
 export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
 export const NO_APPLICATIONS_YET = 'No applications yet';
@@ -31,12 +31,13 @@ export const DISPUTE_ALREADY_RESOLVED = 'This dispute is already resolved';
 export const FIVE_REVISIONS_WARNING =
   'This deal has had 5 revisions. If you cannot agree, raise a dispute.';
 
-// Instagram login (SPEC 6.1)
-export const INSTAGRAM_PROFESSIONAL_ACCOUNT_REQUIRED =
-  'ValueSkins needs an Instagram Professional account. You can switch for free in Instagram settings: Account type and tools, Switch to professional account.';
+// Instagram login (SPEC 6.1, REPLACEMENT_PLAN 2.3)
+export const ACCOUNT_TYPE_UNSUPPORTED =
+  'ValueSkins needs a public Instagram Business or Creator account. A Business account posts deals as a brand. A Creator account applies to deals.';
+export const CONNECT_INSTAGRAM_TO_CONTINUE = 'Connect your Instagram account to continue.';
 
-// Onboarding (SPEC 6.4)
-export const ROLE_CANNOT_CHANGE_WARNING = 'You cannot change this later.';
+// Profile details (SPEC 6.4, REPLACEMENT_PLAN 2.4)
+export const ADULT_CONFIRMATION_TEXT = 'I am 18 or older.';
 
 // Creator payout details (SPEC 7.2, REPLACEMENT_PLAN 2.1)
 export const PAYOUT_CONSENT_TEXT =

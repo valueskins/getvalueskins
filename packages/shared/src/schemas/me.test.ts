@@ -5,7 +5,7 @@ const onboarding = {
   completed: false,
   nextStep: 'email',
   steps: [
-    { id: 'role', done: true, required: true },
+    { id: 'instagram', done: true, required: true },
     { id: 'email', done: false, required: true },
   ],
 };
@@ -35,6 +35,25 @@ describe('meResponseSchema', () => {
         engagementRate: 3.25,
         instagramSyncedAt: '2026-10-01T10:00:00.000Z',
       },
+      profileDetails: null,
+      onboarding,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts locked profile details with the current age', () => {
+    const result = meResponseSchema.safeParse({
+      user,
+      profile: null,
+      profileDetails: {
+        name: 'Asha Rao',
+        city: 'Pune',
+        age: 25,
+        gender: 'FEMALE',
+        website: null,
+        pitch: null,
+        lockedAt: '2026-10-01T10:00:00.000Z',
+      },
       onboarding,
     });
     expect(result.success).toBe(true);
@@ -44,24 +63,33 @@ describe('meResponseSchema', () => {
     const result = meResponseSchema.safeParse({
       user: { ...user, instagramUserId: null, role: null, email: 'a@example.com' },
       profile: null,
+      profileDetails: null,
       onboarding,
     });
     expect(result.success).toBe(true);
   });
 
   it('rejects a response with no profile key', () => {
-    expect(meResponseSchema.safeParse({ user, onboarding }).success).toBe(false);
+    expect(meResponseSchema.safeParse({ user, profileDetails: null, onboarding }).success).toBe(
+      false,
+    );
   });
 
   it('rejects an unknown role', () => {
     expect(
-      meResponseSchema.safeParse({ user: { ...user, role: 'ADMIN' }, profile: null, onboarding })
-        .success,
+      meResponseSchema.safeParse({
+        user: { ...user, role: 'ADMIN' },
+        profile: null,
+        profileDetails: null,
+        onboarding,
+      }).success,
     ).toBe(false);
   });
 
   it('rejects a response with no onboarding object', () => {
-    expect(meResponseSchema.safeParse({ user, profile: null }).success).toBe(false);
+    expect(meResponseSchema.safeParse({ user, profile: null, profileDetails: null }).success).toBe(
+      false,
+    );
   });
 
   it('rejects an unknown onboarding step', () => {
@@ -69,6 +97,7 @@ describe('meResponseSchema', () => {
       meResponseSchema.safeParse({
         user,
         profile: null,
+        profileDetails: null,
         onboarding: { ...onboarding, nextStep: 'marketplace' },
       }).success,
     ).toBe(false);

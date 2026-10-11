@@ -7,6 +7,8 @@ export * from './dealPublish.js';
 export * from './dealActions.js';
 export * from './copy.js';
 export * from './onboarding.js';
+export * from './accountType.js';
+export * from './age.js';
 export * from './payoutUpi.js';
 export * from './upiPay.js';
 export * from './invoices.js';
@@ -18,6 +20,8 @@ export * from './schemas/index.js';
 export {
   USER_ROLES,
   type UserRole,
+  USER_GENDERS,
+  type UserGender,
   CANCELLED_BY_ROLES,
   type CancelledByRole,
   APPLICATION_STATUSES,

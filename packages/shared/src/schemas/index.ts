@@ -8,6 +8,7 @@ export * from './cancel.js';
 export * from './dispute.js';
 export * from './email.js';
 export * from './billing.js';
+export * from './profile.js';
 export * from './payoutUpi.js';
 export * from './directPayment.js';
 export * from './me.js';

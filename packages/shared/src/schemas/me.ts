@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES } from '../enums.js';
+import { USER_GENDERS, USER_ROLES } from '../enums.js';
 import { ONBOARDING_STEPS } from '../onboarding.js';
 
 /** The curated user returned by GET /api/me (dates are ISO strings on the wire). */
@@ -26,7 +26,21 @@ export const meProfileSchema = z.object({
   instagramSyncedAt: z.string().nullable(),
 });
 
-/** Which onboarding steps apply, which are done, and which is next (SPEC 6.4, V0_LAUNCH 2.2). */
+/**
+ * The profile details saved once and locked (SPEC 6.4). Null on GET /api/me until they are saved.
+ * `age` is the current age, worked out from the age given and when it was given.
+ */
+export const profileDetailsSchema = z.object({
+  name: z.string(),
+  city: z.string(),
+  age: z.number().int().nullable(),
+  gender: z.enum(USER_GENDERS).nullable(),
+  website: z.string().nullable(),
+  pitch: z.string().nullable(),
+  lockedAt: z.string(),
+});
+
+/** Which onboarding steps apply, which are done, and which is next (SPEC 6.4). */
 export const meOnboardingSchema = z.object({
   completed: z.boolean(),
   nextStep: z.enum(ONBOARDING_STEPS).nullable(),
@@ -43,10 +57,12 @@ export const meOnboardingSchema = z.object({
 export const meResponseSchema = z.object({
   user: meUserSchema,
   profile: meProfileSchema.nullable(),
+  profileDetails: profileDetailsSchema.nullable(),
   onboarding: meOnboardingSchema,
 });
 
 export type MeUser = z.infer<typeof meUserSchema>;
 export type MeProfile = z.infer<typeof meProfileSchema>;
+export type ProfileDetails = z.infer<typeof profileDetailsSchema>;
 export type MeOnboarding = z.infer<typeof meOnboardingSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;

@@ -3,7 +3,7 @@ import {
   ADD_BILLING_TO_PUBLISH,
   ALREADY_APPLIED_MESSAGE,
   APPLICATIONS_CLOSED,
-  CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE,
+  CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   CREATOR_HAS_NO_UPI,
   NO_PAYMENT_RECORDED_YET,
   WAITING_FOR_CREATOR_TO_CONFIRM,
@@ -75,10 +75,10 @@ describe('computeDealActions: brand owner', () => {
     ]);
   });
 
-  it('COMMISSION_PAID: pay the advance by UPI once the creator has a UPI ID, or cancel', () => {
+  it('COMMISSION_PAID: pay the advance by UPI; cancel is disabled once the fee is paid', () => {
     expect(summary({ status: 'COMMISSION_PAID' })).toEqual([
       ['PAY_ADVANCE', true, null],
-      ['CANCEL', true, null],
+      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_FEE],
       ['RAISE_DISPUTE', true, null],
     ]);
   });
@@ -106,10 +106,10 @@ describe('computeDealActions: brand owner', () => {
     );
   });
 
-  it('APPROVED: pay the final by UPI; cancel is disabled with the SPEC reason', () => {
+  it('APPROVED: pay the final by UPI; cancel is disabled with the fee-paid reason', () => {
     expect(summary({ status: 'APPROVED' })).toEqual([
       ['PAY_FINAL', true, null],
-      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_FEE],
       ['RAISE_DISPUTE', true, null],
     ]);
   });
@@ -118,16 +118,16 @@ describe('computeDealActions: brand owner', () => {
     expect(summary({ status: 'CONTENT_UPLOADED' })).toEqual([
       ['SEND_FEEDBACK', true, null],
       ['APPROVE', true, null],
-      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+      ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_FEE],
       ['RAISE_DISPUTE', true, null],
     ]);
   });
 
   it.each(['ADVANCE_PAID', 'REVISION_REQUESTED'] as DealStatus[])(
-    '%s: cancel is disabled with the SPEC reason',
+    '%s: cancel is disabled with the fee-paid reason',
     (status) => {
       expect(summary({ status })).toEqual([
-        ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_ADVANCE],
+        ['CANCEL', false, CANCELLATION_NOT_POSSIBLE_AFTER_FEE],
         ['RAISE_DISPUTE', true, null],
       ]);
     },
