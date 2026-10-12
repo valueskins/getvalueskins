@@ -4,6 +4,7 @@ import { getEnv } from './env/index.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { logger } from './logging/logger.js';
 import { razorpayModeFromKeyId } from './razorpay/mode.js';
+import { attachRealtime } from './realtime/server.js';
 
 const env = getEnv();
 
@@ -15,13 +16,21 @@ const server = app.listen(env.PORT, () => {
   console.log(`api listening on port ${env.PORT}`);
 });
 
+const ctx = { env, now: () => new Date() };
+
+// SPEC 10: Socket.io on the same HTTP server. One instance only (a second needs the Redis adapter).
+const realtime = attachRealtime(server, ctx);
+
 // SPEC 14: the jobs run in this process, each under a Postgres advisory lock.
-const scheduler = startScheduler({ env, now: () => new Date() });
+const scheduler = startScheduler(ctx);
 
 process.on('SIGTERM', () => {
-  // Stop the schedules and let a running job finish before the connections close.
-  scheduler
-    .stop()
+  // Close the sockets first (an open socket would keep the server waiting), then stop the
+  // schedules and let a running job finish before the connections close.
+  realtime
+    .close()
+    .catch((err: unknown) => console.error(err))
+    .then(() => scheduler.stop())
     .catch((err: unknown) => console.error(err))
     .finally(() => {
       server.close(() => {

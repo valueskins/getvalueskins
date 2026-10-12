@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { dealEvents, deals } from '../db/schema/index.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
+import { emitDealTransition } from '../realtime/events.js';
 
 export type Deal = typeof deals.$inferSelect;
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -100,6 +101,9 @@ export async function transitionDeal(input: TransitionDealInput): Promise<Deal> 
     if (input.within) await input.within(tx, row);
     return row;
   });
+
+  // Realtime (SPEC 10): once per committed transition, before the slower email tasks. It never throws.
+  await emitDealTransition({ from, to, deal: updated });
 
   for (const task of input.afterCommit ?? []) {
     try {
