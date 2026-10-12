@@ -14,6 +14,7 @@ import {
 import { and, eq, isNull } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
+import { emitDealUpdated } from '../realtime/events.js';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
 import { deals, directPayments } from '../db/schema/index.js';
@@ -172,7 +173,9 @@ export async function recordDirectPayment(
     throw error;
   }
 
-  // After the commit, and never failing the request (SPEC 8).
+  // After the commit, and never failing the request (SPEC 8). The deal's status did not change, but
+  // the record is new, so both sides' open pages refetch (SPEC 10).
+  emitDealUpdated(loaded);
   try {
     await recordedEmailTask(ctx.env, row)(loaded);
   } catch {
@@ -282,6 +285,8 @@ export async function markNotReceived(
   if (!updated) throw new AppError('DIRECT_PAYMENT_NOT_PENDING', 409, DIRECT_PAYMENT_NOT_PENDING);
 
   const deal = (await findDeal(row.dealId)) as Deal;
+  // The status is unchanged, but the record is now marked not received: refetch (SPEC 10).
+  emitDealUpdated(deal);
   for (const task of notReceivedEmailTasks(ctx.env, updated, input.reason)) {
     try {
       await task(deal);

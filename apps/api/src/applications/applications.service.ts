@@ -1,3 +1,4 @@
+import { emitApplicationNew } from '../realtime/events.js';
 import {
   APPLICATIONS_CLOSED,
   ALREADY_APPLIED_MESSAGE,
@@ -96,6 +97,13 @@ export async function applyToDeal(
       if (isUniqueViolation(error)) throw alreadyApplied();
       throw error;
     }
+  });
+
+  // Realtime (SPEC 10): tell the brand's open pages. Ids only, and it never fails the request.
+  emitApplicationNew({
+    brandId: created.deal.brandId,
+    dealId,
+    applicationId: created.application.id,
   });
 
   try {

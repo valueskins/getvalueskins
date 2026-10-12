@@ -1,10 +1,12 @@
-import type { Request, Response } from 'express';
+import type { IncomingMessage } from 'node:http';
+import type { Response } from 'express';
 import type { Env } from '../env/index.js';
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** No cookie-parsing dependency: reading req.headers.cookie is this simple. */
-export function getCookie(req: Request, name: string): string | undefined {
+/** Works for an Express request and for a socket handshake request: only the headers are read. */
+export function getCookie(req: Pick<IncomingMessage, 'headers'>, name: string): string | undefined {
   const header = req.headers.cookie;
   if (!header) return undefined;
 

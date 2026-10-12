@@ -373,6 +373,29 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     - The seeded deals on staging sit in `CONFIRMED`, `COMMISSION_PAID` and `APPROVED`, so after 24 hours the seeded `@example.com` addresses get reminders. Resend rejects those addresses and the rows are logged as `FAILED`; that is expected and harmless.
     - There is no switch to turn the jobs off without a code change. To stop all of them quickly, suspend the Render service.
 
+15. **Live updates (Socket.io).** Nothing to set up. To check it end to end, use two terminals on your laptop (Node 22) in the repo, `pnpm install` done. Sign in as a creator in a browser at `https://staging.valueskins.com`, then copy the value of the `vs_session_staging` cookie from the developer tools (Application > Cookies) into the command:
+
+    ```bash
+    # An unauthenticated socket is refused: expect "refused: unauthorized".
+    node --input-type=module -e "
+    import { io } from 'socket.io-client';
+    const s = io('https://api-staging.valueskins.com', { transports: ['websocket'], reconnection: false });
+    s.on('connect', () => { console.log('connected (unexpected)'); s.close(); });
+    s.on('connect_error', (e) => { console.log('refused:', e.message); s.close(); });
+    "
+
+    # A signed-in creator connects and hears deals as they are published: expect "connected", then one line per event.
+    node --input-type=module -e "
+    import { io } from 'socket.io-client';
+    const s = io('https://api-staging.valueskins.com', { transports: ['websocket'], extraHeaders: { cookie: 'vs_session_staging=PASTE-THE-COOKIE-VALUE' } });
+    s.on('connect', () => console.log('connected'));
+    s.on('connect_error', (e) => console.log('refused:', e.message));
+    for (const name of ['deal:new', 'deal:closed', 'deal:updated', 'application:new']) s.on(name, (p) => console.log(name, JSON.stringify(p)));
+    "
+    ```
+
+    Run them from `apps/api` (where `socket.io-client` is installed), for example with `pnpm --filter @valueskins/api exec node ...`. With the second command running, publish a deal as a brand (step 11): the creator's terminal prints `deal:new` with the title, the brand's username and picture, the budget, the creator amount and the two deadlines, and nothing else. Confirm the creator for a deal: it prints `deal:closed`. A creator is only in `feed:creators` after finishing onboarding. If every websocket attempt fails on staging but works locally, check that nothing in front of Render blocks `Upgrade: websocket` (Render's web services support WebSockets with no extra setting; confirm this on first deploy).
+
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
 ## 14. Seed staging and set the admin
@@ -504,7 +527,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Re-trigger the delivery from Razorpay's dashboard to catch up.
 - **Deleting an account** does not yet remove brand billing rows (the creator's UPI details are cleared).
 - **Jobs run inside the API process.** Render keeps one instance, so they run once; a second instance is safe (the lock) but does nothing extra. A job that fails is logged, not emailed (SPEC 14). Reminder emails carry no link to the deal, because the temporary pages are replaced soon.
-- **No live updates.** Socket.io is not built, so the deal feed does not update by itself (SPEC 10). The deals API is the only source of truth for now.
+- **Live updates run in the API process.** Socket.io is attached to the API's HTTP server (SPEC 10), so there is one instance and nothing extra to configure; the web app must connect with credentials to the API origin, and its CSP needs `connect-src` for the API origin and `wss://` (done with the real web screens). A second Render instance would need the Redis adapter and sticky sessions first. The temporary pages do not listen to sockets yet, so they still update only on reload.
 - **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.
 - **Privacy policy and terms** are placeholder drafts.
 - **Free database** has no backups and expires (section 17).
