@@ -70,7 +70,7 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   app.use(jsonBodyMiddleware);
 
   app.use(originCheck(env));
-  app.use(sessionMiddleware(env));
+  app.use(sessionMiddleware(env, ctx.now));
   app.use('/api', globalUserLimiter);
 
   app.use(healthRoutes());

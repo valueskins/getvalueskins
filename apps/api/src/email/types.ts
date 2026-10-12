@@ -62,6 +62,18 @@ export interface EmailTemplateDataMap {
     resolution: string;
     refundReference: string | null;
   };
+  DIRECT_PAYMENT_DUE_REMINDER: {
+    dealShortId: string;
+    dealTitle: string;
+    stage: 'ADVANCE' | 'FINAL';
+    amountPaise: number;
+  };
+  DIRECT_PAYMENT_CONFIRM_REMINDER: {
+    dealShortId: string;
+    dealTitle: string;
+    stage: 'ADVANCE' | 'FINAL';
+    amountPaise: number;
+  };
   ADMIN_ALERT: { subjectLine: string; details: string };
   SIGN_IN_CODE: { code: string; expiresInMinutes: number };
 }

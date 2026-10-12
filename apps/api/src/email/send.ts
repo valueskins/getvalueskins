@@ -16,6 +16,8 @@ export interface SendOptions {
   attachments?: { filename: string; content: Buffer }[];
   dealId?: string;
   userId?: string;
+  /** The clock of the caller. It becomes `email_log.created_at`, so a job's "already sent today" check agrees with the job's own clock. */
+  now?: Date;
 }
 
 export interface SendResult {
@@ -101,6 +103,7 @@ async function deliver(
       bodyText: content.text,
       attachmentNames: options.attachments?.map((a) => a.filename) ?? null,
       status: 'QUEUED',
+      ...(options.now ? { createdAt: options.now } : {}),
     })
     .returning();
 

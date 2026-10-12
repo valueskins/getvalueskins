@@ -13,7 +13,9 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:migrate:deploy": "node dist/db/migrate.js",
     "db:seed": "tsx src/db/seed.ts",
-    "db:seed:deploy": "node dist/db/seed.js"
+    "db:seed:deploy": "node dist/db/seed.js",
+    "job": "tsx src/jobs/run.ts",
+    "job:deploy": "node dist/jobs/run.js"
   },
   "dependencies": {
     "@valueskins/shared": "workspace:*",
@@ -22,6 +24,7 @@
     "drizzle-orm": "^0.45.3",
     "express": "^5.0.1",
     "helmet": "^8.3.0",
+    "node-cron": "^4.6.0",
     "pdfkit": "^0.20.2",
     "pg": "^8.23.0",
     "pino": "^10.3.1",

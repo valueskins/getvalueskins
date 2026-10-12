@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { sessions, users } from '../db/schema/index.js';
 import { SESSION_TTL_MS } from './cookies.js';
@@ -50,6 +50,8 @@ export interface ResolvedSession {
   sessionId: string;
   expiresAt: Date;
   user: AuthenticatedUser;
+  /** When the user was last stamped as active (null if never). Not part of AuthenticatedUser: it is never sent to a client. */
+  lastActiveAt: Date | null;
 }
 
 /** Looks up a session by its raw cookie token. Never throws — returns null on
@@ -71,6 +73,7 @@ export async function findValidSession(token: string): Promise<ResolvedSession |
     sessionId: row.session.id,
     expiresAt: row.session.expiresAt,
     user: toAuthenticatedUser(row.user),
+    lastActiveAt: row.user.lastActiveAt,
   };
 }
 
@@ -91,4 +94,37 @@ export async function refreshSessionIfStale(
 
 export async function deleteSessionByToken(token: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+}
+
+/** `last_active_at` is written at most this often per user: the daily Instagram refresh only needs the day. */
+export const LAST_ACTIVE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Stamps `users.last_active_at` when it is empty or more than an hour old (SPEC 14: the Instagram
+ * refresh covers users active in the last 30 days). The check is on the row the session lookup
+ * already read, so most requests cost nothing; the update repeats the check so two requests
+ * racing it write once.
+ */
+export async function touchLastActive(
+  userId: string,
+  lastActiveAt: Date | null,
+  now: Date,
+): Promise<boolean> {
+  if (lastActiveAt !== null && now.getTime() - lastActiveAt.getTime() < LAST_ACTIVE_INTERVAL_MS) {
+    return false;
+  }
+  const updated = await db
+    .update(users)
+    .set({ lastActiveAt: now })
+    .where(
+      and(
+        eq(users.id, userId),
+        or(
+          isNull(users.lastActiveAt),
+          lt(users.lastActiveAt, new Date(now.getTime() - LAST_ACTIVE_INTERVAL_MS)),
+        ),
+      ),
+    )
+    .returning({ id: users.id });
+  return updated.length > 0;
 }

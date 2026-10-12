@@ -1,5 +1,5 @@
 import type { Env } from '../env/index.js';
-import { InstagramApiError, throwIfMetaError } from './errors.js';
+import { InstagramApiError, throwForFailedResponse, throwIfMetaError } from './errors.js';
 
 /** Meta's API responses are untyped external JSON — cast once at this single
  * trust boundary rather than scattering `any` through every call site below. */
@@ -7,6 +7,9 @@ import { InstagramApiError, throwIfMetaError } from './errors.js';
 type MetaJson = Record<string, any>;
 
 async function parseJson(response: Response): Promise<MetaJson> {
+  // A failed call can have an empty or HTML body (a rate limit, a gateway error): the caller still
+  // needs to learn the status, so an unreadable body on a failure becomes {}.
+  if (!response.ok) return (await response.json().catch(() => ({}))) as MetaJson;
   return (await response.json()) as MetaJson;
 }
 
@@ -71,7 +74,7 @@ export async function exchangeForLongLivedToken(
 
   const response = await fetch(url);
   const json = await parseJson(response);
-  if (!response.ok) throwIfMetaError(json);
+  if (!response.ok) throwForFailedResponse(json, response.status);
 
   return { accessToken: json.access_token, expiresInSeconds: json.expires_in };
 }
@@ -86,7 +89,7 @@ export async function refreshLongLivedToken(currentToken: string): Promise<LongL
 
   const response = await fetch(url);
   const json = await parseJson(response);
-  if (!response.ok) throwIfMetaError(json);
+  if (!response.ok) throwForFailedResponse(json, response.status);
 
   return { accessToken: json.access_token, expiresInSeconds: json.expires_in };
 }
@@ -114,7 +117,7 @@ export async function fetchProfile(accessToken: string): Promise<InstagramProfil
 
   const response = await fetch(url);
   const json = await parseJson(response);
-  if (!response.ok) throwIfMetaError(json);
+  if (!response.ok) throwForFailedResponse(json, response.status);
 
   return {
     userId: String(json.user_id),
@@ -142,7 +145,7 @@ export async function fetchLatestMedia(accessToken: string): Promise<MediaEngage
 
   const response = await fetch(url);
   const json = await parseJson(response);
-  if (!response.ok) throwIfMetaError(json);
+  if (!response.ok) throwForFailedResponse(json, response.status);
 
   const items = Array.isArray(json.data) ? json.data : [];
   return items.map((item: { like_count?: number; comments_count?: number }) => ({
