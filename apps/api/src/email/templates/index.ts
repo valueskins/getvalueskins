@@ -13,6 +13,8 @@ import { contentUploadedTemplate } from './contentUploaded.js';
 import { dealCancelledTemplate } from './dealCancelled.js';
 import { dealPublishedTemplate } from './dealPublished.js';
 import { dealReportReadyTemplate } from './dealReportReady.js';
+import { directPaymentConfirmReminderTemplate } from './directPaymentConfirmReminder.js';
+import { directPaymentDueReminderTemplate } from './directPaymentDueReminder.js';
 import { directPaymentNotReceivedTemplate } from './directPaymentNotReceived.js';
 import { directPaymentRecordedTemplate } from './directPaymentRecorded.js';
 import { disputeRaisedTemplate } from './disputeRaised.js';
@@ -50,6 +52,8 @@ export const templateRegistry: TemplateRegistry = {
   DISPUTE_RESOLVED: disputeResolvedTemplate,
   DIRECT_PAYMENT_RECORDED: directPaymentRecordedTemplate,
   DIRECT_PAYMENT_NOT_RECEIVED: directPaymentNotReceivedTemplate,
+  DIRECT_PAYMENT_DUE_REMINDER: directPaymentDueReminderTemplate,
+  DIRECT_PAYMENT_CONFIRM_REMINDER: directPaymentConfirmReminderTemplate,
   ADMIN_ALERT: adminAlertTemplate,
   SIGN_IN_CODE: signInCodeTemplate,
 };

@@ -133,6 +133,46 @@ describe('HTML escaping of user-supplied text', () => {
   });
 });
 
+describe('payment reminder emails (19 and 20)', () => {
+  const hostile = '<b>"Deal"</b> & co';
+
+  it('19 asks the brand to pay and record the payment, with the amount, and no UPI ID', () => {
+    const content = templateRegistry.DIRECT_PAYMENT_DUE_REMINDER({
+      dealShortId: 'ABC12345',
+      dealTitle: hostile,
+      stage: 'ADVANCE',
+      amountPaise: 273_450,
+    });
+    expect(content.subject).toContain('advance payment due');
+    expect(content.text).toContain('The advance of ₹2,734.50');
+    expect(content.text).toContain('Pay the creator by UPI, then record the payment');
+    expect(content.text).not.toMatch(/@[a-z]+/i);
+    expect(content.html).toContain('&lt;b&gt;&quot;Deal&quot;&lt;/b&gt; &amp; co');
+    expect(content.html).not.toContain('<b>');
+  });
+
+  it('20 asks the creator to confirm, or say it did not arrive, and says which stage', () => {
+    const advance = templateRegistry.DIRECT_PAYMENT_CONFIRM_REMINDER({
+      dealShortId: 'ABC12345',
+      dealTitle: hostile,
+      stage: 'ADVANCE',
+      amountPaise: 273_450,
+    });
+    const final = templateRegistry.DIRECT_PAYMENT_CONFIRM_REMINDER({
+      dealShortId: 'ABC12345',
+      dealTitle: 'Deal',
+      stage: 'FINAL',
+      amountPaise: 638_050,
+    });
+    expect(advance.text).toContain('recorded an advance payment of ₹2,734.50');
+    expect(final.text).toContain('recorded a final payment of ₹6,380.50');
+    expect(advance.text).toContain('Check your UPI app');
+    expect(advance.text).toContain('If it did not arrive, say so');
+    expect(advance.html).not.toContain('<b>');
+    expect(advance.text).not.toMatch(/@[a-z]+/i);
+  });
+});
+
 describe('dispute emails', () => {
   it('15b names the dispute, the resolution and the refund reference, and escapes user text', () => {
     const content = templateRegistry.DISPUTE_RESOLVED({

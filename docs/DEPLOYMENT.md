@@ -355,6 +355,24 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
     The API never moves money. The advance and final are paid by the brand directly to the creator, so an admin who cancels a deal records any refund the parties arranged in the cancel or resolve call (the optional reference); the commission is refunded by hand in the Razorpay dashboard, if at all. `/admin/deals/$DEAL` lists every direct payment, a not-received one included.
 
+14. **Scheduled jobs.** The API runs seven jobs on a timetable in Indian time (SPEC 14). There is nothing to set up: they start with the service, and each run writes one log line, `job finished` (or `job skipped` or `job failed`), with `job`, `status`, `durationMs` and counts such as `selected` and `sent`. Read them in Render, **Logs**, by searching for `"job"`. `instagram-refresh` runs at 03:00, `cleanup` at 04:00, `fee-reminder`, `payment-due-reminder` and `review-reminder` at 10:00, `confirm-payment-reminder` at 00:00, 06:00, 12:00 and 18:00, and `content-overdue` at 23:59.
+
+    To try one now, in the Render **Shell** (add `SUPPORT_EMAIL` first if the shell has no `.env`; on Render it is already in the service environment):
+
+    ```bash
+    pnpm --filter @valueskins/api run job:deploy -- --list                  # the jobs and their schedules
+    pnpm --filter @valueskins/api run job:deploy -- fee-reminder            # run one once, with the real clock
+    ```
+
+    Expected: it prints the result, for example `{"job":"fee-reminder","status":"ok","durationMs":58,"counts":{"selected":1,"sent":1}}`, and exits 0 (1 if the job failed, or the name is wrong). Run it a second time the same day: `sent` is 0 and `alreadySent` is 1, because a reminder goes to a person at most once per deal per day (`email_log`). A reminder is sent only when the deal fits its rule: the fee reminder needs a deal in `CONFIRMED` for over 24 hours, the payment-due reminder a deal in `COMMISSION_PAID` (or `APPROVED`) for over 24 hours with no advance (or final) payment recorded, the confirm-payment reminder a recorded payment waiting over 12 hours, the review reminder content waiting over 3 days. To see one by hand on staging, move a test deal's timestamp back in the Render shell database, for example `update deals set confirmed_at = now() - interval '2 days' where short_id = '...'`.
+
+    Notes:
+
+    - A job takes a Postgres lock, so a run started by hand while the schedule is running it answers `status: skipped` and does nothing. The same lock keeps two instances, or a deploy overlap, from running a job twice.
+    - `instagram-refresh` covers users who used the app in the last 30 days (`users.last_active_at`, written at most once an hour). The column was empty before this feature, so the first runs refresh only people who come back after the deploy.
+    - The seeded deals on staging sit in `CONFIRMED`, `COMMISSION_PAID` and `APPROVED`, so after 24 hours the seeded `@example.com` addresses get reminders. Resend rejects those addresses and the rows are logged as `FAILED`; that is expected and harmless.
+    - There is no switch to turn the jobs off without a code change. To stop all of them quickly, suspend the Render service.
+
 Both sign-in methods working for tester accounts and `/privacy` being public is the definition of done for this setup.
 
 ## 14. Seed staging and set the admin
@@ -485,6 +503,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Re-trigger the delivery from Razorpay's dashboard to catch up.
 - **Deleting an account** does not yet remove brand billing rows (the creator's UPI details are cleared).
+- **Jobs run inside the API process.** Render keeps one instance, so they run once; a second instance is safe (the lock) but does nothing extra. A job that fails is logged, not emailed (SPEC 14). Reminder emails carry no link to the deal, because the temporary pages are replaced soon.
 - **No live updates.** Socket.io is not built, so the deal feed does not update by itself (SPEC 10). The deals API is the only source of truth for now.
 - **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.
 - **Privacy policy and terms** are placeholder drafts.

@@ -16,7 +16,8 @@
     "test": "pnpm --filter \"./packages/*\" run build && pnpm -r run test",
     "db:generate": "pnpm --filter @valueskins/api run db:generate",
     "db:migrate": "pnpm --filter @valueskins/api run db:migrate",
-    "db:seed": "pnpm --filter @valueskins/api run db:seed"
+    "db:seed": "pnpm --filter @valueskins/api run db:seed",
+    "job": "pnpm --filter @valueskins/api run job"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
