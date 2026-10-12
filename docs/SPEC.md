@@ -234,7 +234,7 @@ Meta app review takes weeks, and building cannot wait. In development and stagin
 - Session = random 32-byte token in an httpOnly, Secure, `SameSite=Lax` cookie with `Domain=.valueskins.com`. Only its SHA-256 hash is stored in `sessions`. 30-day expiry, sliding.
 - Every mutating request must carry an `Origin` header equal to `WEB_ORIGIN` (`https://valueskins.com` in production), checked server side as CSRF protection, in addition to SameSite. Webhook and Meta callback routes are exempt (they verify signatures instead).
 - Logout deletes the session row.
-- Socket.io authenticates with the same cookie during the handshake.
+- Socket.io authenticates with the same cookie during the handshake (section 10).
 
 ### 6.4 Onboarding (all steps required, in order)
 
@@ -391,16 +391,38 @@ Drafts: the form auto-saves to browser localStorage every 30 seconds and on blur
 
 ## 10. Real-time (Socket.io)
 
-- Served from the API on the same origin as the REST API (`api.valueskins.com`), path `/socket.io`, CORS origin `https://valueskins.com` with credentials.
-- Handshake authenticates with the session cookie. Unauthenticated connections are refused.
-- Rooms: `feed:creators` (all creators), `user:<userId>`, `deal:<dealId>` (only the brand and confirmed creator; joining is checked).
-- Events:
-  - `deal:new` to `feed:creators` when a deal is published: `{ id, title, brand: {username, profilePicUrl}, budgetPaise, creatorAmountPaise, applicationDeadline, contentUploadDeadline }`
-  - `deal:closed` to `feed:creators` when a deal leaves OPEN (confirmed or cancelled), so it disappears from feeds.
-  - `deal:updated` to `deal:<id>` on every transition: `{ id, status }`. Clients refetch the deal.
-  - `application:new` to `user:<brandId>`.
-- Clients always fetch the current state over REST on load and on reconnect. Sockets are only for live updates, never the source of truth.
-- Single Render instance for v1. Scaling to more than one instance later needs the Socket.io Redis adapter and sticky sessions.
+Socket.io runs on the API's own HTTP server (`apps/api/src/realtime/`), on the same origin as the REST API (`api.valueskins.com`), path `/socket.io`, CORS origin `WEB_ORIGIN` with credentials. A socket only says that something changed: **clients refetch over REST on every event, on load and on reconnect. Sockets are never the source of truth**, and no payload carries anything REST would hide (no UPI ID, email or payment details).
+
+**Handshake.** Socket.io answers `/socket.io/*` before Express, so the Express checks do not apply and the socket code does its own:
+
+- If the request has an `Origin` header and it is not `WEB_ORIGIN`, it is refused (HTTP 403). Browsers always send Origin; a non-browser client sends none and still needs a session.
+- The session cookie (`SESSION_COOKIE_NAME`) must be present and valid, checked like any request (`findValidSession`). A missing, malformed, unknown, expired or deleted session is refused: the client gets `connect_error` with the message `unauthorized`. The handshake does not extend the session or touch `last_active_at`.
+- Handshake headers and cookies are never logged. A connection logs only the socket id, the user id and the transport; a refusal logs a reason word.
+
+**Rooms.**
+
+| Room            | Who is in it                                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user:<userId>` | The user's own sockets, joined on connect. The id comes from the session.                                                                                                                        |
+| `feed:creators` | Joined on connect by a user whose role is CREATOR and who finished onboarding (the rule of `GET /deals/feed`). Never a brand, an admin, an unfinished creator or an account with no role.        |
+| `deal:<dealId>` | Joined on request, only by the deal's brand, its confirmed creator, or an admin (`loadParticipantDeal`: a creator who merely applied is not allowed, even to an OPEN deal that REST shows them). |
+
+A client joins with `deal:join` `{ dealId }` and leaves with `deal:leave` `{ dealId }`. Both answer through the acknowledgement callback with `{ ok: true }` or `{ ok: false }`. A refusal never says why, so a stranger cannot tell a deal that does not exist from one they may not join. A bad payload (anything but `{ dealId: <uuid> }`), more than 50 deal rooms on one socket, or more than 30 `deal:join` calls a minute on one socket is `{ ok: false }`. The session is checked again on every join; if it is gone the answer is `{ ok: false }` and the socket is disconnected. A client rejoins its deal rooms after a reconnect (rooms do not survive one). Messages are limited to 10 kB.
+
+**Events.** Sent only after the database commit, and a failure to send is logged and never fails the request. Names, room builders and payload schemas are in `packages/shared/src/realtime.ts`.
+
+| Event             | To               | When                                                                                                                                                                                                   | Payload                                                                                                                                                                               |
+| ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deal:new`        | `feed:creators`  | A draft is published (DRAFT to OPEN)                                                                                                                                                                   | `{ id, title, brand: { username, profilePictureUrl }, budgetPaise, creatorAmountPaise, applicationDeadline, contentUploadDeadline }`, built from this list, never from the whole deal |
+| `deal:closed`     | `feed:creators`  | A deal leaves OPEN (confirmed or cancelled), so it drops out of feeds                                                                                                                                  | `{ id, status }`                                                                                                                                                                      |
+| `deal:updated`    | `deal:<id>`      | Every deal transition (one event per transition, whichever route or webhook caused it), and also when a direct payment is recorded or marked not received (the status is unchanged, the record is new) | `{ id, status }`                                                                                                                                                                      |
+| `application:new` | `user:<brandId>` | A creator applies                                                                                                                                                                                      | `{ dealId, applicationId }`                                                                                                                                                           |
+
+The picture key is `profilePictureUrl`, the same as in the REST feed. Transitions send their events from `transitionDeal`, once, right after the commit and before the email tasks (a lost race, a failed step or an invalid pair sends nothing). The direct payment confirm is a transition. Applying, recording a payment and marking it not received are not, so those services send their own.
+
+**Not covered (a client refetches instead):** a creator picked or passed over for a deal (they refetch `GET /applications/mine` on `deal:closed` and on reconnect); drafts (nobody else sees them); disputes and refunds (they do not change what the deal page shows); a session that is logged out while a socket is open (the next `deal:join` notices, and events carry only ids and statuses).
+
+**One instance.** Single Render instance for v1 (the emitter is in memory). Scaling to more than one instance later needs the Socket.io Redis adapter and sticky sessions, and a transition handled by one instance would otherwise not reach sockets held by another.
 
 ---
 
