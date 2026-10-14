@@ -37,7 +37,7 @@ The design for the web rebuild (W1 to W3 in `docs/REPLACEMENT_PLAN.md` section 7
   - A deadline is the end of that day in IST.
   - Countdowns read "8 days left", switch to hours under 24 hours, and turn red as "Overdue by 2 days".
 - **Short ids:** shown exactly as the API makes them, 8 characters in mono with no prefix, for example `8K2M4QXZ`. This matches emails, PDFs and the Razorpay receipt. Invoice numbers keep their own formats, `VS/2026-27/000123` and `VS-PR/2026-27/000045`.
-- **Wording:** the screens say "ValueSkins fee", where the code's labels and email subjects say "commission". They say "Deal record" for the ADP PDF, which the code titles "Deal Report". Both are open in `WEB_API_GAPS.md`.
+- **Wording:** the screens say "ValueSkins fee" and "Deal record", and the API now says the same in copy, email subjects and bodies, PDFs and error messages. Identifiers, enums, table names and URL slugs keep "commission" and `adp`. Closed in `WEB_API_GAPS.md`.
 - **UPI ID:**
   - Masked as `cr•••@okhdfcbank` everywhere, including for admins and on the creator's own screens.
   - In full only on the brand's pay panel, from `GET /deals/:id/direct-payment`.
@@ -207,4 +207,4 @@ Every board from the design system to admin was checked:
 - the full UPI ID only on the brand's pay panel
 - every board in `canvas.json` has a file
 
-The only deliberate exception is the deal template's example text ("Oct 1-3", "2000 INR"), quoted from SPEC 9. `WEB_API_GAPS.md` asks for it to be rewritten when it moves into `copy.ts`.
+The deal template (`DEAL_DESCRIPTION_TEMPLATE` in `copy.ts`, SPEC 9) now follows the copy rules too ("1 to 3 Oct", "₹2,000.00"), so there is no exception left.
