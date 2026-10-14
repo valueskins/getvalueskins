@@ -1,3 +1,4 @@
+import { PUBLISH_LIMIT_MESSAGE } from '@valueskins/shared';
 import type { Request } from 'express';
 import { createKeyedLimiter, createRateLimiter } from './factory.js';
 
@@ -43,6 +44,7 @@ export const consumePublishDealLimit = createKeyedLimiter({
   points: 10,
   duration: 24 * 60 * 60,
   keyPrefix: 'publish-deal',
+  error: { code: 'PUBLISH_LIMIT', message: PUBLISH_LIMIT_MESSAGE },
 });
 
 /** SPEC 13: apply, 20 per 24 hours per creator. Consumed by the handler once the application is allowed. */

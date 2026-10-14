@@ -32,3 +32,21 @@ export const disputeListQuerySchema = cursorPageQuerySchema
   .strict();
 
 export type DisputeListQuery = z.infer<typeof disputeListQuerySchema>;
+
+/** Who raised a dispute: only a deal's brand or its confirmed creator can. */
+export const DISPUTE_RAISER_ROLES = ['BRAND', 'CREATOR'] as const;
+
+/**
+ * A dispute as the deal's own brand and creator see it on the deal page: what it is about and
+ * where it stands. The text, the resolution and who resolved it stay with the admin.
+ */
+export const dealDisputeSchema = z.object({
+  id: z.string(),
+  subject: z.string(),
+  status: z.enum(DISPUTE_STATUSES),
+  raisedByRole: z.enum(DISPUTE_RAISER_ROLES),
+  createdAt: z.string(),
+  resolvedAt: z.string().nullable(),
+});
+
+export type DealDispute = z.infer<typeof dealDisputeSchema>;

@@ -269,7 +269,7 @@ describe('every seeded deal renders its documents', () => {
     for (const deal of all) {
       const report = await renderAdp(deal.id, new Date('2026-10-10T00:00:00Z'));
       expect(report.content.subarray(0, 5).toString(), deal.shortId).toBe('%PDF-');
-      expect(report.filename).toBe(`ValueSkins-Deal-Report-${deal.shortId}.pdf`);
+      expect(report.filename).toBe(`ValueSkins-Deal-Record-${deal.shortId}.pdf`);
     }
   });
 });
@@ -289,7 +289,7 @@ describe('the deal report covers every section of SPEC 17', () => {
       'Parties',
       'Terms',
       'Money',
-      'Commission tax invoice',
+      'ValueSkins fee tax invoice',
       'Advance payment record',
       'Final payment record',
       'Delivery proof',
@@ -303,7 +303,7 @@ describe('the deal report covers every section of SPEC 17', () => {
     // 1 header
     expect(text).toEqual(
       expect.arrayContaining([
-        'ValueSkins Deal Report',
+        'ValueSkins Deal Record',
         `${deal!.shortId}. Generated 10 Oct 2026, 13:30 IST`,
       ]),
     );

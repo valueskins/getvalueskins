@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -183,11 +183,20 @@ describe('POST /api/deals/:id/direct-payment', () => {
       recordedBy: f.brand.user.id,
       confirmedAt: null,
     });
-    // No status change, no deal event, no deal date.
+    // No status change and no deal date, but the activity gets an entry, written with the record.
     expect(await statusOf(f.deal.id)).toBe('COMMISSION_PAID');
-    expect(await db.select().from(dealEvents).where(eq(dealEvents.dealId, f.deal.id))).toHaveLength(
-      0,
-    );
+    const events = await db.select().from(dealEvents).where(eq(dealEvents.dealId, f.deal.id));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      fromStatus: 'COMMISSION_PAID',
+      toStatus: 'COMMISSION_PAID',
+      actorType: 'USER',
+      actorId: f.brand.user.id,
+      metadata: { kind: 'PAYMENT_RECORDED', directPaymentId: row?.id, stage: 'ADVANCE' },
+    });
+    // Ids only: neither the UPI ID nor the UTR reference is in the event.
+    expect(JSON.stringify(events[0])).not.toContain(f.vpa);
+    expect(JSON.stringify(events[0])).not.toContain(row?.reference as string);
     expect(
       (await db.select().from(deals).where(eq(deals.id, f.deal.id)))[0]?.advancePaidAt,
     ).toBeNull();
@@ -325,7 +334,17 @@ describe('POST /api/direct-payments/:id/confirm', () => {
     });
 
     expect(await statusOf(f.deal.id)).toBe('ADVANCE_PAID');
-    const [event] = await db.select().from(dealEvents).where(eq(dealEvents.dealId, f.deal.id));
+    // The record's entry first, then the one status change.
+    const events = await db
+      .select()
+      .from(dealEvents)
+      .where(eq(dealEvents.dealId, f.deal.id))
+      .orderBy(asc(dealEvents.id));
+    expect(events.map((e) => `${e.fromStatus}>${e.toStatus}`)).toEqual([
+      'COMMISSION_PAID>COMMISSION_PAID',
+      'COMMISSION_PAID>ADVANCE_PAID',
+    ]);
+    const event = events[1];
     expect(event).toMatchObject({
       fromStatus: 'COMMISSION_PAID',
       toStatus: 'ADVANCE_PAID',
@@ -401,8 +420,9 @@ describe('POST /api/direct-payments/:id/confirm', () => {
     ]);
     expect(results.map((r) => r.status).sort()).toEqual([200, 409, 409]);
     expect(await statusOf(f.deal.id)).toBe('ADVANCE_PAID');
+    // The record's entry, and one status change.
     expect(await db.select().from(dealEvents).where(eq(dealEvents.dealId, f.deal.id))).toHaveLength(
-      1,
+      2,
     );
     expect(await db.select().from(invoices)).toHaveLength(1);
     expect(await sentEmails('ADVANCE_PAID')).toHaveLength(2);
@@ -456,9 +476,21 @@ describe('POST /api/direct-payments/:id/not-received', () => {
       disputeReason: 'Nothing in my account',
     });
     expect(await statusOf(f.deal.id)).toBe('COMMISSION_PAID');
-    expect(await db.select().from(dealEvents).where(eq(dealEvents.dealId, f.deal.id))).toHaveLength(
-      0,
-    );
+    // Two entries: recorded, then not received. The status is the same in both.
+    const events = await db
+      .select()
+      .from(dealEvents)
+      .where(eq(dealEvents.dealId, f.deal.id))
+      .orderBy(asc(dealEvents.id));
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      fromStatus: 'COMMISSION_PAID',
+      toStatus: 'COMMISSION_PAID',
+      actorType: 'USER',
+      actorId: f.creator.user.id,
+      note: 'Nothing in my account',
+      metadata: { kind: 'PAYMENT_NOT_RECEIVED', directPaymentId: id, stage: 'ADVANCE' },
+    });
     // An alert, not a dispute row (REPLACEMENT_PLAN 2.7).
     expect(await db.select().from(disputes)).toHaveLength(0);
 

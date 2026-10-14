@@ -122,9 +122,15 @@ describe('GET /api/admin/deals/:id', () => {
 
     const cancelled = await api.get(`/api/admin/deals/${other.id}`, admin.cookie);
     expect(cancelled.body.events).toMatchObject([
-      { fromStatus: 'CONTENT_UPLOADED', toStatus: 'CANCELLED', actorType: 'ADMIN', note: 'Other' },
+      {
+        kind: 'TRANSITION',
+        fromStatus: 'CONTENT_UPLOADED',
+        toStatus: 'CANCELLED',
+        actor: { type: 'ADMIN', role: 'ADMIN', username: admin.user.username },
+        note: 'Other',
+        refundReference: null,
+      },
     ]);
-    expect(cancelled.body.events[0].actorUsername).toBe(admin.user.username);
   });
 
   it('is 404 for an unknown or malformed id', async () => {

@@ -11,6 +11,13 @@ export const DOCUMENT_KINDS = [
   'adp',
 ] as const;
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
+
+/** The URL slug of each invoice kind (the deal record, `adp`, is not an invoice). */
+export const DOCUMENT_SLUG_BY_INVOICE_KIND = {
+  COMMISSION_TAX_INVOICE: 'commission-invoice',
+  ADVANCE_PAYMENT_RECORD: 'advance-payment-record',
+  FINAL_PAYMENT_RECORD: 'final-payment-record',
+} as const satisfies Record<string, (typeof DOCUMENT_KINDS)[number]>;
 export type DocumentKind = z.infer<typeof documentKindSchema>;
 
 /** GET /deals/:id/emails and /events take the usual cursor and limit. */
@@ -34,13 +41,30 @@ export const dealEmailListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
-/** One status change of the deal, from deal_events (SPEC 15). */
+/** What a deal event is: a status change, or a payment record that left the status as it was. */
+export const DEAL_EVENT_KINDS = ['TRANSITION', 'PAYMENT_RECORDED', 'PAYMENT_NOT_RECEIVED'] as const;
+export type DealEventKind = (typeof DEAL_EVENT_KINDS)[number];
+
+/** Who did it: a brand or a creator on the deal, an admin, or the system (a webhook). */
+export const EVENT_ACTOR_ROLES = ['BRAND', 'CREATOR', 'ADMIN', 'SYSTEM'] as const;
+
+/** One event of the deal, from deal_events (SPEC 15). Shared by the deal history and the admin detail. */
 export const dealEventSchema = z.object({
   id: z.string(),
+  kind: z.enum(DEAL_EVENT_KINDS),
+  /** For a payment record both are the status the deal was in. */
   fromStatus: z.enum(DEAL_STATUSES),
   toStatus: z.enum(DEAL_STATUSES),
-  actor: z.object({ type: z.enum(['USER', 'SYSTEM', 'ADMIN']), username: z.string().nullable() }),
+  actor: z.object({
+    type: z.enum(['USER', 'SYSTEM', 'ADMIN']),
+    /** Null only for a user whose account is gone entirely. */
+    role: z.enum(EVENT_ACTOR_ROLES).nullable(),
+    /** "Deleted user" for a deleted account, never the anonymized username. */
+    username: z.string().nullable(),
+  }),
   note: z.string().nullable(),
+  /** An admin cancel's manual refund reference, when the admin gave one. */
+  refundReference: z.string().nullable(),
   createdAt: z.string(),
 });
 
@@ -49,6 +73,15 @@ export const dealEventListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
+/** One document of a deal (GET /deals/:id), by the slug that `GET /deals/:id/documents/:kind` takes. */
+export const dealDocumentSchema = z.object({
+  kind: documentKindSchema,
+  /** The invoice or record number; null for the deal record, which has none. */
+  number: z.string().nullable(),
+  issuedAt: z.string(),
+});
+
+export type DealDocument = z.infer<typeof dealDocumentSchema>;
 export type DealEmail = z.infer<typeof dealEmailSchema>;
 export type DealEmailListResponse = z.infer<typeof dealEmailListResponseSchema>;
 export type DealEvent = z.infer<typeof dealEventSchema>;

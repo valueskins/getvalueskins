@@ -40,11 +40,7 @@ export async function createOrReuseOrder(
   const deal = await loadOwnedDeal(rawDealId, user.id);
 
   if (deal.status !== rules.from) {
-    throw new AppError(
-      'WRONG_DEAL_STATUS',
-      409,
-      `The ${typeParam} payment is not due while the deal is ${deal.status}`,
-    );
+    throw new AppError('WRONG_DEAL_STATUS', 409, 'The ValueSkins fee is not due on this deal');
   }
   const amount = amountFor(deal, type);
 

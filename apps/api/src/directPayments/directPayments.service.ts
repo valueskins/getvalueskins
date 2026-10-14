@@ -1,8 +1,11 @@
 import {
-  CREATOR_PAYOUT_NOT_SET,
+  APPLICANT_HAS_NO_UPI,
+  CREATOR_HAS_NO_UPI,
+  CREATOR_NOT_AGREED_TO_SHARE_UPI,
   DIRECT_PAYMENT_ALREADY_RECORDED,
   DIRECT_PAYMENT_NOT_PENDING,
   buildUpiPay,
+  dueStageFor,
   upiPayUri,
   type DealStatus,
   type DirectPaymentInfo,
@@ -18,14 +21,9 @@ import { emitDealUpdated } from '../realtime/events.js';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
 import { deals, directPayments } from '../db/schema/index.js';
-import {
-  findDeal,
-  loadConfirmedCreatorDeal,
-  loadOwnedDeal,
-  notFound,
-  parseId,
-} from '../deals/access.js';
-import { readPayoutForPayment } from '../deals/payoutDetails.js';
+import { loadConfirmedCreatorDeal, loadOwnedDeal, notFound, parseId } from '../deals/access.js';
+import { recordPaymentEvent } from '../deals/dealEvents.js';
+import { payoutStatusOfSaved, readPayoutForPayment } from '../deals/payoutDetails.js';
 import { transitionDeal, type Deal } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
 import { issuePaymentRecord } from '../invoices/issueInvoice.js';
@@ -43,11 +41,18 @@ interface DueStage {
   to: DealStatus;
 }
 
-/** The stage that is due in each status: the advance after the fee, the final after approval (SPEC 5.2). */
-const DUE: Partial<Record<DealStatus, DueStage>> = {
-  COMMISSION_PAID: { stage: 'ADVANCE', from: 'COMMISSION_PAID', to: 'ADVANCE_PAID' },
-  APPROVED: { stage: 'FINAL', from: 'APPROVED', to: 'COMPLETED' },
+/** Where the deal goes when the creator confirms the stage that is due (SPEC 5.2). */
+const NEXT_STATUS: Partial<Record<DealStatus, DealStatus>> = {
+  COMMISSION_PAID: 'ADVANCE_PAID',
+  APPROVED: 'COMPLETED',
 };
+
+/** The stage that is due in a status: the advance after the fee, the final after approval. */
+function dueOf(status: DealStatus): DueStage | undefined {
+  const stage = dueStageFor(status);
+  const to = NEXT_STATUS[status];
+  return stage && to ? { stage, from: status, to } : undefined;
+}
 
 function amountOf(deal: Deal, stage: DirectPaymentStage): number {
   const amount = stage === 'ADVANCE' ? deal.advancePaise : deal.finalPaise;
@@ -78,7 +83,7 @@ export async function getDirectPaymentInfo(
 ): Promise<DirectPaymentInfo> {
   const deal = await loadOwnedDeal(rawDealId, user.id);
   if (!deal.creatorId) return blocked('no_creator');
-  const due = DUE[deal.status];
+  const due = dueOf(deal.status);
   if (!due) return blocked('not_due');
 
   const payout = await readPayoutForPayment(deal.creatorId);
@@ -119,15 +124,15 @@ export async function recordDirectPayment(
   input: DirectPaymentRecordInput,
 ): Promise<DirectPaymentView> {
   const loaded = await loadOwnedDeal(rawDealId, user.id);
-  const due = DUE[loaded.status];
+  const due = dueOf(loaded.status);
   if (!due || due.stage !== input.stage) {
     throw new AppError(
       'WRONG_DEAL_STATUS',
       409,
-      `The ${input.stage.toLowerCase()} payment is not due while the deal is ${loaded.status}`,
+      `The ${input.stage.toLowerCase()} payment is not due yet`,
     );
   }
-  if (!loaded.creatorId) throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, CREATOR_PAYOUT_NOT_SET);
+  if (!loaded.creatorId) throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, APPLICANT_HAS_NO_UPI);
 
   let row: DirectPaymentRow;
   try {
@@ -147,8 +152,14 @@ export async function recordDirectPayment(
         );
       }
       const payout = await readPayoutForPayment(locked.creatorId as string, tx);
-      if (!payout.vpa || !payout.name || !payout.consentAt) {
-        throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, CREATOR_PAYOUT_NOT_SET);
+      const payoutStatus = payoutStatusOfSaved(payout);
+      const payeeVpa = payout.vpa;
+      if (payoutStatus !== 'SET' || !payeeVpa) {
+        throw new AppError(
+          'CREATOR_PAYOUT_NOT_SET',
+          409,
+          payoutStatus === 'NO_CONSENT' ? CREATOR_NOT_AGREED_TO_SHARE_UPI : CREATOR_HAS_NO_UPI,
+        );
       }
       const [inserted] = await tx
         .insert(directPayments)
@@ -157,13 +168,23 @@ export async function recordDirectPayment(
           stage: due.stage,
           amountPaise: amountOf(locked, due.stage),
           reference: input.reference,
-          paidToVpa: payout.vpa,
+          paidToVpa: payeeVpa,
           note: input.note ? input.note : null,
           recordedBy: user.id,
           recordedAt: ctx.now(),
         })
         .returning();
       if (!inserted) throw new Error('direct payment insert returned no row');
+      // The activity entry is written with the record, in the same transaction.
+      await recordPaymentEvent(tx, {
+        dealId: locked.id,
+        status: locked.status,
+        kind: 'PAYMENT_RECORDED',
+        directPaymentId: inserted.id,
+        stage: inserted.stage,
+        actorId: user.id,
+        note: inserted.note,
+      });
       return inserted;
     });
   } catch (error) {
@@ -210,7 +231,7 @@ export async function confirmDirectPayment(
   rawId: unknown,
 ): Promise<{ directPayment: DirectPaymentView; deal: Deal }> {
   const { row } = await loadRecordForCreator(rawId, user);
-  const due = Object.values(DUE).find((d) => d?.stage === row.stage) as DueStage;
+  const due = dueOf(row.stage === 'ADVANCE' ? 'COMMISSION_PAID' : 'APPROVED') as DueStage;
   const now = ctx.now();
   let confirmed: DirectPaymentRow | undefined;
 
@@ -271,20 +292,39 @@ export async function markNotReceived(
   input: DirectPaymentNotReceivedInput,
 ): Promise<{ directPayment: DirectPaymentView; deal: Deal }> {
   const { row } = await loadRecordForCreator(rawId, user);
-  const [updated] = await db
-    .update(directPayments)
-    .set({ disputedAt: ctx.now(), disputeReason: input.reason })
-    .where(
-      and(
-        eq(directPayments.id, row.id),
-        isNull(directPayments.confirmedAt),
-        isNull(directPayments.disputedAt),
-      ),
-    )
-    .returning();
-  if (!updated) throw new AppError('DIRECT_PAYMENT_NOT_PENDING', 409, DIRECT_PAYMENT_NOT_PENDING);
+  const { updated, deal } = await db.transaction(async (tx) => {
+    // The deal row is read under a share lock, so the event names the status it really is in.
+    const [locked] = await tx
+      .select()
+      .from(deals)
+      .where(eq(deals.id, row.dealId))
+      .for('share')
+      .limit(1);
+    if (!locked) throw notFound();
+    const [changed] = await tx
+      .update(directPayments)
+      .set({ disputedAt: ctx.now(), disputeReason: input.reason })
+      .where(
+        and(
+          eq(directPayments.id, row.id),
+          isNull(directPayments.confirmedAt),
+          isNull(directPayments.disputedAt),
+        ),
+      )
+      .returning();
+    if (!changed) throw new AppError('DIRECT_PAYMENT_NOT_PENDING', 409, DIRECT_PAYMENT_NOT_PENDING);
+    await recordPaymentEvent(tx, {
+      dealId: locked.id,
+      status: locked.status,
+      kind: 'PAYMENT_NOT_RECEIVED',
+      directPaymentId: changed.id,
+      stage: changed.stage,
+      actorId: user.id,
+      note: input.reason,
+    });
+    return { updated: changed, deal: locked };
+  });
 
-  const deal = (await findDeal(row.dealId)) as Deal;
   // The status is unchanged, but the record is now marked not received: refetch (SPEC 10).
   emitDealUpdated(deal);
   for (const task of notReceivedEmailTasks(ctx.env, updated, input.reason)) {

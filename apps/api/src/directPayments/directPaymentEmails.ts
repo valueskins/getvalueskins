@@ -89,7 +89,7 @@ export function confirmedEmailTasks(
 
   let report: Promise<Array<{ filename: string; content: Buffer }>> | null = null;
   const reportFor = (deal: Deal) => {
-    report ??= attachmentOrNone('deal report', () => renderAdp(deal.id, now()));
+    report ??= attachmentOrNone('deal record', () => renderAdp(deal.id, now()));
     return report;
   };
   const reportTo =

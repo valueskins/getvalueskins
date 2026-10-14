@@ -48,7 +48,7 @@ describe('render.yaml', () => {
     // GST is charged (REPLACEMENT_PLAN 2.2), so the GSTIN is a value the human enters.
     expect(blueprintValue('GST_RATE_BPS')).toBe('1800');
     expect(renderYaml).toMatch(/- key: COMPANY_GSTIN\n\s+sync: false/);
-    expect(blueprintValue('SUPPORT_EMAIL')).toBe('valueskinsfounder@gmail.com');
+    expect(blueprintValue('SUPPORT_EMAIL')).toBe('founder@valueskins.com');
     expect(blueprintValue('INSTAGRAM_REDIRECT_URI')).toBe(
       'https://api-staging.valueskins.com/api/auth/instagram/callback',
     );

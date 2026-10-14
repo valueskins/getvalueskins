@@ -16,6 +16,8 @@ import {
   users,
 } from '../db/schema/index.js';
 import { notFound } from '../deals/access.js';
+import { DELETED_USER_NAME } from '../deals/dealView.js';
+import { eventKind, eventRefundReference } from '../deals/eventView.js';
 import type { Deal } from '../deals/stateMachine.js';
 import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
 
@@ -50,12 +52,25 @@ export interface AdpData {
     taxPaise: number | null;
   }>;
   events: Array<{
-    from: string;
-    to: string;
+    /** What happened: a status change as "A to B", or a payment record that left the status as it was. */
+    change: string;
     actor: string;
     note: string | null;
+    /** An admin cancel's manual refund reference. */
+    refundReference: string | null;
     at: Date;
   }>;
+}
+
+/** One line for the event timeline: a status change, or a payment record that did not move the deal. */
+function describeChange(event: typeof dealEvents.$inferSelect): string {
+  const kind = eventKind(event);
+  if (kind === 'TRANSITION') return `${event.fromStatus} to ${event.toStatus}`;
+  const meta = event.metadata as { stage?: string } | null;
+  const stage = meta?.stage === 'FINAL' ? 'final' : 'advance';
+  return kind === 'PAYMENT_RECORDED'
+    ? `Payment recorded (${stage})`
+    : `Payment marked not received (${stage})`;
 }
 
 function party(row: typeof users.$inferSelect | undefined): AdpParty | null {
@@ -144,19 +159,19 @@ export async function loadAdpData(dealId: string): Promise<AdpData> {
         taxPaise: p.razorpayTaxPaise,
       })),
     events: eventRows.map((r) => ({
-      from: r.event.fromStatus,
-      to: r.event.toStatus,
+      change: describeChange(r.event),
       actor:
         r.event.actorType === 'SYSTEM'
           ? 'System'
           : r.actorUsername
             ? r.actorDeleted
-              ? 'Deleted user'
+              ? DELETED_USER_NAME
               : `@${r.actorUsername}`
             : r.event.actorType === 'ADMIN'
               ? 'Admin'
               : 'Unknown',
       note: r.event.note,
+      refundReference: eventRefundReference(r.event),
       at: r.event.createdAt,
     })),
   };

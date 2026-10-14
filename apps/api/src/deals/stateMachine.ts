@@ -1,4 +1,9 @@
-import { canTransition, type ActorRole, type DealStatus } from '@valueskins/shared';
+import {
+  DEAL_JUST_CHANGED,
+  canTransition,
+  type ActorRole,
+  type DealStatus,
+} from '@valueskins/shared';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { dealEvents, deals } from '../db/schema/index.js';
@@ -41,12 +46,9 @@ export interface TransitionDealInput {
   afterCommit?: AfterCommitTask[];
 }
 
-function invalidTransition(from: DealStatus, to: DealStatus): AppError {
-  return new AppError(
-    'INVALID_TRANSITION',
-    409,
-    `This deal can no longer move from ${from} to ${to}. It may have just changed, so reload it.`,
-  );
+/** The deal is not where the caller thought it was. The message never names a status (SPEC 16). */
+function invalidTransition(): AppError {
+  return new AppError('INVALID_TRANSITION', 409, DEAL_JUST_CHANGED);
 }
 
 function actorType(role: ActorRole): 'USER' | 'SYSTEM' | 'ADMIN' {
@@ -65,7 +67,7 @@ export async function transitionDeal(input: TransitionDealInput): Promise<Deal> 
   const { dealId, from, to, actor } = input;
 
   if (!canTransition(from, to, actor.role)) {
-    throw invalidTransition(from, to);
+    throw invalidTransition();
   }
 
   const updated = await db.transaction(async (tx) => {
@@ -77,7 +79,7 @@ export async function transitionDeal(input: TransitionDealInput): Promise<Deal> 
         .where(and(eq(deals.id, dealId), eq(deals.status, from)))
         .for('update')
         .limit(1);
-      if (!current) throw invalidTransition(from, to);
+      if (!current) throw invalidTransition();
       prepared = await input.prepare(tx, current);
     }
 
@@ -86,7 +88,7 @@ export async function transitionDeal(input: TransitionDealInput): Promise<Deal> 
       .set({ ...prepared, ...input.patch, status: to })
       .where(and(eq(deals.id, dealId), eq(deals.status, from)))
       .returning();
-    if (!row) throw invalidTransition(from, to);
+    if (!row) throw invalidTransition();
 
     await tx.insert(dealEvents).values({
       dealId,

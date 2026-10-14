@@ -1,4 +1,14 @@
-import { index, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { deals } from './deals.js';
 import { users } from './users.js';
@@ -58,6 +68,10 @@ export const disputes = pgTable(
     index('disputes_raised_by_id_idx').on(t.raisedById),
     index('disputes_resolved_by_id_idx').on(t.resolvedById),
     index('disputes_status_idx').on(t.status),
+    // One open dispute per deal (SPEC 12): two raised at the same moment cannot both succeed.
+    uniqueIndex('disputes_one_open_per_deal_idx')
+      .on(t.dealId)
+      .where(sql`${t.status} = 'OPEN'`),
   ],
 );
 

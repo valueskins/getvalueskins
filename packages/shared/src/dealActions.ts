@@ -6,6 +6,8 @@ import {
   ADD_UPI_TO_APPLY,
   NO_APPLICATIONS_YET,
   CREATOR_HAS_NO_UPI,
+  CREATOR_NOT_AGREED_TO_SHARE_UPI,
+  DISPUTE_ALREADY_OPEN,
   NO_PAYMENT_RECORDED_YET,
   WAITING_FOR_CREATOR_TO_CONFIRM,
   UPLOAD_LIMIT_REACHED,
@@ -40,6 +42,9 @@ export interface DealActionState {
   reason: string | null;
 }
 
+/** What a creator's saved payout details allow (REPLACEMENT_PLAN 2.1). */
+export type CreatorPayoutStatus = 'SET' | 'NO_UPI' | 'NO_CONSENT';
+
 export interface DealActionsInput {
   status: DealStatus;
   /**
@@ -57,8 +62,13 @@ export interface DealActionsInput {
   payoutSet: boolean;
   /** The deal has a confirmed creator (a cancelled deal may never have had one). */
   hasCreator: boolean;
-  /** The deal's confirmed creator has saved a UPI ID, a name and consent (the brand pays to it). */
-  creatorPayoutSet: boolean;
+  /**
+   * The deal's confirmed creator's payout details (the brand pays to them): saved with consent,
+   * no UPI ID or name, or a UPI ID without consent. Null when the viewer cannot know.
+   */
+  creatorPayout: CreatorPayoutStatus | null;
+  /** A dispute on the deal is open (SPEC 12): another cannot be raised until it is resolved. */
+  hasOpenDispute: boolean;
   /** A direct payment for the stage that is due is recorded and waits for the creator. */
   pendingRecord: boolean;
   hasBilling: boolean;
@@ -105,9 +115,11 @@ export function computeDealActions(input: DealActionsInput): DealActionState[] {
 
 /** Both parties can raise a dispute once the deal allows it; otherwise the action is not listed. */
 function withDispute(input: DealActionsInput, actions: DealActionState[]): DealActionState[] {
-  return disputeAllowed(input.status, input.hasCreator)
-    ? [...actions, on('RAISE_DISPUTE')]
-    : actions;
+  if (!disputeAllowed(input.status, input.hasCreator)) return actions;
+  return [
+    ...actions,
+    input.hasOpenDispute ? off('RAISE_DISPUTE', DISPUTE_ALREADY_OPEN) : on('RAISE_DISPUTE'),
+  ];
 }
 
 function brandActions(input: DealActionsInput): DealActionState[] {
@@ -142,7 +154,8 @@ function brandActions(input: DealActionsInput): DealActionState[] {
 /** PAY_ADVANCE and PAY_FINAL mean "pay by UPI and record it" (REPLACEMENT_PLAN 2.1). */
 function payAction(action: 'PAY_ADVANCE' | 'PAY_FINAL', input: DealActionsInput): DealActionState {
   if (input.pendingRecord) return off(action, WAITING_FOR_CREATOR_TO_CONFIRM);
-  if (!input.creatorPayoutSet) return off(action, CREATOR_HAS_NO_UPI);
+  if (input.creatorPayout === 'NO_CONSENT') return off(action, CREATOR_NOT_AGREED_TO_SHARE_UPI);
+  if (input.creatorPayout !== 'SET') return off(action, CREATOR_HAS_NO_UPI);
   return on(action);
 }
 

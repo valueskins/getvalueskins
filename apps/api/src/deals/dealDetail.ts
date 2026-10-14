@@ -1,18 +1,26 @@
 import {
+  DOCUMENT_SLUG_BY_INVOICE_KIND,
   FIVE_REVISIONS_WARNING,
   applicationsOpen,
   computeDealActions,
   contentOverdue,
+  dueStageFor,
   validateDealForPublish,
   type DealDetail,
 } from '@valueskins/shared';
 import { and, asc, count, eq } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { db } from '../db/client.js';
-import { applications, brandBilling, contentUploads } from '../db/schema/index.js';
+import {
+  applications,
+  brandBilling,
+  contentUploads,
+  disputes,
+  invoices,
+} from '../db/schema/index.js';
 import { iso, loadParties, toSummary } from './dealView.js';
 import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
-import { hasPayoutDetails } from './payoutDetails.js';
+import { hasPayoutDetails, loadPayoutStatuses } from './payoutDetails.js';
 import type { Deal } from './stateMachine.js';
 
 /** What the draft form still needs before it can be published, as messages. */
@@ -37,6 +45,54 @@ export async function hasBillingDetails(userId: string): Promise<boolean> {
     .where(eq(brandBilling.userId, userId))
     .limit(1);
   return row !== undefined;
+}
+
+/** The deal's invoices and payment records, oldest first, then the deal record once the deal is completed. */
+async function listDocuments(deal: Deal): Promise<DealDetail['documents']> {
+  const rows = await db
+    .select({ kind: invoices.kind, number: invoices.number, issuedAt: invoices.issuedAt })
+    .from(invoices)
+    .where(eq(invoices.dealId, deal.id))
+    .orderBy(asc(invoices.issuedAt), asc(invoices.id));
+  const list: DealDetail['documents'] = rows.map((row) => ({
+    kind: DOCUMENT_SLUG_BY_INVOICE_KIND[row.kind],
+    number: row.number,
+    issuedAt: row.issuedAt.toISOString(),
+  }));
+  // The deal record is rendered on demand and has no number; it exists once the deal is completed.
+  if (deal.status === 'COMPLETED') {
+    list.push({
+      kind: 'adp',
+      number: null,
+      issuedAt: (deal.completedAt ?? deal.updatedAt).toISOString(),
+    });
+  }
+  return list;
+}
+
+/** The deal's disputes, oldest first: what each is about and where it stands, never the text or the resolution. */
+async function listDealDisputes(deal: Deal): Promise<DealDetail['disputes']> {
+  const rows = await db
+    .select({
+      id: disputes.id,
+      subject: disputes.subject,
+      status: disputes.status,
+      raisedById: disputes.raisedById,
+      createdAt: disputes.createdAt,
+      resolvedAt: disputes.resolvedAt,
+    })
+    .from(disputes)
+    .where(eq(disputes.dealId, deal.id))
+    .orderBy(asc(disputes.createdAt), asc(disputes.id));
+  return rows.map((row) => ({
+    id: row.id,
+    subject: row.subject,
+    status: row.status,
+    // Only the deal's brand or its confirmed creator can raise a dispute.
+    raisedByRole: row.raisedById === deal.brandId ? ('BRAND' as const) : ('CREATOR' as const),
+    createdAt: row.createdAt.toISOString(),
+    resolvedAt: iso(row.resolvedAt),
+  }));
 }
 
 /** The GET /deals/:id body for a viewer who is allowed to see the deal (SPEC 16). */
@@ -73,8 +129,12 @@ export async function buildDealDetail(
     applicationCount = row?.value ?? 0;
   }
 
-  const creatorPayoutSet =
-    privileged && deal.creatorId ? await hasPayoutDetails(deal.creatorId) : null;
+  // Only the status leaves payoutDetails (never the UPI ID): it picks which reason the brand sees.
+  const creatorPayout =
+    privileged && deal.creatorId
+      ? ((await loadPayoutStatuses([deal.creatorId])).get(deal.creatorId) ?? null)
+      : null;
+  const creatorPayoutSet = privileged && deal.creatorId ? creatorPayout === 'SET' : null;
 
   const isConfirmedCreator = deal.creatorId !== null && deal.creatorId === viewer.id;
   let viewerKind: 'BRAND_OWNER' | 'CONFIRMED_CREATOR' | 'CREATOR' | 'NONE' = 'NONE';
@@ -109,11 +169,14 @@ export async function buildDealDetail(
   const records = seesDelivery
     ? (await listDirectPaymentRows(deal.id)).map(toDirectPaymentView)
     : [];
-  const dueStage =
-    deal.status === 'COMMISSION_PAID' ? 'ADVANCE' : deal.status === 'APPROVED' ? 'FINAL' : null;
+  const dueStage = dueStageFor(deal.status);
   const pendingRecord = records.some(
     (r) => r.stage === dueStage && r.status === 'AWAITING_CONFIRMATION',
   );
+
+  // Documents and disputes belong to the two parties and admins, like the delivery history.
+  const documents = seesDelivery ? await listDocuments(deal) : [];
+  const dealDisputes = seesDelivery ? await listDealDisputes(deal) : [];
 
   const hasBilling = viewerKind === 'BRAND_OWNER' ? await hasBillingDetails(viewer.id) : false;
   const publishIssues =
@@ -124,8 +187,6 @@ export async function buildDealDetail(
     commissionBasePaise: deal.commissionBasePaise,
     commissionGstPaise: deal.commissionGstPaise,
     commissionTotalPaise: deal.commissionTotalPaise,
-    advancePaise: deal.advancePaise,
-    finalPaise: deal.finalPaise,
     confirmedAt: iso(deal.confirmedAt),
     cancelledAt: iso(deal.cancelledAt),
     cancelledByRole: deal.cancelledByRole,
@@ -144,6 +205,8 @@ export async function buildDealDetail(
     creator,
     creatorPayoutSet,
     directPayments: records,
+    documents,
+    disputes: dealDisputes,
     applicationCount,
     applicationsOpen: open,
     contentOverdue: overdue,
@@ -156,7 +219,8 @@ export async function buildDealDetail(
       payoutSet,
       uploadCount: deal.uploadCount,
       hasCreator: deal.creatorId !== null,
-      creatorPayoutSet: creatorPayoutSet === true,
+      creatorPayout,
+      hasOpenDispute: dealDisputes.some((d) => d.status === 'OPEN'),
       pendingRecord,
       hasBilling,
       publishIssues,

@@ -112,13 +112,13 @@ describe('POST /api/admin/emails/:id/resend', () => {
       .select()
       .from(emailLog)
       .where(eq(emailLog.template, 'DEAL_REPORT_READY'));
-    expect(original?.attachmentNames).toEqual([`ValueSkins-Deal-Report-${deal.shortId}.pdf`]);
+    expect(original?.attachmentNames).toEqual([`ValueSkins-Deal-Record-${deal.shortId}.pdf`]);
 
     const res = await resend(admin.cookie, original!.id);
     expect(res.status).toBe(200);
     expect(res.body.missingAttachments).toEqual([]);
     const last = sent[sent.length - 1]!;
-    expect(last.attachments?.[0]?.filename).toBe(`ValueSkins-Deal-Report-${deal.shortId}.pdf`);
+    expect(last.attachments?.[0]?.filename).toBe(`ValueSkins-Deal-Record-${deal.shortId}.pdf`);
     expect(last.attachments?.[0]?.content.data.length).toBeGreaterThan(1000);
   });
 

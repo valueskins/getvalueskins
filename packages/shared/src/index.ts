@@ -5,6 +5,7 @@ export * from './money.js';
 export * from './dealStateMachine.js';
 export * from './dealPublish.js';
 export * from './dealActions.js';
+export * from './dealTurn.js';
 export * from './copy.js';
 export * from './onboarding.js';
 export * from './accountType.js';

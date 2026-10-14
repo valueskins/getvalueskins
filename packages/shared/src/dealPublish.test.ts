@@ -96,4 +96,49 @@ describe('validateDealForPublish', () => {
       expect(paths({ dealDeadline: '2026-10-19' })).toEqual(['dealDeadline']);
     });
   });
+
+  describe('messages name the fields the form shows', () => {
+    const messageOf = (deal: Partial<DealPublishFields>, path: string, now = NOW) =>
+      validateDealForPublish({ ...READY, ...deal }, now).find((i) => i.path === path)?.message;
+
+    it('missing, invalid and past dates say Apply by, Content due and Deal ends', () => {
+      expect(messageOf({ applicationDeadline: null }, 'applicationDeadline')).toBe(
+        'Add a date for "Apply by"',
+      );
+      expect(messageOf({ contentUploadDeadline: null }, 'contentUploadDeadline')).toBe(
+        'Add a date for "Content due"',
+      );
+      expect(messageOf({ dealDeadline: null }, 'dealDeadline')).toBe('Add a date for "Deal ends"');
+      expect(messageOf({ dealDeadline: '2026-13-45' }, 'dealDeadline')).toBe(
+        '"Deal ends" is not a valid date',
+      );
+      expect(messageOf({ applicationDeadline: '2026-10-08' }, 'applicationDeadline')).toBe(
+        '"Apply by" must be in the future',
+      );
+    });
+
+    it('the order messages use the same names', () => {
+      expect(messageOf({ applicationDeadline: '2026-10-20' }, 'contentUploadDeadline')).toBe(
+        '"Content due" must be after "Apply by"',
+      );
+      expect(messageOf({ dealDeadline: '2026-10-19' }, 'dealDeadline')).toBe(
+        '"Deal ends" must be on or after "Content due"',
+      );
+    });
+
+    it('never says "application deadline", "content upload deadline" or "deal deadline"', () => {
+      const all = validateDealForPublish(
+        {
+          ...READY,
+          applicationDeadline: '2026-10-20',
+          contentUploadDeadline: null,
+          dealDeadline: '2026-10-08',
+        },
+        NOW,
+      )
+        .map((i) => i.message)
+        .join(' ');
+      expect(all).not.toMatch(/application deadline|content upload deadline|deal deadline/i);
+    });
+  });
 });

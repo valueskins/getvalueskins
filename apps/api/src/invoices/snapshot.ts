@@ -105,7 +105,7 @@ export function buildInvoiceSnapshot(input: CommissionSnapshotInput): Commission
     deal: { shortId: deal.shortId, title: deal.title },
     lines: [
       {
-        description: `Platform commission for the deal "${deal.title}" (${deal.shortId})`,
+        description: `ValueSkins fee for the deal "${deal.title}" (${deal.shortId})`,
         taxableValuePaise: deal.commissionBasePaise,
       },
     ],

@@ -40,13 +40,13 @@ function fee(paise: number | null): string {
   return paise === null ? NOT_RECORDED : formatInr(paise);
 }
 
-/** The deal report (SPEC 17), section by section. It never throws on a deal that is not finished: parts that do not exist yet say so. */
+/** The deal record (SPEC 17), section by section. It never throws on a deal that is not finished: parts that do not exist yet say so. */
 export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
   const { deal, brand, creator } = data;
   const blocks: Block[] = [
     {
       kind: 'title',
-      text: 'ValueSkins Deal Report',
+      text: 'ValueSkins Deal Record',
       subtitle: `${deal.shortId}. Generated ${formatIst(generatedAt)}`,
     },
 
@@ -92,16 +92,16 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
 
     { kind: 'heading', text: 'Money' },
     { kind: 'row', label: 'Budget', value: money(deal.budgetPaise) },
-    { kind: 'row', label: 'Commission base', value: money(deal.commissionBasePaise) },
+    { kind: 'row', label: 'ValueSkins fee base', value: money(deal.commissionBasePaise) },
     { kind: 'row', label: 'GST', value: money(deal.commissionGstPaise) },
-    { kind: 'row', label: 'Commission total', value: money(deal.commissionTotalPaise) },
+    { kind: 'row', label: 'ValueSkins fee total', value: money(deal.commissionTotalPaise) },
     { kind: 'row', label: 'Creator amount', value: money(deal.creatorAmountPaise) },
     { kind: 'row', label: 'Advance', value: money(deal.advancePaise) },
     { kind: 'row', label: 'Final', value: money(deal.finalPaise) },
   );
 
   const documents = [
-    ['Commission tax invoice', data.invoices.commission],
+    ['ValueSkins fee tax invoice', data.invoices.commission],
     ['Advance payment record', data.invoices.advance],
     ['Final payment record', data.invoices.final],
   ] as const;
@@ -191,9 +191,11 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
           widths: [0.25, 0.3, 0.22, 0.23],
           rows: data.events.map((e) => [
             formatIst(e.at),
-            `${e.from} to ${e.to}`,
+            e.change,
             e.actor,
-            e.note ?? '',
+            [e.note, e.refundReference ? `Refund reference: ${e.refundReference}` : null]
+              .filter((part): part is string => Boolean(part))
+              .join('\n'),
           ]),
         },
   );

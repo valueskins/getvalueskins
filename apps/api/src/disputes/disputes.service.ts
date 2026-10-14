@@ -1,4 +1,5 @@
 import {
+  DISPUTE_ALREADY_OPEN,
   DISPUTE_ALREADY_RESOLVED,
   DISPUTE_NOT_ALLOWED,
   disputeAllowed,
@@ -7,10 +8,12 @@ import {
   type DisputeResolveInput,
 } from '@valueskins/shared';
 import { and, desc, eq, lt, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
 import { db } from '../db/client.js';
+import { isUniqueViolation } from '../db/pgErrors.js';
 import { deals, disputes, users } from '../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { findDeal, notFound, parseId } from '../deals/access.js';
@@ -20,6 +23,7 @@ import { send } from '../email/send.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
 import { consumeDisputeLimit } from '../rateLimit/limiters.js';
+import { emitDealUpdated } from '../realtime/events.js';
 
 type DisputeRow = typeof disputes.$inferSelect;
 
@@ -31,9 +35,12 @@ export interface DisputeView {
   subject: string;
   description: string;
   status: DisputeRow['status'];
-  raisedBy: { id: string; username: string };
+  /** Only a deal's brand or its confirmed creator can raise a dispute. */
+  raisedBy: { id: string; username: string; role: 'BRAND' | 'CREATOR' };
   resolution: string | null;
   refundReference: string | null;
+  /** The admin who resolved it ("Deleted user" if that account is gone). Null while it is open. */
+  resolvedBy: { id: string | null; username: string } | null;
   resolvedAt: string | null;
   createdAt: string;
 }
@@ -43,6 +50,7 @@ interface DisputeContext {
   deal: typeof deals.$inferSelect;
   raisedByUsername: string;
   raisedByDeleted: boolean;
+  resolvedBy: { id: string | null; username: string; deleted: boolean } | null;
 }
 
 export function disputeView(c: DisputeContext): DisputeView {
@@ -57,12 +65,75 @@ export function disputeView(c: DisputeContext): DisputeView {
     raisedBy: {
       id: c.dispute.raisedById,
       username: c.raisedByDeleted ? DELETED_USER_NAME : c.raisedByUsername,
+      role: c.dispute.raisedById === c.deal.brandId ? 'BRAND' : 'CREATOR',
     },
     resolution: c.dispute.resolution,
     refundReference: c.dispute.refundReference,
+    resolvedBy:
+      c.dispute.status === 'RESOLVED'
+        ? {
+            id: c.resolvedBy?.id ?? null,
+            username:
+              !c.resolvedBy || c.resolvedBy.deleted ? DELETED_USER_NAME : c.resolvedBy.username,
+          }
+        : null,
     resolvedAt: c.dispute.resolvedAt?.toISOString() ?? null,
     createdAt: c.dispute.createdAt.toISOString(),
   };
+}
+
+const resolver = alias(users, 'resolver');
+
+/** A dispute with its deal, the person who raised it and the admin who resolved it. */
+function selectDisputes() {
+  return db
+    .select({
+      dispute: disputes,
+      deal: deals,
+      username: users.username,
+      deletedAt: users.deletedAt,
+      resolverId: resolver.id,
+      resolverUsername: resolver.username,
+      resolverDeletedAt: resolver.deletedAt,
+    })
+    .from(disputes)
+    .innerJoin(deals, eq(deals.id, disputes.dealId))
+    .innerJoin(users, eq(users.id, disputes.raisedById))
+    .leftJoin(resolver, eq(resolver.id, disputes.resolvedById));
+}
+
+type DisputeRowWithParties = Awaited<ReturnType<typeof selectDisputes>>[number];
+
+function viewOfRow(r: DisputeRowWithParties): DisputeView {
+  return disputeView({
+    dispute: r.dispute,
+    deal: r.deal,
+    raisedByUsername: r.username,
+    raisedByDeleted: r.deletedAt !== null,
+    resolvedBy:
+      r.resolverId !== null
+        ? {
+            id: r.resolverId,
+            username: r.resolverUsername ?? DELETED_USER_NAME,
+            deleted: r.resolverDeletedAt !== null,
+          }
+        : null,
+  });
+}
+
+/** Every dispute of one deal, newest first, as the admin sees them. */
+export async function listDealDisputeViews(dealId: string): Promise<DisputeView[]> {
+  const rows = await selectDisputes().where(eq(disputes.dealId, dealId)).orderBy(desc(disputes.id));
+  return rows.map(viewOfRow);
+}
+
+/** GET /admin/disputes/:id (SPEC 12): one dispute, with who raised it and who resolved it. */
+export async function getDispute(rawId: unknown): Promise<DisputeView> {
+  const [row] = await selectDisputes()
+    .where(eq(disputes.id, parseId(rawId)))
+    .limit(1);
+  if (!row) throw notFound();
+  return viewOfRow(row);
 }
 
 /** Addresses of the deal's two parties that still exist; a deleted account has none. */
@@ -91,18 +162,37 @@ export async function raiseDispute(
     throw new AppError('DISPUTE_NOT_ALLOWED', 409, DISPUTE_NOT_ALLOWED);
   }
 
+  // One dispute at a time per deal. This is checked before the limit is used, so a refused
+  // request costs nothing; the unique index below settles two raised at the same moment.
+  const [open] = await db
+    .select({ id: disputes.id })
+    .from(disputes)
+    .where(and(eq(disputes.dealId, deal.id), eq(disputes.status, 'OPEN')))
+    .limit(1);
+  if (open) throw new AppError('DISPUTE_ALREADY_OPEN', 409, DISPUTE_ALREADY_OPEN);
+
   await consumeDisputeLimit(`${user.id}:${deal.id}`, res);
 
-  const [dispute] = await db
-    .insert(disputes)
-    .values({
-      dealId: deal.id,
-      raisedById: user.id,
-      subject: input.subject,
-      description: input.description,
-    })
-    .returning();
+  let dispute: DisputeRow | undefined;
+  try {
+    [dispute] = await db
+      .insert(disputes)
+      .values({
+        dealId: deal.id,
+        raisedById: user.id,
+        subject: input.subject,
+        description: input.description,
+      })
+      .returning();
+  } catch (error) {
+    if (isUniqueViolation(error))
+      throw new AppError('DISPUTE_ALREADY_OPEN', 409, DISPUTE_ALREADY_OPEN);
+    throw error;
+  }
   if (!dispute) throw new Error('raiseDispute: insert returned no row');
+
+  // The deal page of both parties now shows a dispute: refetch (SPEC 10).
+  emitDealUpdated(deal);
 
   try {
     await send(
@@ -131,6 +221,7 @@ export async function raiseDispute(
     deal,
     raisedByUsername: user.username,
     raisedByDeleted: false,
+    resolvedBy: null,
   });
 }
 
@@ -144,16 +235,7 @@ export async function listDisputes(
     conditions.push(lt(disputes.id, decodeCursor(query.cursor, { needsTime: false }).i));
   }
 
-  const rows = await db
-    .select({
-      dispute: disputes,
-      deal: deals,
-      username: users.username,
-      deletedAt: users.deletedAt,
-    })
-    .from(disputes)
-    .innerJoin(deals, eq(deals.id, disputes.dealId))
-    .innerJoin(users, eq(users.id, disputes.raisedById))
+  const rows = await selectDisputes()
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(disputes.id))
     .limit(query.limit + 1);
@@ -161,14 +243,7 @@ export async function listDisputes(
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
   return {
-    items: page.map((r) =>
-      disputeView({
-        dispute: r.dispute,
-        deal: r.deal,
-        raisedByUsername: r.username,
-        raisedByDeleted: r.deletedAt !== null,
-      }),
-    ),
+    items: page.map(viewOfRow),
     nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.dispute.id }) : null,
   };
 }
@@ -209,6 +284,8 @@ export async function resolveDispute(
 
   const deal = await findDeal(resolved.dealId);
   if (!deal) throw new Error(`dispute ${resolved.id} has no deal`);
+  // The parties' deal pages show the dispute as resolved: refetch (SPEC 10).
+  emitDealUpdated(deal);
   const [raiser] = await db
     .select({ username: users.username, deletedAt: users.deletedAt })
     .from(users)
@@ -247,5 +324,6 @@ export async function resolveDispute(
     deal,
     raisedByUsername: raiser?.username ?? DELETED_USER_NAME,
     raisedByDeleted: raiser === undefined || raiser.deletedAt !== null,
+    resolvedBy: { id: admin.id, username: admin.username, deleted: false },
   });
 }

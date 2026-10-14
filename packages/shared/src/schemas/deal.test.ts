@@ -69,8 +69,25 @@ describe('dealCreateSchema / dealUpdateSchema', () => {
 
 describe('dealMineQuerySchema', () => {
   it('accepts a status filter and rejects an unknown one', () => {
-    expect(dealMineQuerySchema.parse({ status: 'DRAFT' }).status).toBe('DRAFT');
+    expect(dealMineQuerySchema.parse({ status: 'DRAFT' }).status).toEqual(['DRAFT']);
     expect(dealMineQuerySchema.safeParse({ status: 'NOPE' }).success).toBe(false);
+  });
+
+  it('accepts several statuses separated by commas, once each', () => {
+    expect(dealMineQuerySchema.parse({ status: 'OPEN,CONFIRMED' }).status).toEqual([
+      'OPEN',
+      'CONFIRMED',
+    ]);
+    expect(dealMineQuerySchema.parse({ status: ' OPEN , OPEN,APPROVED' }).status).toEqual([
+      'OPEN',
+      'APPROVED',
+    ]);
+    expect(dealMineQuerySchema.parse({}).status).toBeUndefined();
+    for (const bad of ['', 'OPEN,', 'OPEN,NOPE', ',']) {
+      expect(dealMineQuerySchema.safeParse({ status: bad }).success).toBe(false);
+    }
+    // A repeated query parameter arrives as a list, which is not the comma form.
+    expect(dealMineQuerySchema.safeParse({ status: ['OPEN', 'CONFIRMED'] }).success).toBe(false);
   });
 });
 

@@ -16,6 +16,7 @@ export const CANCELLATION_NOT_POSSIBLE_AFTER_FEE =
 export const ALREADY_APPLIED_MESSAGE = 'You have already applied';
 export const NO_APPLICATIONS_YET = 'No applications yet';
 export const CREATOR_HAS_NO_UPI = 'The creator has not added a UPI ID yet';
+export const CREATOR_NOT_AGREED_TO_SHARE_UPI = 'The creator has not agreed to share their UPI ID';
 export const WAITING_FOR_CREATOR_TO_CONFIRM =
   'Waiting for the creator to confirm the payment you recorded';
 export const NO_PAYMENT_RECORDED_YET = 'The brand has not recorded a payment yet';
@@ -26,6 +27,21 @@ export const ADD_BILLING_TO_PUBLISH = 'Add billing details to publish';
 export const DISPUTE_NOT_ALLOWED =
   'A dispute can be raised once a creator has been confirmed for the deal';
 export const DISPUTE_ALREADY_RESOLVED = 'This dispute is already resolved';
+export const DISPUTE_ALREADY_OPEN = 'A dispute is already open on this deal';
+
+// Applicants (SPEC 5.5): why a brand cannot confirm an applicant yet
+export const APPLICANT_HAS_NO_UPI = 'This creator has not added a UPI ID';
+export const APPLICANT_NO_LONGER_AVAILABLE = 'This creator is no longer available';
+export const APPLICATION_ALREADY_DECIDED = 'This application was already decided';
+export const DEAL_NO_LONGER_OPEN = 'This deal is no longer open for applications';
+
+// Errors a user can see (SPEC 16): plain, never a raw status name
+export const DEAL_JUST_CHANGED = 'This deal just changed. Reload it and try again.';
+export const ADMIN_CANCEL_WINDOW =
+  'An admin can cancel a deal after the fee is paid and before it is completed.';
+
+// Publishing (SPEC 13)
+export const PUBLISH_LIMIT_MESSAGE = 'You can publish up to 10 deals a day';
 
 // Revision limit notice (SPEC 5.5)
 export const FIVE_REVISIONS_WARNING =
@@ -61,6 +77,11 @@ export function payCommissionLabel(commissionTotalPaise: number): string {
   return `Pay commission: ${formatInr(commissionTotalPaise)}`;
 }
 
+/** The label for the ValueSkins fee. `payCommissionLabel` is kept for the temporary pay page until W2 replaces it. */
+export function payFeeLabel(commissionTotalPaise: number): string {
+  return `Pay ValueSkins fee: ${formatInr(commissionTotalPaise)}`;
+}
+
 export function payAdvanceLabel(advancePaise: number): string {
   return `Pay advance: ${formatInr(advancePaise)}`;
 }
@@ -68,3 +89,21 @@ export function payAdvanceLabel(advancePaise: number): string {
 export function payFinalLabel(finalPaise: number): string {
   return `Pay final: ${formatInr(finalPaise)}`;
 }
+
+/**
+ * The deal description template (SPEC 9): placeholder text and an "Insert template" button in the
+ * create form. The examples follow the copy rules: money as ₹2,000.00 and dates as 1 to 3 Oct.
+ */
+export const DEAL_DESCRIPTION_TEMPLATE = [
+  'Content type: [3 Instagram posts + 1 reel]',
+  'Shooting: [On location required. Studio address: ...]',
+  `Travel: [Travel allowance: ${formatInr(2_000_00)} / Not provided]`,
+  'Timeline: [Shooting 1 to 3 Oct, posting 5 to 7 Oct, one post per day]',
+  'Approval: [1 round of revisions, brand replies within 2 days]',
+  'Rights: [Brand may repost for 6 months from posting date]',
+  'Deliverables: [1080x1350 JPG, captions in English and Hindi]',
+  'Restrictions: [No competitor brands, no explicit content]',
+  'Delivery: [Upload to Google Drive and share the link on ValueSkins]',
+  '',
+  'Additional notes:',
+].join('\n');

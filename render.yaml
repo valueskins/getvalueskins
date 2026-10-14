@@ -89,7 +89,7 @@ services:
         sync: false
       # The address users write to. DISPUTE_EMAIL is omitted on purpose: it defaults to this.
       - key: SUPPORT_EMAIL
-        value: valueskinsfounder@gmail.com
+        value: founder@valueskins.com
       - key: ENABLE_DEV_LOGIN
         value: 'true'
       - key: AUTH_EMAIL_ENABLED

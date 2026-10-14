@@ -56,7 +56,7 @@ describe('GET /api/deals/:id/documents/:kind', () => {
       'commission-invoice': 'VS-2026-27-000001.pdf',
       'advance-payment-record': 'VS-PR-2026-27-000001.pdf',
       'final-payment-record': 'VS-PR-2026-27-000002.pdf',
-      adp: `ValueSkins-Deal-Report-${deal.shortId}.pdf`,
+      adp: `ValueSkins-Deal-Record-${deal.shortId}.pdf`,
     };
 
     for (const who of [brand, creator, admin]) {

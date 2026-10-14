@@ -24,6 +24,10 @@ export const meProfileSchema = z.object({
   mediaCount: z.number().nullable(),
   engagementRate: z.number().nullable(),
   instagramSyncedAt: z.string().nullable(),
+  /** The Instagram bio. */
+  biography: z.string().nullable().default(null),
+  /** The Instagram account type, BUSINESS or MEDIA_CREATOR (SPEC 6.1). */
+  accountType: z.string().nullable().default(null),
 });
 
 /**

@@ -1,8 +1,4 @@
-import {
-  MAX_CONTENT_UPLOADS_PER_DEAL,
-  UPLOAD_LIMIT_REACHED,
-  type DealStatus,
-} from '@valueskins/shared';
+import { MAX_CONTENT_UPLOADS_PER_DEAL, UPLOAD_LIMIT_REACHED } from '@valueskins/shared';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
 import { contentUploads } from '../db/schema/index.js';
@@ -12,12 +8,9 @@ import { AppError } from '../errors/AppError.js';
 import { findDeal, loadOwnedDeal, notFound, parseId } from './access.js';
 import { transitionDeal, type Deal } from './stateMachine.js';
 
-function wrongStatus(what: string, status: DealStatus): AppError {
-  return new AppError(
-    'WRONG_DEAL_STATUS',
-    409,
-    `${what} is not possible while the deal is ${status}`,
-  );
+/** The deal is not at the step this needs. The message says what is not possible, never a status. */
+function wrongStatus(what: string): AppError {
+  return new AppError('WRONG_DEAL_STATUS', 409, `${what} is not possible at this step of the deal`);
 }
 
 /**
@@ -34,7 +27,7 @@ export async function uploadContent(
   const deal = await findDeal(parseId(rawId));
   if (!deal || deal.creatorId !== user.id) throw notFound();
   if (deal.status !== 'ADVANCE_PAID' && deal.status !== 'REVISION_REQUESTED') {
-    throw wrongStatus('Uploading content', deal.status);
+    throw wrongStatus('Uploading content');
   }
   const now = ctx.now();
 
@@ -80,7 +73,7 @@ export async function sendFeedback(
   feedback: string,
 ): Promise<Deal> {
   const deal = await loadOwnedDeal(rawId, user.id);
-  if (deal.status !== 'CONTENT_UPLOADED') throw wrongStatus('Sending feedback', deal.status);
+  if (deal.status !== 'CONTENT_UPLOADED') throw wrongStatus('Sending feedback');
 
   return transitionDeal({
     dealId: deal.id,
@@ -113,7 +106,7 @@ export async function approveContent(
   rawId: unknown,
 ): Promise<Deal> {
   const deal = await loadOwnedDeal(rawId, user.id);
-  if (deal.status !== 'CONTENT_UPLOADED') throw wrongStatus('Approving', deal.status);
+  if (deal.status !== 'CONTENT_UPLOADED') throw wrongStatus('Approving');
 
   return transitionDeal({
     dealId: deal.id,
