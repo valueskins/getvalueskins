@@ -21,6 +21,7 @@ const ROUTES: Array<{ method: 'get' | 'post'; path: string; body?: object }> = [
   { method: 'post', path: `/api/admin/deals/${ID}/cancel`, body: { note: 'x' } },
   { method: 'post', path: `/api/admin/emails/${ID}/resend`, body: {} },
   { method: 'get', path: '/api/admin/disputes' },
+  { method: 'get', path: `/api/admin/disputes/${ID}` },
   { method: 'post', path: `/api/admin/disputes/${ID}/resolve`, body: { resolution: 'x' } },
 ];
 

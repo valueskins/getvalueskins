@@ -122,6 +122,28 @@ describe('POST /api/admin/emails/:id/resend', () => {
     expect(last.attachments?.[0]?.content.data.length).toBeGreaterThan(1000);
   });
 
+  it('still rebuilds the deal record for an email stored with the old "Deal Report" file name', async () => {
+    const admin = await adminUser();
+    const { deal } = await runDeal(call, razorpay, 'COMPLETED');
+    const [original] = await db
+      .select()
+      .from(emailLog)
+      .where(eq(emailLog.template, 'DEAL_REPORT_READY'));
+    const oldName = `ValueSkins-Deal-Report-${deal.shortId}.pdf`;
+    await db
+      .update(emailLog)
+      .set({ attachmentNames: [oldName] })
+      .where(eq(emailLog.id, original!.id));
+
+    const res = await resend(admin.cookie, original!.id);
+    expect(res.status).toBe(200);
+    expect(res.body.missingAttachments).toEqual([]);
+    const last = sent[sent.length - 1]!;
+    // The old name is recognised, and the file is rebuilt under the current name.
+    expect(last.attachments?.[0]?.filename).toBe(`ValueSkins-Deal-Record-${deal.shortId}.pdf`);
+    expect(last.attachments?.[0]?.content.data.length).toBeGreaterThan(1000);
+  });
+
   it('keeps the CC list, and reports an attachment it cannot rebuild instead of failing', async () => {
     const admin = await adminUser();
     const { deal } = await runDeal(call, razorpay, 'COMMISSION_PAID');

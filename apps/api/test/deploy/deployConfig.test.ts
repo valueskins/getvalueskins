@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { envSchema } from '../../src/env/schema.js';
+import { buildTestEnv } from '../testEnv.js';
 
 const REPO_ROOT = new URL('../../../../', import.meta.url);
 const renderYaml = readFileSync(new URL('render.yaml', REPO_ROOT), 'utf8');
@@ -91,5 +92,36 @@ describe('docs/DEPLOYMENT.md', () => {
     ]) {
       expect(deploymentDoc).toContain(key);
     }
+  });
+});
+
+describe('SUPPORT_EMAIL (SPEC 21)', () => {
+  it('is required in every environment, with no default in the schema', () => {
+    for (const NODE_ENV of ['development', 'test', 'staging', 'production']) {
+      expect(() => buildTestEnv({ NODE_ENV, SUPPORT_EMAIL: undefined }), NODE_ENV).toThrow(
+        /SUPPORT_EMAIL/,
+      );
+    }
+    expect(() => buildTestEnv({ SUPPORT_EMAIL: '' })).toThrow(/SUPPORT_EMAIL/);
+    expect(() => buildTestEnv({ SUPPORT_EMAIL: 'not-an-address' })).toThrow(/SUPPORT_EMAIL/);
+    expect(buildTestEnv({ SUPPORT_EMAIL: 'founder@valueskins.com' }).SUPPORT_EMAIL).toBe(
+      'founder@valueskins.com',
+    );
+  });
+
+  it('is defaulted nowhere: not in the code, and empty in .env.example', () => {
+    const source = readFileSync(new URL('apps/api/src/env/schema.ts', REPO_ROOT), 'utf8');
+    expect(source).toMatch(/SUPPORT_EMAIL: z\.string\(\)\.email\(\),/);
+    const example = readFileSync(new URL('apps/api/.env.example', REPO_ROOT), 'utf8');
+    expect(example).toMatch(/^SUPPORT_EMAIL=\s*$/m);
+  });
+
+  it('is documented as founder@valueskins.com for staging and production', () => {
+    const section = deploymentDoc.slice(
+      deploymentDoc.indexOf('**`SUPPORT_EMAIL` in every environment.**'),
+    );
+    expect(section.slice(0, 700)).toContain('`founder@valueskins.com` on staging');
+    expect(section.slice(0, 700)).toContain('and in production');
+    expect(deploymentDoc).toMatch(/\| `SUPPORT_EMAIL`\s+\| `founder@valueskins\.com`/);
   });
 });

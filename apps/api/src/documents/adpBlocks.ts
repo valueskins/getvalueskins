@@ -161,7 +161,11 @@ export function adpBlocks(data: AdpData, generatedAt: Date): Block[] {
   let absorbed = 0;
   let recorded = false;
   for (const p of data.payments) {
-    feeRows.push([`Payment: ${p.type}`, fee(p.feePaise), fee(p.taxPaise)]);
+    feeRows.push([
+      `Payment: ${p.type === 'COMMISSION' ? 'ValueSkins fee' : p.type}`,
+      fee(p.feePaise),
+      fee(p.taxPaise),
+    ]);
     if (p.feePaise !== null || p.taxPaise !== null) recorded = true;
     absorbed += (p.feePaise ?? 0) + (p.taxPaise ?? 0);
   }

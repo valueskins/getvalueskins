@@ -26,6 +26,40 @@ async function draft(cookie: string, body: object = READY_DRAFT): Promise<string
   return (await api.send('post', '/api/deals', cookie, body)).body.deal.id;
 }
 
+describe('POST /api/deals/:id/publish: messages use the names on the form', () => {
+  it('names the fields Apply by, Content due and Deal ends', async () => {
+    const { cookie } = await brandWithBilling();
+    const empty = await draft(cookie, {});
+    const res = await api.send('post', `/api/deals/${empty}/publish`, cookie, {});
+    expect(res.status).toBe(400);
+    const message = (path: string) =>
+      res.body.error.details.find((d: { path: string }) => d.path === path)?.message;
+    expect(message('applicationDeadline')).toBe('Add a date for "Apply by"');
+    expect(message('contentUploadDeadline')).toBe('Add a date for "Content due"');
+    expect(message('dealDeadline')).toBe('Add a date for "Deal ends"');
+
+    const reversed = await draft(cookie, {
+      ...READY_DRAFT,
+      applicationDeadline: '2026-10-20',
+      contentUploadDeadline: '2026-10-15',
+    });
+    const second = await api.send('post', `/api/deals/${reversed}/publish`, cookie, {});
+    const messages: string[] = second.body.error.details.map((d: { message: string }) => d.message);
+    expect(messages).toContain('"Content due" must be after "Apply by"');
+    expect(messages.join(' ')).not.toMatch(/application deadline|content upload deadline/i);
+  });
+
+  it('shows the same message as the reason PUBLISH is disabled on the draft', async () => {
+    const { cookie } = await brandWithBilling();
+    const id = await draft(cookie, { ...READY_DRAFT, applicationDeadline: null });
+    const detail = await api.get(`/api/deals/${id}`, cookie);
+    const publish = detail.body.deal.allowedActions.find(
+      (a: { action: string }) => a.action === 'PUBLISH',
+    );
+    expect(publish).toMatchObject({ enabled: false, reason: 'Add a date for "Apply by"' });
+  });
+});
+
 describe('POST /api/deals/:id/publish', () => {
   it('opens the deal, freezes the breakdown, records the event and sends email 1', async () => {
     const { cookie, user } = await brandWithBilling();
@@ -184,6 +218,10 @@ describe('POST /api/deals/:id/publish', () => {
       const id = await draft(cookie);
       const res = await api.send('post', `/api/deals/${id}/publish`, cookie, {});
       expect(res.status).toBe(429);
+      expect(res.body.error).toEqual({
+        code: 'PUBLISH_LIMIT',
+        message: 'You can publish up to 10 deals a day',
+      });
       expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
       const [row] = await db.select().from(deals).where(eq(deals.id, id));
       expect(row?.status).toBe('DRAFT');

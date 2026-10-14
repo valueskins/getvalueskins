@@ -526,3 +526,81 @@ describe('over real sockets', () => {
     expect(otherBrandClient.received).toEqual([]);
   });
 });
+
+describe('disputes', () => {
+  const raise = (cookie: string, dealId: string) =>
+    h.call.send('post', `/api/deals/${dealId}/disputes`, cookie, {
+      subject: 'Late delivery',
+      description: 'The content is two weeks late and the reply was rude.',
+    });
+
+  it('raising and resolving each send one deal:updated to the deal room, with the unchanged status', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    const admin = await adminUser();
+    const deal = await insertDeal(brand.user.id, 'ADVANCE_PAID', { creatorId: creator.user.id });
+    record();
+
+    const raised = await raise(creator.cookie, deal.id);
+    expect(raised.status).toBe(201);
+    expect(emitted).toEqual([
+      {
+        room: dealRoom(deal.id),
+        event: 'deal:updated',
+        payload: { id: deal.id, status: 'ADVANCE_PAID' },
+      },
+    ]);
+
+    emitted.length = 0;
+    const resolved = await h.call.send(
+      'post',
+      `/api/admin/disputes/${raised.body.dispute.id}/resolve`,
+      admin.cookie,
+      { resolution: 'Settled between the parties' },
+    );
+    expect(resolved.status).toBe(200);
+    expect(emitted).toEqual([
+      {
+        room: dealRoom(deal.id),
+        event: 'deal:updated',
+        payload: { id: deal.id, status: 'ADVANCE_PAID' },
+      },
+    ]);
+    expect(JSON.stringify(emitted)).not.toContain('two weeks late');
+  });
+
+  it('a refused raise (second open dispute, stranger) sends nothing', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    const stranger = await creatorWithPayout();
+    const deal = await insertDeal(brand.user.id, 'ADVANCE_PAID', { creatorId: creator.user.id });
+    expect((await raise(brand.cookie, deal.id)).status).toBe(201);
+    record();
+
+    expect((await raise(creator.cookie, deal.id)).status).toBe(409);
+    expect((await raise(stranger.cookie, deal.id)).status).toBe(404);
+    expect(emitted).toEqual([]);
+  });
+
+  it('over real sockets, both parties get the event and refetch the dispute; a stranger gets nothing', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    const stranger = await brandWithBilling();
+    const deal = await insertDeal(brand.user.id, 'ADVANCE_PAID', { creatorId: creator.user.id });
+    const brandClient = await h.open({ cookie: brand.cookie });
+    const creatorClient = await h.open({ cookie: creator.cookie });
+    const strangerClient = await h.open({ cookie: stranger.cookie });
+    expect(await brandClient.join(deal.id)).toEqual({ ok: true });
+    expect(await creatorClient.join(deal.id)).toEqual({ ok: true });
+    expect(await strangerClient.join(deal.id)).toEqual({ ok: false });
+
+    expect((await raise(creator.cookie, deal.id)).status).toBe(201);
+    await sleep(QUIET_MS);
+
+    expect(brandClient.of('deal:updated')).toEqual([{ id: deal.id, status: 'ADVANCE_PAID' }]);
+    expect(creatorClient.of('deal:updated')).toEqual([{ id: deal.id, status: 'ADVANCE_PAID' }]);
+    expect(strangerClient.of('deal:updated')).toEqual([]);
+    const refetched = await h.call.get(`/api/deals/${deal.id}`, brand.cookie);
+    expect(refetched.body.deal.disputes).toHaveLength(1);
+  });
+});
