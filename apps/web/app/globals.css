@@ -1,14 +1,11 @@
+/* Load order (app/layout.tsx): this file, then receipt.css (the design system),
+ * then utilities.css, so a Tailwind utility on an element wins over a component class. */
 @tailwind base;
 @tailwind components;
-@tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-background text-foreground;
-  }
-
   :focus-visible {
-    outline: 2px solid #ff0000;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 }

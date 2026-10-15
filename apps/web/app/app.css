@@ -1,0 +1,97 @@
+/*
+ * App-only layout on top of receipt.css. The design boards are drawn at fixed
+ * widths; these rules make the same pieces work at every width.
+ */
+
+/* Overlays: the modal centred on a scrim, a bottom sheet on phones */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--scrim);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+@media (max-width: 767px) {
+  .overlay {
+    place-items: end stretch;
+    padding: 0;
+  }
+  .overlay .modal {
+    width: 100%;
+    border-radius: var(--r) var(--r) 0 0;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .overlay .modal-foot {
+    flex-direction: column-reverse;
+  }
+  .overlay .modal-foot .btn {
+    width: 100%;
+  }
+}
+.overlay .sheet-bottom {
+  position: fixed;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+/* Toasts: top right on desktop, full width above the bottom edge on a phone */
+.toasts {
+  position: fixed;
+  z-index: 60;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toasts .toast {
+  pointer-events: auto;
+}
+@media (max-width: 767px) {
+  .toasts {
+    top: auto;
+    bottom: 16px;
+    left: 16px;
+  }
+  .toasts .toast {
+    width: 100%;
+  }
+}
+
+/* The phone menu covers the page under the top bar */
+.sheet.is-fixed {
+  position: fixed;
+  top: 56px;
+  overflow-y: auto;
+  z-index: 40;
+}
+
+/* Page gutters: 16px on phones */
+@media (max-width: 767px) {
+  .page {
+    padding: 24px 16px 48px;
+  }
+  .site-header-in,
+  .site-footer-in {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* The resume popover sits under its trigger */
+.resume-anchor {
+  position: relative;
+  display: inline-block;
+}
+.resume-anchor > .popover {
+  top: calc(100% + 8px);
+  left: 0;
+}
