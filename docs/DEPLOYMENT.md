@@ -143,19 +143,31 @@ If the deploy fails, open the **Logs** tab. A line starting `Invalid environment
 4. Name the project `valueskins-staging-web`.
 5. **Environment Variables** (add each for the Production environment):
 
-   | Variable                         | Value                                |
-   | -------------------------------- | ------------------------------------ |
-   | `NEXT_PUBLIC_API_URL`            | `https://api-staging.valueskins.com` |
-   | `NEXT_PUBLIC_RAZORPAY_KEY_ID`    | the `rzp_test_...` key id            |
-   | `NEXT_PUBLIC_ENABLE_DEV_LOGIN`   | `true`                               |
-   | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` | `true`                               |
+   | Variable                       | Value                                |
+   | ------------------------------ | ------------------------------------ |
+   | `NEXT_PUBLIC_API_URL`          | `https://api-staging.valueskins.com` |
+   | `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | the `rzp_test_...` key id            |
+   | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | `true`                               |
 
 6. Click **Deploy**. Then in **Settings > General**, set **Node.js Version** to `22.x`. In **Settings > Git**, check that **Production Branch** is `main`.
 7. **Settings > Domains > Add Domain:** `staging.valueskins.com`. Vercel shows a CNAME value for this project. Copy it for section 10.
 
 Variables starting `NEXT_PUBLIC_` are baked in at build time. After changing one, redeploy (**Deployments > ... > Redeploy**).
 
-Pull request preview deployments are only build checks: their web address will not match `WEB_ORIGIN`, so sign-in does not work on them.
+Pull request preview deployments on their own `*.vercel.app` address are build checks only: that address is not `WEB_ORIGIN`, the session cookie is set for `.valueskins.com`, and the Instagram callback sends you back to `WEB_ORIGIN`, so sign-in cannot work there. To try a web branch with sign-in, serve it on `staging.valueskins.com` for a while (section 9a).
+
+"Sign in with email" on the home page follows the API's `GET /api/config` (`authEmailEnabled`, from Render's `AUTH_EMAIL_ENABLED`). There is no web variable for it any more: the web app no longer reads `NEXT_PUBLIC_AUTH_EMAIL_ENABLED`. If the project still has it, delete it in **Settings > Environment Variables** (it does nothing, but it suggests a switch that is not there).
+
+## 9a. Checking a web branch on staging
+
+Use this to check a web branch, for example a W1 to W3 branch, with real sign-in before it is merged. While it runs, `staging.valueskins.com` serves the branch instead of `main`. Nothing changes on Render or Meta.
+
+1. In Vercel, project `valueskins-staging-web`, **Settings > Environment Variables**: make sure the three variables in step 5 above also exist for the **Preview** environment, with the same values. You can limit them to the branch (Vercel lets you scope a Preview variable to one Git branch). Then redeploy the branch's latest preview, because `NEXT_PUBLIC_` values are baked in at build time.
+2. **Settings > Domains > `staging.valueskins.com` > Edit**: connect the domain to the **Preview** environment and enter the branch name in **Git Branch** (for example `feat/web-shell`). Save. Each new push to the branch now updates `staging.valueskins.com`. To pin one deployment instead, `vercel alias set <deployment-url> staging.valueskins.com` works too.
+3. Check sign-in on `https://staging.valueskins.com`: section 13 steps 2 to 10.
+4. When you are done, edit the domain again and connect it back to **Production** (branch `main`). Check that `staging.valueskins.com` shows `main` again.
+
+Pushes to the branch while it holds the domain go live on staging straight away, so tell anyone else testing staging first.
 
 ## 10. DNS records
 
@@ -221,21 +233,21 @@ Razorpay's dashboard shows each delivery and its response code. A healthy delive
 Do these in order on a clean browser profile. This is the "done" check for staging.
 
 1. `https://api-staging.valueskins.com/api/health` shows `{"ok":true}` over HTTPS.
-2. `https://staging.valueskins.com/` loads over HTTPS and shows "Continue with Instagram" and "Sign in with email".
-3. `https://staging.valueskins.com/privacy` and `/terms` load without signing in (the draft banner is visible).
-4. `https://staging.valueskins.com/dev/login`: enter a username, click **Dev login**. You land on `/me`. Click **Log out**.
-5. **Email sign-in:** **Sign in with email**, enter your email, **Send code**. The email arrives from `notifications@valueskins.com` (check spam). Enter the code. You land on `/me` showing "No Instagram account is linked". Click **Log out**.
-6. **Instagram sign-in:** **Continue with Instagram** with the tester account. Approve the permission. You land on `/me` showing username, name, picture, followers, posts and engagement rate.
-7. A personal Instagram account, or any account that is not Business or Creator, shows "ValueSkins needs a public Instagram Business or Creator account..." on `/auth/error`. An Instagram **Business** account signs in as a brand and a **Creator** account as a creator, with no account type question.
+2. `https://staging.valueskins.com/` loads over HTTPS and shows "Sign in with Instagram", and "Sign in with email" under it (staging only: it follows `AUTH_EMAIL_ENABLED`).
+3. `/how-it-works`, `/terms`, `/privacy`, `/refunds` and `/contact` load without signing in. Yellow "Not in this version" boxes mark passages about things the app does not do yet; they never show on a production build. `/no-such-page` shows the 404 page.
+4. `https://staging.valueskins.com/dev/login`: enter a username, pick a role, click **Sign in**. You land on `/onboarding`. Click **Sign out** at the top.
+5. **Email sign-in:** **Sign in with email**, enter your email, **Send code**. The email arrives from `notifications@valueskins.com` (check spam). Enter the code. You land on `/onboarding` at "Connect your Instagram". Click **Sign out**.
+6. **Instagram sign-in:** **Sign in with Instagram** with the tester account. Approve the permission. You land on `/onboarding` at "Is this you?", showing the picture, name, username, account type, followers, posts, engagement and bio.
+7. A personal Instagram account, or any account that is not Business or Creator, lands on `/login?error=account_type_unsupported`: "This Instagram account cannot sign in" with the "How to switch" steps. An Instagram **Business** account signs in as a brand and a **Creator** account as a creator, with no account type question.
 8. In Render, **Logs** shows requests and no errors.
-9. **Creator UPI payout details.** Sign in as a creator with a verified email (the email sign-in or an Instagram sign-in plus `/onboarding`). Open `https://staging.valueskins.com/onboarding`:
-   1. **Instagram sign-in:** the page shows "Is this you?". There is no account type question: the role comes from the Instagram account type. (An email-only account is asked to **Connect Instagram** first and cannot finish setting up until it does.)
-   2. Enter an email, **Send verification link**, open the emailed link in the same browser, then click **Continue**.
-   3. **Your profile:** a creator gives name, city, age (18 to 99) and gender, and ticks "I am 18 or older"; a brand gives name, city, website and, if it wants, a hiring pitch. It saves once and is then locked: a second save answers `409 PROFILE_LOCKED` with the support address.
-   4. The page now shows **Payout setup**. Enter a UPI ID such as `yourname@okaxis`, the name on the account as your UPI app shows it, read the warning ("We do not verify UPI IDs..."), tick the consent box and click **Save UPI details**. A bank account number, PAN or IFSC code is refused with a message.
-   5. Expected: the page shows the UPI ID masked, like `yo•••@okaxis`, with the name and the consent date, and a **Change UPI details** button. The full ID never appears again. `GET /api/me/payout-upi` returns the same masked form.
-   6. Without a saved UPI ID the creator cannot apply ("Add your UPI ID to apply"), and a brand cannot confirm that creator. Nothing is created in Razorpay.
-10. **Brand billing** (optional check): sign in with a second account that is a Business Instagram account, add an email and a profile if needed, fill in **Billing details**. A GSTIN, if entered, must be valid.
+9. **Creator onboarding.** Sign in with a Creator Instagram account (or dev login as a creator):
+   1. "Is this you?": check the details, click **This is me**. There is no account type question: the role comes from the Instagram account type. (An email-only account is asked to **Connect Instagram** first and cannot finish setting up until it does.)
+   2. **Add your email**, **Send link**. The page shows "Check your inbox". Open the emailed link in the same browser: "Email confirmed". Click **Continue**.
+   3. **Your profile:** name, city, age (18 to 99) and gender, and tick "I am 18 or older". **Save profile**. It saves once and is then locked.
+   4. **Get paid by UPI:** a bank account number, PAN or IFSC code in the UPI ID field is explained at once. Enter a UPI ID such as `yourname@okaxis`, the name on the account, tick the consent box, **Save UPI ID** (or **Do this later**). You land on **Deals**.
+   5. **Settings** shows the email as verified, the profile read-only with "write to us", the UPI ID masked like `yo•••@okaxis` with the name and consent date, and the Instagram numbers. The full UPI ID never appears again. `GET /api/me/payout-upi` returns the same masked form.
+   6. Opening `/campaigns` as a creator shows the 404 page.
+10. **Brand onboarding.** Sign in with a Business Instagram account (or dev login as a brand): the same steps, with brand name, city, website and an optional hiring pitch, then **Billing details** (a GSTIN, if entered, must be valid). **Save and finish** lands on **Campaigns**, with **Post a deal** in the top bar. `/deals` shows the 404 page. **Sign out** from the menu under your username goes back to the home page.
 11. **Deal flow, draft to CONFIRMED (curl).** There is no deals screen yet, so this uses the API directly. You need `curl` and `jq`, two email addresses you can read (one brand, one creator), and a Render **Shell** for the payout fallback. Each person gets a cookie file, so run everything in one terminal session:
 
     ```bash
@@ -427,7 +439,7 @@ Copy your `instagram_user_id`, then Render > service > **Environment**, set `ADM
 
 Meta needs a screencast for `instagram_business_basic` showing the end-to-end experience and how the data is used. Before you record:
 
-- [ ] Replace the placeholder text in `apps/web/content/privacy.md` and `terms.md` with the real, lawyer-reviewed text, and deploy it. It must say what is collected, why, and how to delete data.
+- [ ] Replace the text in `apps/web/content/privacy.md` and `terms.md` with the real, lawyer-reviewed text, resolve every "Not in this version" note, and deploy it. It must say what is collected, why, and how to delete data.
 - [ ] App settings > Basic is complete: privacy policy URL, app icon 1024x1024, category, business email. Open the app's **App Review** area and read its requirements list; Meta may also ask for Business Verification.
 - [ ] A dedicated Instagram Professional test account is added as an Instagram Tester and has accepted.
 - [ ] The redirect URI, deauthorize callback and data deletion URL are saved (section 5).
@@ -438,11 +450,11 @@ Recording:
 
 - [ ] English narration or captions. 1080p. Browser address bar visible, showing `https://staging.valueskins.com`.
 - [ ] Be signed out of Instagram first so the login screen shows.
-- [ ] Open the home page, click **Continue with Instagram**.
+- [ ] Open the home page, click **Sign in with Instagram**.
 - [ ] Show the Instagram permission screen and say which permission it asks for (`instagram_business_basic`) and why.
-- [ ] Approve. Show `/me` with the username, name, picture, followers, posts and engagement rate, and say how each is used (shown to brands when the creator applies to a deal).
+- [ ] Approve. Show the onboarding "Is this you?" step with the username, name, picture, followers, posts, engagement rate and bio, and say how each is used (shown to brands when the creator applies to a deal).
 - [ ] Open `/privacy` and scroll to the deletion section.
-- [ ] Click **Delete my account** to show data deletion, or say that Instagram's deauthorize and data deletion callbacks do the same.
+- [ ] In **Settings**, click **Delete account** to show data deletion, or say that Instagram's deauthorize and data deletion callbacks do the same.
 - [ ] Do not show secrets: no app secret, tokens, `.env`, or dashboard variable values.
 
 Submission text for reviewers: the staging URL, the step-by-step above, and the tester login for the test account (and a note about two-factor authentication if it is on).
@@ -455,7 +467,7 @@ Submission text for reviewers: the staging URL, the step-by-step above, and the 
 
 **Switch features off without code.**
 
-- Email sign-in: Render `AUTH_EMAIL_ENABLED=false` (production must always have it `false`: the API refuses to start otherwise); Vercel `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=false` and redeploy.
+- Email sign-in: Render `AUTH_EMAIL_ENABLED=false` (production must always have it `false`: the API refuses to start otherwise). The web hides "Sign in with email" within a minute (`GET /api/config` is cached for 60 seconds); no web redeploy is needed.
 - Dev login: Render `ENABLE_DEV_LOGIN=false`; Vercel `NEXT_PUBLIC_ENABLE_DEV_LOGIN=false` and redeploy.
 
 **Undo a merge.** Revert the pull request on GitHub; Render and Vercel deploy `main` again.
@@ -512,12 +524,11 @@ Only one free Postgres can be active per Render workspace.
 
 ### Vercel, project `valueskins-staging-web`
 
-| Variable                         | Staging value                        | Where it comes from                                                                  |
-| -------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_API_URL`            | `https://api-staging.valueskins.com` | fixed                                                                                |
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID`    | `rzp_test_...`                       | Razorpay test mode (section 6)                                                       |
-| `NEXT_PUBLIC_ENABLE_DEV_LOGIN`   | `true`                               | fixed on staging; a build with this true and the production API URL fails on purpose |
-| `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` | `true`                               | fixed on staging                                                                     |
+| Variable                       | Staging value                        | Where it comes from                                                                  |
+| ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_API_URL`          | `https://api-staging.valueskins.com` | fixed                                                                                |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | `rzp_test_...`                       | Razorpay test mode (section 6)                                                       |
+| `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | `true`                               | fixed on staging; a build with this true and the production API URL fails on purpose |
 
 ### Local development
 
@@ -535,25 +546,25 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Jobs run inside the API process.** Render keeps one instance, so they run once; a second instance is safe (the lock) but does nothing extra. A job that fails is logged, not emailed (SPEC 14). Reminder emails carry no link to the deal, because the temporary pages are replaced soon.
 - **Live updates run in the API process.** Socket.io is attached to the API's HTTP server (SPEC 10), so there is one instance and nothing extra to configure; the web app must connect with credentials to the API origin, and its CSP needs `connect-src` for the API origin and `wss://` (done with the real web screens). A second Render instance would need the Redis adapter and sticky sessions first. The temporary pages do not listen to sockets yet, so they still update only on reload.
 - **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.
-- **Privacy policy and terms** are placeholder drafts.
+- **Terms, Privacy, Refunds and How it works** are rendered from `apps/web/content/*.md`. The text is adapted from the live site and waits for the final wording; passages about things the app does not do yet are marked (see `apps/web/content/README.md`).
 - **Free database** has no backups and expires (section 17).
 - **OAuth state cookie** `vs_ig_oauth_state` has the same name in every environment, and staging and production will share the cookie domain `.valueskins.com`. Complete one sign-in at a time when testing both.
 - **Meta review** can require Business Verification; check the App Review requirements in the Meta dashboard.
-- **Temporary web pages** live in `apps/web/app/(temporary)` and `apps/web/lib/temporary` and are deleted when the design handoff lands.
+- **Deal screens are not built yet.** After W1 the creator's Deals, Applications and My deals pages and the brand's Campaigns and Post a deal pages show only their heading; the deal flow arrives with W2. Until then use the curl steps in section 13.
 
 ## 20. Troubleshooting
 
 | Symptom                                                                           | Likely cause and fix                                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Instagram says "Invalid redirect_uri"                                             | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                       |
-| After Instagram you land on `/auth/error?error=state_invalid`                     | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                              |
-| `/auth/error?error=account_type_unsupported`                                      | The Instagram account is not a Business or Creator account (a personal account, or Meta sent no account type). Switch it to a Professional Business or Creator account in Instagram settings.                                 |
-| `/auth/error?error=account_type_change_blocked`                                   | The account's Instagram type changed (Business to Creator or back), but it already has deals or applications in its old role. Write to `SUPPORT_EMAIL`; the account type is not changed automatically once there is activity. |
+| After Instagram you land on `/login?error=state_invalid`                          | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                              |
+| `/login?error=account_type_unsupported`                                           | The Instagram account is not a Business or Creator account (a personal account, or Meta sent no account type). Switch it to a Professional Business or Creator account in Instagram settings.                                 |
+| `/login?error=account_type_change_blocked`                                        | The account's Instagram type changed (Business to Creator or back), but it already has deals or applications in its old role. Write to `SUPPORT_EMAIL`; the account type is not changed automatically once there is activity. |
 | `409 PROFILE_LOCKED`                                                              | The profile is saved once. To correct it, update the row by hand (Render Shell: set the fields and, to let the user save again, `profile_locked_at = null`).                                                                  |
 | Render deploy fails with `COMPANY_GSTIN is required when GST_RATE_BPS is above 0` | GST is charged by default. Set `COMPANY_GSTIN` in Render, or set `GST_RATE_BPS=0` on a test service that should not charge GST.                                                                                               |
 | Sign-in works but `/me` says you are signed out                                   | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                    |
 | API returns `403 ORIGIN_MISMATCH`                                                 | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                      |
-| "Sign in with email" button missing                                               | `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` is not `true` on Vercel, or you did not redeploy after setting it.                                                                                                                           |
+| "Sign in with email" button missing                                               | `AUTH_EMAIL_ENABLED` is not `true` on Render. The web reads it from `GET /api/config`, cached for 60 seconds.                                                                                                                 |
 | Email routes return 404                                                           | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                 |
 | Emails do not arrive                                                              | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                |
 | Render deploy fails with `Invalid environment`                                    | A required variable is missing or wrong; the log names it.                                                                                                                                                                    |

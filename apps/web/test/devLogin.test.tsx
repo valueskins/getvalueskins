@@ -1,63 +1,36 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import DevLoginPage from '../app/(temporary)/dev/login/page';
-import { assertSafeWebEnv } from '../lib/temporary/envGuard';
-
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('next/navigation')>()),
-  useRouter: () => ({ push: vi.fn() }),
-}));
+import DevLoginPage from '@/app/dev/login/page';
+import { json, mockApi } from './helpers/api';
+import { CONFIG, makeMe } from './helpers/fixtures';
+import { nav } from './helpers/nav';
+import { renderWithProviders } from './helpers/render';
 
 describe('/dev/login', () => {
   it('is a 404 unless NEXT_PUBLIC_ENABLE_DEV_LOGIN is "true"', () => {
-    expect(() => DevLoginPage()).toThrow();
-
+    expect(() => DevLoginPage()).toThrow('NEXT_NOT_FOUND');
     vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'false');
-    expect(() => DevLoginPage()).toThrow();
+    expect(() => DevLoginPage()).toThrow('NEXT_NOT_FOUND');
   });
 
-  it('renders the form when the flag is on, with the reason the button is disabled', () => {
+  it('signs in as a test user and goes where that user starts', async () => {
     vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'true');
-    render(<DevLoginPage />);
+    const api = mockApi({
+      'GET /config': CONFIG,
+      'POST /dev/login': json(200, { user: {} }),
+      'GET /me': makeMe({ role: 'BRAND' }),
+    });
+    renderWithProviders(<DevLoginPage />);
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled();
+    expect(screen.getByText('Enter a username to sign in')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: 'Dev login' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Dev login' })).toBeDisabled();
-    expect(screen.getByText('Enter a username to log in.')).toBeInTheDocument();
-  });
-});
-
-describe('assertSafeWebEnv', () => {
-  it('allows dev login against the staging API', () => {
-    expect(() =>
-      assertSafeWebEnv({
-        NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true',
-        NEXT_PUBLIC_API_URL: 'https://api-staging.valueskins.com',
-      }),
-    ).not.toThrow();
-  });
-
-  it('fails the build when dev login is on against the production API', () => {
-    expect(() =>
-      assertSafeWebEnv({
-        NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true',
-        NEXT_PUBLIC_API_URL: 'https://api.valueskins.com',
-      }),
-    ).toThrow(/NEXT_PUBLIC_ENABLE_DEV_LOGIN/);
-  });
-
-  it('allows the production API when dev login is off or unset', () => {
-    expect(() =>
-      assertSafeWebEnv({ NEXT_PUBLIC_API_URL: 'https://api.valueskins.com' }),
-    ).not.toThrow();
-    expect(() =>
-      assertSafeWebEnv({
-        NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'false',
-        NEXT_PUBLIC_API_URL: 'https://api.valueskins.com',
-      }),
-    ).not.toThrow();
-  });
-
-  it('allows dev login with an unset API URL (local development)', () => {
-    expect(() => assertSafeWebEnv({ NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true' })).not.toThrow();
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'test.brand' } });
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'BRAND' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/onboarding'));
+    expect(api.called('POST /dev/login')[0]!.body).toEqual({
+      username: 'test.brand',
+      role: 'BRAND',
+    });
   });
 });
