@@ -110,15 +110,16 @@ function texts(deal: DealDetail, key: PanelKey): [string, string] {
         'Apply to this deal',
         'The amount is fixed by the brand. Read the brief, then apply if it suits you.',
       ];
-    case 'applicants':
+    case 'applicants': {
+      const n = deal.applicationCount ?? 0;
+      const close = deal.applicationDeadline
+        ? `Applications close ${longDate(deal.applicationDeadline)}, 11:59 pm IST, and you can still confirm someone after that.`
+        : 'You can confirm someone after applications close too.';
       return [
         'Confirm one creator',
-        `${deal.applicationCount ?? 0} ${deal.applicationCount === 1 ? 'has' : 'have'} applied. ${
-          deal.applicationDeadline
-            ? `Applications close ${longDate(deal.applicationDeadline)}, 11:59 pm IST, and you`
-            : 'You'
-        } can still confirm someone after that.`,
+        `${n === 0 ? 'No one has applied yet.' : `${n} ${n === 1 ? 'has' : 'have'} applied.`} ${close}`,
       ];
+    }
     case 'payFee':
       return [
         'Pay the ValueSkins fee to start the deal',
