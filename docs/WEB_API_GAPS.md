@@ -89,3 +89,26 @@ Found while building W1. Open items need a short API prompt or a decision; the w
   - **Not doing (later).** Decided for W1: a web branch is checked by pointing `staging.valueskins.com` at it for a while (DEPLOYMENT.md section 9a). Supporting previews would need several allowed origins in CORS, the Origin check and Socket.io, plus a cookie and callback plan for another domain.
 - **Deploy doc test:** `apps/api/test/deploy/deployConfig.test.ts` ("documents the web env vars") still expects `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` in `docs/DEPLOYMENT.md`. W1 retired that variable: "Sign in with email" follows `GET /api/config` `authEmailEnabled`.
   - **Open.** DEPLOYMENT.md section 9 now names the variable only to say it is unused and can be deleted from Vercel, which is a real manual step. Drop the key from that test's list in the next API prompt.
+
+## W2: the deal flow
+
+Found while building W2. The web works around each one as described.
+
+- **No step field:** the deal page's 9-step bar has no API field. Shared has no helper that maps a status to a step.
+  - **Open.** The web maps it in `apps/web/lib/dealStatus.ts` from the status and the deal's timestamps (a cancelled deal stops where its timestamps end). A shared `dealSteps()` would keep the PDF, emails and web in step.
+- **No feedback history on the detail:** `GET /deals/:id` has only the latest `feedback`.
+  - **Open (works today).** The web reads the history from `GET /deals/:id/events`: each move from CONTENT_UPLOADED to REVISION_REQUESTED carries the feedback in `note`.
+- **No `applied` flag on the detail:** a creator's "already applied" shows only as `APPLY` disabled with "You have already applied".
+  - **Open (works today).** The web shows the Applied state from that reason. A boolean would make it independent of the wording.
+- **Dispute response is not a shared schema:** `POST /deals/:id/disputes` answers an API-local `DisputeView`.
+  - **Open.** The web only needs the call to succeed and then re-reads the deal's `disputes`.
+- **Fee verify can succeed without moving the deal:** if the deal changed during Checkout, verify answers `CAPTURED` with the deal unchanged.
+  - **Not doing (later)**, as before ("Fee in progress"). The web goes by `deal.status`: it says the payment is being confirmed, offers "Check payment", and never invites a second payment.
+- **`NEXT_PUBLIC_RAZORPAY_KEY_ID` is unused:** Checkout uses the `keyId` the fee order returns.
+  - **Open.** Delete it from the Vercel projects and from the deploy-doc test's list (`apps/api/test/deploy/deployConfig.test.ts`) in the next API prompt. DEPLOYMENT.md marks it unused.
+- **Lists and live updates:** a socket may join only 30 deal rooms a minute, so Campaigns and My deals do not join every listed deal's room.
+  - **Not doing (later).** Lists re-read on focus and reconnect, and on `application:new` for the brand. A per-user "my deals changed" event would make them live.
+- **Technical API messages:** `WRONG_ROLE` names the raw role, and `PAYMENT_AMOUNT_MISMATCH`, `PAYMENT_NOT_CAPTURED` and some `WRONG_DEAL_STATUS` messages are technical or name a step.
+  - **Open.** The web maps those codes to plain text (`apps/web/lib/dealErrors.ts`). Plain API messages would let it show them as they are.
+- **SPEC 16 field name:** SPEC 16 says `creatorPayoutStatus` on `GET /deals/:id`; the API returns `creatorPayoutSet: boolean | null`.
+  - **Open.** The web does not need it (the `PAY_*` reasons say which UPI detail is missing). Fix the SPEC wording in the next API prompt.

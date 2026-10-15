@@ -83,7 +83,7 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
 
 1. In the Razorpay dashboard, switch to **Test Mode**.
 2. Open **Accounts & Settings** and look for **API keys** (under Website and app settings). Generate a **test** key. Copy:
-   - Key id (starts with `rzp_test_`) is `RAZORPAY_KEY_ID` (and `NEXT_PUBLIC_RAZORPAY_KEY_ID` on Vercel).
+   - Key id (starts with `rzp_test_`) is `RAZORPAY_KEY_ID`. The web app opens Checkout with the key the fee order returns, so it always matches the server; `NEXT_PUBLIC_RAZORPAY_KEY_ID` on Vercel is no longer read.
    - Key secret (shown once) is `RAZORPAY_KEY_SECRET`.
 3. Make up a webhook secret: run `openssl rand -hex 32` and keep the result. It is `RAZORPAY_WEBHOOK_SECRET`.
 4. The webhook: the API now has `POST /api/webhooks/razorpay`, so register it once the API is deployed (section 8):
@@ -248,7 +248,19 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
    5. **Settings** shows the email as verified, the profile read-only with "write to us", the UPI ID masked like `yo•••@okaxis` with the name and consent date, and the Instagram numbers. The full UPI ID never appears again. `GET /api/me/payout-upi` returns the same masked form.
    6. Opening `/campaigns` as a creator shows the 404 page.
 10. **Brand onboarding.** Sign in with a Business Instagram account (or dev login as a brand): the same steps, with brand name, city, website and an optional hiring pitch, then **Billing details** (a GSTIN, if entered, must be valid). **Save and finish** lands on **Campaigns**, with **Post a deal** in the top bar. `/deals` shows the 404 page. **Sign out** from the menu under your username goes back to the home page.
-11. **Deal flow, draft to CONFIRMED (curl).** There is no deals screen yet, so this uses the API directly. You need `curl` and `jq`, two email addresses you can read (one brand, one creator), and a Render **Shell** for the payout fallback. Each person gets a cookie file, so run everything in one terminal session:
+11. **A full deal on the screens, in two browsers (the web done check).** Use two browsers, or one normal window and one private window, so the brand and the creator are signed in at the same time. Keep both open side by side: every step below should appear in the other window within a second or two, without a reload, with a short note at the top right.
+    1. **Brand: post.** Sign in as a Business account (or dev login as a brand with billing details). **Post a deal**: a title, **Insert template**, a budget (commas appear as you type, and the breakdown shows from ₹5,000.00), and three dates from the calendars. Leave the page and come back: "You have changes saved on this device" offers them back. **Publish**, read the confirm, **Publish**. The deal page opens on "Confirm one creator".
+    2. **Creator: apply.** Sign in as a Creator account with a UPI ID saved. **Deals** shows "1 new deal" at the top; press it. Open the deal, **Apply**, confirm. The button turns to Applied, and **Applications** lists it.
+    3. **Brand: confirm.** The applicant appears without a reload. **Confirm**, read the amounts, confirm. The creator's page shows "Waiting for ... to pay the ValueSkins fee".
+    4. **Brand: the fee.** **Pay ValueSkins fee: ₹885.00** opens Razorpay Checkout (test mode). Close it once: "Checkout closed. Nothing was charged." Then pay with a test card or test UPI ID from Razorpay's test-payment page. The page shows "Fee paid" and moves on; the tax invoice appears under Documents.
+    5. **Brand: the advance by UPI.** The panel shows the creator's full UPI ID and name, **Pay with UPI app** and a QR code. On a phone, scan the code or open the link: the UPI app must show the creator's name and exactly the advance. **You do not need to send money**: close the app, enter any reference of 6 to 40 characters, **I have paid**.
+    6. **Creator: confirm.** "The brand says it paid ... to cr•••@...". Press **Not received** once, with a reason: the brand sees the reason and the struck-through record, and records again. Then **I received it**: both pages move to Advance confirmed.
+    7. **Creator: share.** A non-Drive link is refused ("Must be a Google Drive link"). Share a Google Drive link.
+    8. **Brand: review.** **Suggest changes**, write what should change, send. The creator sees the feedback, shares a new link, and the brand **Approve**s (the confirm names the final amount).
+    9. **The final.** The brand pays and records the final the same way; the creator confirms. Both pages show "This deal is complete", the four documents, and **Download deal record**.
+    10. **On a phone width** (390 px) the pages fit without sideways scrolling, the sections fold, and the steps show as "Step 4 of 9".
+
+11a. **The same deal through the API (curl, optional).** Useful when a screen misbehaves, to tell a web problem from an API one. You need `curl` and `jq`, two email addresses you can read (one brand, one creator), and a Render **Shell** for the payout fallback. Each person gets a cookie file, so run everything in one terminal session:
 
     ```bash
     API=https://api-staging.valueskins.com/api
@@ -307,7 +319,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
     DEAL=PASTE-THE-DEAL-ID
     ```
 
-    1. **Commission.** Signed in as the brand in a browser, open `https://staging.valueskins.com/deals/<DEAL>/pay`. Click **Pay commission: ...**, pay in Checkout. Expected: the page says "Payment recorded.", the deal moves to `COMMISSION_PAID`, and the brand and creator get an email. If the page shows an error, `q "select * from webhook_events order by received_at desc limit 5"` shows what Razorpay sent and any error.
+    1. **Fee.** Signed in as the brand in a browser, open `https://staging.valueskins.com/deals/<DEAL>`. Click **Pay ValueSkins fee: ...**, pay in Checkout. Expected: the page says "Fee paid", the deal moves to `COMMISSION_PAID`, and the brand and creator get an email. If the page shows an error, `q "select * from webhook_events order by received_at desc limit 5"` shows what Razorpay sent and any error.
     2. **Advance: pay the creator by UPI, record it, the creator confirms.** The advance is not paid through Razorpay. The brand pays the creator's UPI ID itself, and the creator confirms the money arrived; that confirmation is what moves the deal. With the deal in `COMMISSION_PAID`:
 
        ```bash
@@ -320,7 +332,7 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
        To try the other path first, say it did not arrive: `call POST /direct-payments/$DP/not-received creator.jar '{"reason":"Nothing arrived"}'` (emails 18 and an admin alert; the deal stays in `COMMISSION_PAID`), then record again with another reference.
 
-    3. **Check the UPI link and QR code on a phone.** Open `https://staging.valueskins.com/deals/<DEAL>/pay` as the brand while the advance is due. It shows the payee name, the UPI ID, the amount, **Open in a UPI app** and a QR code. Scan the QR code, or open the link on a phone with a UPI app: the app must show the creator's name on the account and exactly the advance amount. **You do not need to send the money**: close the app, then record any reference (6 to 40 characters) and confirm as the creator.
+    3. **Check the UPI link and QR code on a phone.** Open `https://staging.valueskins.com/deals/<DEAL>` as the brand while the advance is due. It shows the payee name, the UPI ID, the amount, **Pay with UPI app** and a QR code. Scan the QR code, or open the link on a phone with a UPI app: the app must show the creator's name on the account and exactly the advance amount. **You do not need to send the money**: close the app, then record any reference (6 to 40 characters) and confirm as the creator.
     4. **Upload and approve.** With the deal in `ADVANCE_PAID`:
 
        ```bash
@@ -527,7 +539,7 @@ Only one free Postgres can be active per Render workspace.
 | Variable                       | Staging value                        | Where it comes from                                                                  |
 | ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | `NEXT_PUBLIC_API_URL`          | `https://api-staging.valueskins.com` | fixed                                                                                |
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | `rzp_test_...`                       | Razorpay test mode (section 6)                                                       |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | `rzp_test_...`                       | no longer read: Checkout uses the key the fee order returns. Safe to delete          |
 | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | `true`                               | fixed on staging; a build with this true and the production API URL fails on purpose |
 
 ### Local development
@@ -544,13 +556,13 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Re-trigger the delivery from Razorpay's dashboard to catch up.
 - **Deleting an account** does not yet remove brand billing rows (the creator's UPI details are cleared).
 - **Jobs run inside the API process.** Render keeps one instance, so they run once; a second instance is safe (the lock) but does nothing extra. A job that fails is logged, not emailed (SPEC 14). Reminder emails carry no link to the deal, because the temporary pages are replaced soon.
-- **Live updates run in the API process.** Socket.io is attached to the API's HTTP server (SPEC 10), so there is one instance and nothing extra to configure; the web app must connect with credentials to the API origin, and its CSP needs `connect-src` for the API origin and `wss://` (done with the real web screens). A second Render instance would need the Redis adapter and sticky sessions first. The temporary pages do not listen to sockets yet, so they still update only on reload.
+- **Live updates run in the API process.** Socket.io is attached to the API's HTTP server (SPEC 10), so there is one instance and nothing extra to configure; the web app must connect with credentials to the API origin, and its CSP needs `connect-src` for the API origin and `wss://` (see the CSP note below). A second Render instance would need the Redis adapter and sticky sessions first. The web app connects once signed in and onboarded, and re-reads over REST on every event, on reconnect and on window focus.
 - **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.
 - **Terms, Privacy, Refunds and How it works** are rendered from `apps/web/content/*.md`. The text is adapted from the live site and waits for the final wording; passages about things the app does not do yet are marked (see `apps/web/content/README.md`).
 - **Free database** has no backups and expires (section 17).
 - **OAuth state cookie** `vs_ig_oauth_state` has the same name in every environment, and staging and production will share the cookie domain `.valueskins.com`. Complete one sign-in at a time when testing both.
 - **Meta review** can require Business Verification; check the App Review requirements in the Meta dashboard.
-- **Deal screens are not built yet.** After W1 the creator's Deals, Applications and My deals pages and the brand's Campaigns and Post a deal pages show only their heading; the deal flow arrives with W2. Until then use the curl steps in section 13.
+- **No Content Security Policy yet.** It comes with W3. It must allow Razorpay Checkout (`https://checkout.razorpay.com` and the other hosts Razorpay's docs list for scripts and frames), the API origin for `connect-src` over `https` and `wss` (live updates), and `data:` images (the UPI QR code).
 
 ## 20. Troubleshooting
 

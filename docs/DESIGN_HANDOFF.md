@@ -191,7 +191,7 @@ The 9 steps are Posted, Creator confirmed, Fee paid, Advance confirmed, Content 
   - The form saves to localStorage every 30 seconds and on blur. "Save draft" saves to the server.
   - Publish checks the fields and either shows the errors or opens the confirm.
 - **Applying:** a confirm step comes first, because an application cannot be withdrawn.
-- **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri` with `uqr`, which is already a dependency of `apps/web`.
+- **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri` with the `qrcode` package, loaded only on that step.
 - **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. There is no total count.
 - **Sample data:** one consistent story runs through every board (Festive kurta try-on reel, `8K2M4QXZ`, @urbanthreads.in and @riya.eats, ₹10,000.00, 1 to 11 Oct 2026). It is sample data only. Every amount comes from `computeBreakdown`.
 
