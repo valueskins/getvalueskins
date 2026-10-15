@@ -10,6 +10,16 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 
+/**
+ * Keeps an Instagram ?error= code when unfinished setup is sent to onboarding,
+ * so a failed "Connect Instagram" still says why (the API sends it to /settings).
+ */
+function withSignInError(target: string): string {
+  if (target !== '/onboarding' || typeof window === 'undefined') return target;
+  const error = new URLSearchParams(window.location.search).get('error');
+  return error ? `${target}?error=${encodeURIComponent(error)}` : target;
+}
+
 interface GuardProps {
   need: Need;
   /** Rendered once access is decided. Gets GET /me (null on public pages when signed out). */
@@ -26,9 +36,10 @@ export function Guard({ need, children, fallback }: GuardProps) {
   const me = useMe();
   const decision = me.isSuccess ? decideAccess(me.data, need) : null;
 
+  const target = decision?.kind === 'redirect' ? decision.to : null;
   useEffect(() => {
-    if (decision?.kind === 'redirect') router.replace(decision.to);
-  }, [decision?.kind, decision?.kind === 'redirect' ? decision.to : null, router]);
+    if (target) router.replace(withSignInError(target));
+  }, [target, router]);
 
   if (me.isError) {
     return (
