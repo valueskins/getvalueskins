@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.104.2",
     "@valueskins/shared": "workspace:*",
     "next": "^15.1.3",
     "react": "^19.0.0",
