@@ -44,25 +44,35 @@ export async function renderRecordForDirectPayment(
   return row ? renderInvoiceRow(row) : null;
 }
 
-/** The commission invoice for one payment, rendered from its stored snapshot. Null if none was issued. */
+/** The ValueSkins fee invoice for one payment, rendered from its stored snapshot. Null if none was issued. */
 export async function renderInvoiceForPayment(paymentId: string): Promise<RenderedDocument | null> {
   const [row] = await db.select().from(invoices).where(eq(invoices.paymentId, paymentId)).limit(1);
   return row ? renderInvoiceRow(row) : null;
 }
 
-/** The deal report (SPEC 17), built from the database as it is now. */
+/** The file name of the deal record PDF (SPEC 17). */
+export function dealRecordFilename(shortId: string): string {
+  return `ValueSkins-Deal-Record-${shortId}.pdf`;
+}
+
+/** The name the same PDF had before it was called the deal record. Old emails still list it, so a resend must know it. */
+function legacyDealReportFilename(shortId: string): string {
+  return `ValueSkins-Deal-Report-${shortId}.pdf`;
+}
+
+/** The deal record (SPEC 17), built from the database as it is now. */
 export async function renderAdp(dealId: string, generatedAt: Date): Promise<RenderedDocument> {
   const data = await loadAdpData(dealId);
   const content = await renderPdf(adpBlocks(data, generatedAt), {
-    title: `ValueSkins Deal Report ${data.deal.shortId}`,
+    title: `ValueSkins Deal Record ${data.deal.shortId}`,
     createdAt: generatedAt,
   });
-  return { filename: `ValueSkins-Deal-Report-${data.deal.shortId}.pdf`, content };
+  return { filename: dealRecordFilename(data.deal.shortId), content };
 }
 
 /**
  * One of the four documents of a deal (SPEC 16). Each exists only once its payment was
- * captured, and the deal report only once the deal is COMPLETED. Access is checked by the caller.
+ * captured, and the deal record only once the deal is COMPLETED. Access is checked by the caller.
  */
 export async function renderDealDocument(
   dealId: string,
@@ -112,7 +122,10 @@ export async function renderAttachmentsByName(
   for (const name of names) {
     const row = byName.get(name);
     if (row) attachments.push(await renderInvoiceRow(row));
-    else if (deal && name === `ValueSkins-Deal-Report-${deal.shortId}.pdf`) {
+    else if (
+      deal &&
+      (name === dealRecordFilename(deal.shortId) || name === legacyDealReportFilename(deal.shortId))
+    ) {
       attachments.push(await renderAdp(dealId, now));
     } else missing.push(name);
   }

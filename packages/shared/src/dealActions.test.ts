@@ -5,6 +5,8 @@ import {
   APPLICATIONS_CLOSED,
   CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   CREATOR_HAS_NO_UPI,
+  CREATOR_NOT_AGREED_TO_SHARE_UPI,
+  DISPUTE_ALREADY_OPEN,
   NO_PAYMENT_RECORDED_YET,
   WAITING_FOR_CREATOR_TO_CONFIRM,
   UPLOAD_LIMIT_REACHED,
@@ -24,7 +26,8 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     payoutSet: true,
     uploadCount: 1,
     hasCreator: true,
-    creatorPayoutSet: true,
+    creatorPayout: 'SET',
+    hasOpenDispute: false,
     pendingRecord: false,
     hasBilling: true,
     publishIssues: [],
@@ -90,18 +93,26 @@ describe('computeDealActions: brand owner', () => {
     const reasonOf = (overrides: Partial<DealActionsInput>) =>
       computeDealActions(input({ status, ...overrides })).find((a) => a.action === action);
 
-    expect(reasonOf({ creatorPayoutSet: false })).toEqual({
+    expect(reasonOf({ creatorPayout: 'NO_UPI' })).toEqual({
       action,
       enabled: false,
       reason: CREATOR_HAS_NO_UPI,
     });
+    // A UPI ID saved without consent says so, and not "has not added a UPI ID".
+    expect(reasonOf({ creatorPayout: 'NO_CONSENT' })).toEqual({
+      action,
+      enabled: false,
+      reason: CREATOR_NOT_AGREED_TO_SHARE_UPI,
+    });
+    expect(reasonOf({ creatorPayout: 'SET' })?.enabled).toBe(true);
+    expect(reasonOf({ creatorPayout: null })?.reason).toBe(CREATOR_HAS_NO_UPI);
     expect(reasonOf({ pendingRecord: true })).toEqual({
       action,
       enabled: false,
       reason: WAITING_FOR_CREATOR_TO_CONFIRM,
     });
     // A record waiting for the creator wins over everything else.
-    expect(reasonOf({ pendingRecord: true, creatorPayoutSet: false })?.reason).toBe(
+    expect(reasonOf({ pendingRecord: true, creatorPayout: 'NO_UPI' })?.reason).toBe(
       WAITING_FOR_CREATOR_TO_CONFIRM,
     );
   });
@@ -272,5 +283,28 @@ describe('computeDealActions: confirming a direct payment', () => {
         );
       }
     }
+  });
+});
+
+describe('RAISE_DISPUTE while a dispute is open', () => {
+  it.each(['BRAND_OWNER', 'CONFIRMED_CREATOR'] as const)(
+    'is disabled with a reason for the %s',
+    (viewer) => {
+      const states = computeDealActions(
+        input({ viewer, status: 'CONTENT_UPLOADED', hasOpenDispute: true }),
+      );
+      expect(states.find((a) => a.action === 'RAISE_DISPUTE')).toEqual({
+        action: 'RAISE_DISPUTE',
+        enabled: false,
+        reason: DISPUTE_ALREADY_OPEN,
+      });
+    },
+  );
+
+  it('is enabled again once none is open, and is not listed when disputes are not allowed', () => {
+    const open = computeDealActions(input({ status: 'CONTENT_UPLOADED', hasOpenDispute: false }));
+    expect(open.find((a) => a.action === 'RAISE_DISPUTE')?.enabled).toBe(true);
+    const early = computeDealActions(input({ status: 'OPEN', hasOpenDispute: true }));
+    expect(early.some((a) => a.action === 'RAISE_DISPUTE')).toBe(false);
   });
 });

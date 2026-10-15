@@ -41,6 +41,28 @@ describe('meResponseSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('gives the Instagram bio and account type, and defaults them to null for an older body', () => {
+    const base = {
+      username: 'creator',
+      name: 'Creator Name',
+      profilePictureUrl: null,
+      followersCount: 1,
+      followsCount: 1,
+      mediaCount: 1,
+      engagementRate: null,
+      instagramSyncedAt: null,
+    };
+    const parse = (profile: object) =>
+      meResponseSchema.parse({ user, profile, profileDetails: null, onboarding }).profile;
+    expect(
+      parse({ ...base, biography: 'Food and travel', accountType: 'MEDIA_CREATOR' }),
+    ).toMatchObject({
+      biography: 'Food and travel',
+      accountType: 'MEDIA_CREATOR',
+    });
+    expect(parse(base)).toMatchObject({ biography: null, accountType: null });
+  });
+
   it('accepts locked profile details with the current age', () => {
     const result = meResponseSchema.safeParse({
       user,

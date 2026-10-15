@@ -1,11 +1,18 @@
-import type { AdminCancelInput, AdminDealListQuery, DealStatus } from '@valueskins/shared';
-import { and, asc, desc, eq, like, lt, type SQL } from 'drizzle-orm';
+import {
+  ADMIN_CANCEL_WINDOW,
+  contentOverdue,
+  type AdminCancelInput,
+  type AdminDealListQuery,
+  type DealStatus,
+} from '@valueskins/shared';
+import { and, asc, count, desc, eq, exists, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
 import { db } from '../db/client.js';
 import {
   dealEvents,
   deals,
+  directPayments,
   disputes,
   emailLog,
   invoices,
@@ -15,10 +22,11 @@ import {
 import { findDeal, notFound, parseId } from '../deals/access.js';
 import { buildDealDetail } from '../deals/dealDetail.js';
 import { loadParties, toSummary } from '../deals/dealView.js';
+import { eventColumns, toEventView } from '../deals/eventView.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { cancellationEmailTasks } from '../deals/lifecycle.service.js';
 import { transitionDeal, type Deal } from '../deals/stateMachine.js';
-import { disputeView } from '../disputes/disputes.service.js';
+import { listDealDisputeViews } from '../disputes/disputes.service.js';
 import { listDirectPaymentRows, toDirectPaymentView } from '../directPayments/view.js';
 import { AppError } from '../errors/AppError.js';
 
@@ -39,37 +47,85 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-/** GET /admin/deals: newest first, optional status, short id search (prefix, case-insensitive). */
-export async function listAdminDeals(query: AdminDealListQuery) {
-  const conditions: SQL[] = [];
-  if (query.status) conditions.push(eq(deals.status, query.status));
-  if (query.q) conditions.push(like(deals.shortId, `${escapeLike(query.q.toUpperCase())}%`));
+/**
+ * GET /admin/deals: newest first, optional status, short id search (prefix, case-insensitive).
+ * Each item carries the marks the table shows: an open dispute, content past its deadline, and a
+ * payment waiting for the creator. `total` counts every deal that matches the filters, not just
+ * this page.
+ */
+export async function listAdminDeals(ctx: ApiContext, query: AdminDealListQuery) {
+  const filters: SQL[] = [];
+  if (query.status) filters.push(eq(deals.status, query.status));
+  if (query.q) filters.push(like(deals.shortId, `${escapeLike(query.q.toUpperCase())}%`));
+  const pageConditions = [...filters];
   if (query.cursor) {
-    conditions.push(lt(deals.id, decodeCursor(query.cursor, { needsTime: false }).i));
+    pageConditions.push(lt(deals.id, decodeCursor(query.cursor, { needsTime: false }).i));
   }
 
-  const rows = await db
-    .select()
-    .from(deals)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(deals.id))
-    .limit(query.limit + 1);
+  // A recorded payment the creator has not confirmed or refused, for the stage the deal is due on.
+  const awaitingRecord = db
+    .select({ one: sql`1` })
+    .from(directPayments)
+    .where(
+      and(
+        eq(directPayments.dealId, deals.id),
+        sql`${directPayments.confirmedAt} is null`,
+        sql`${directPayments.disputedAt} is null`,
+        or(
+          and(eq(directPayments.stage, 'ADVANCE'), eq(deals.status, 'COMMISSION_PAID')),
+          and(eq(directPayments.stage, 'FINAL'), eq(deals.status, 'APPROVED')),
+        ),
+      ),
+    );
+  const openDispute = db
+    .select({ one: sql`1` })
+    .from(disputes)
+    .where(and(eq(disputes.dealId, deals.id), eq(disputes.status, 'OPEN')));
+
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        deal: deals,
+        hasOpenDispute: exists(openDispute),
+        awaitingConfirmation: exists(awaitingRecord),
+      })
+      .from(deals)
+      .where(pageConditions.length > 0 ? and(...pageConditions) : undefined)
+      .orderBy(desc(deals.id))
+      .limit(query.limit + 1),
+    db
+      .select({ value: count() })
+      .from(deals)
+      .where(filters.length > 0 ? and(...filters) : undefined),
+  ]);
+  const now = ctx.now();
 
   const page = rows.slice(0, query.limit);
   const parties = await loadParties(
-    page.flatMap((d) => (d.creatorId ? [d.brandId, d.creatorId] : [d.brandId])),
+    page.flatMap(({ deal: d }) => (d.creatorId ? [d.brandId, d.creatorId] : [d.brandId])),
   );
   const last = page[page.length - 1];
   return {
-    items: page.map((deal) => {
+    items: page.map(({ deal, hasOpenDispute, awaitingConfirmation }) => {
       const brand = parties.get(deal.brandId);
       if (!brand) throw new Error(`deal ${deal.id} has no brand row`);
       return {
         ...toSummary(deal, brand),
         creator: deal.creatorId ? (parties.get(deal.creatorId) ?? null) : null,
+        hasOpenDispute,
+        awaitingConfirmation,
+        contentOverdue: contentOverdue(
+          {
+            status: deal.status,
+            contentUploadDeadline: deal.contentUploadDeadline ?? '9999-12-31',
+          },
+          now,
+        ),
+        updatedAt: deal.updatedAt.toISOString(),
       };
     }),
-    nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.id }) : null,
+    nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.deal.id }) : null,
+    total: totalRow?.value ?? 0,
   };
 }
 
@@ -86,7 +142,7 @@ export async function getAdminDealDetail(
     await Promise.all([
       buildDealDetail(deal, admin, ctx.now()),
       db
-        .select({ event: dealEvents, username: users.username })
+        .select(eventColumns)
         .from(dealEvents)
         .leftJoin(users, eq(users.id, dealEvents.actorId))
         .where(eq(dealEvents.dealId, deal.id))
@@ -104,25 +160,12 @@ export async function getAdminDealDetail(
         .where(eq(emailLog.dealId, deal.id))
         .orderBy(desc(emailLog.id))
         .limit(DETAIL_EMAIL_LIMIT),
-      db
-        .select({ dispute: disputes, username: users.username, deletedAt: users.deletedAt })
-        .from(disputes)
-        .innerJoin(users, eq(users.id, disputes.raisedById))
-        .where(eq(disputes.dealId, deal.id))
-        .orderBy(desc(disputes.id)),
+      listDealDisputeViews(deal.id),
     ]);
 
   return {
     deal: detail,
-    events: events.map((r) => ({
-      id: r.event.id,
-      fromStatus: r.event.fromStatus,
-      toStatus: r.event.toStatus,
-      actorType: r.event.actorType,
-      actorUsername: r.username,
-      note: r.event.note,
-      createdAt: r.event.createdAt.toISOString(),
-    })),
+    events: events.map((r) => toEventView(r, deal)),
     payments: paymentRows.map(({ payment: p, invoiceNumber }) => ({
       id: p.id,
       type: p.type,
@@ -142,6 +185,7 @@ export async function getAdminDealDetail(
       id: e.id,
       template: e.template,
       subject: e.subject,
+      bodyText: e.bodyText,
       toEmail: e.toEmail,
       cc: e.cc ?? [],
       status: e.status,
@@ -150,21 +194,14 @@ export async function getAdminDealDetail(
       createdAt: e.createdAt.toISOString(),
       sentAt: e.sentAt?.toISOString() ?? null,
     })),
-    disputes: disputeRows.map((r) =>
-      disputeView({
-        dispute: r.dispute,
-        deal,
-        raisedByUsername: r.username,
-        raisedByDeleted: r.deletedAt !== null,
-      }),
-    ),
+    disputes: disputeRows,
   };
 }
 
 /**
  * POST /admin/deals/:id/cancel (SPEC 5.2, 12): the admin override from COMMISSION_PAID to APPROVED.
- * The note is the cancellation reason; the optional refund reference goes in the deal event
- * (its note and its metadata). No money moves here: the advance and final were paid directly by
+ * The note is the cancellation reason and the event's note; the optional refund reference is kept
+ * in the deal event's metadata and shown as its own field. No money moves here: the advance and final were paid directly by
  * UPI outside ValueSkins, and the fee is refunded by hand in the Razorpay dashboard if at all.
  */
 export async function adminCancelDeal(
@@ -176,16 +213,8 @@ export async function adminCancelDeal(
   const deal = await findDeal(parseId(rawId));
   if (!deal) throw notFound();
   if (!ADMIN_CANCELLABLE.includes(deal.status)) {
-    throw new AppError(
-      'INVALID_TRANSITION',
-      409,
-      `An admin can cancel a deal from COMMISSION_PAID to APPROVED. This deal is ${deal.status}.`,
-    );
+    throw new AppError('INVALID_TRANSITION', 409, ADMIN_CANCEL_WINDOW);
   }
-
-  const eventNote = input.refundReference
-    ? `${input.note}\nRefund reference: ${input.refundReference}`
-    : input.note;
 
   return transitionDeal({
     dealId: deal.id,
@@ -198,7 +227,8 @@ export async function adminCancelDeal(
       cancelledByRole: 'ADMIN',
       cancellationReason: input.note,
     },
-    note: eventNote,
+    // The refund reference is its own field on the event (metadata), not text in the note.
+    note: input.note,
     metadata: { adminCancel: true, refundReference: input.refundReference ?? null },
     // The commission was paid before the advance, so it is always kept.
     afterCommit: cancellationEmailTasks(ctx, input.note, true),

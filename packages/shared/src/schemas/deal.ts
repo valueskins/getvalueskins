@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import { DEAL_ACTIONS } from '../dealActions.js';
+import { DEAL_NEXT_STEPS } from '../dealTurn.js';
 import { directPaymentViewSchema } from './directPayment.js';
 import { DEAL_STATUSES } from '../dealStateMachine.js';
 import { CANCELLED_BY_ROLES } from '../enums.js';
 import { dateStringSchema } from './common.js';
+import { dealDisputeSchema } from './dispute.js';
+import { dealDocumentSchema } from './documents.js';
 import { cursorPageQuerySchema } from './pagination.js';
 
 /**
@@ -47,9 +50,18 @@ export type DealPublishInput = z.infer<typeof dealPublishSchema>;
 export const dealFeedQuerySchema = cursorPageQuerySchema;
 export type DealFeedQuery = z.infer<typeof dealFeedQuerySchema>;
 
-/** GET /deals/mine. `status` narrows the list. */
+/**
+ * GET /deals/mine. `status` narrows the list: one status, or several separated by commas
+ * (`?status=OPEN,CONFIRMED`). Parsed to a list of unique statuses.
+ */
 export const dealMineQuerySchema = cursorPageQuerySchema
-  .extend({ status: z.enum(DEAL_STATUSES).optional() })
+  .extend({
+    status: z
+      .string()
+      .transform((value) => [...new Set(value.split(',').map((part) => part.trim()))])
+      .pipe(z.array(z.enum(DEAL_STATUSES)).min(1).max(DEAL_STATUSES.length))
+      .optional(),
+  })
   .strict();
 export type DealMineQuery = z.infer<typeof dealMineQuerySchema>;
 
@@ -70,6 +82,9 @@ export const dealSummarySchema = z.object({
   description: z.string().nullable(),
   budgetPaise: z.number().int().nullable(),
   creatorAmountPaise: z.number().int().nullable(),
+  /** The two payments the creator receives, so no screen has to work money out. */
+  advancePaise: z.number().int().nullable(),
+  finalPaise: z.number().int().nullable(),
   applicationDeadline: z.string().nullable(),
   contentUploadDeadline: z.string().nullable(),
   dealDeadline: z.string().nullable(),
@@ -89,8 +104,6 @@ export const dealDetailSchema = dealSummarySchema.extend({
   commissionBasePaise: z.number().int().nullable(),
   commissionGstPaise: z.number().int().nullable(),
   commissionTotalPaise: z.number().int().nullable(),
-  advancePaise: z.number().int().nullable(),
-  finalPaise: z.number().int().nullable(),
   confirmedAt: z.string().nullable(),
   cancelledAt: z.string().nullable(),
   cancelledByRole: z.enum(CANCELLED_BY_ROLES).nullable(),
@@ -114,6 +127,10 @@ export const dealDetailSchema = dealSummarySchema.extend({
   creatorPayoutSet: z.boolean().nullable(),
   /** The direct UPI payment records (REPLACEMENT_PLAN 2.1), newest last. Masked UPI IDs. Empty for anyone but the brand, the confirmed creator and admins. */
   directPayments: z.array(directPaymentViewSchema),
+  /** Invoices, payment records and the deal record, oldest first. Empty for anyone but the brand, the confirmed creator and admins. */
+  documents: z.array(dealDocumentSchema).default([]),
+  /** The deal's disputes (SPEC 12), oldest first. Empty for anyone but the brand, the confirmed creator and admins. */
+  disputes: z.array(dealDisputeSchema).default([]),
   /** Only for the deal's brand and admins; null for everyone else. */
   applicationCount: z.number().int().nullable(),
   /** SPEC 5.1 derived flags. */
@@ -129,8 +146,46 @@ export const dealListResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
+/** An item of GET /deals/feed: a creator's feed, with whether they already applied. */
+export const dealFeedItemSchema = dealSummarySchema.extend({ applied: z.boolean() });
+
+export const dealFeedResponseSchema = z.object({
+  items: z.array(dealFeedItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
+/**
+ * An item of GET /deals/mine. `yourTurn` and `nextStep` tell the caller what is waiting (SPEC 5.5);
+ * the fields of the other role are null. The closing fields are set once the deal is done.
+ */
+export const dealMineItemSchema = dealSummarySchema.extend({
+  yourTurn: z.boolean(),
+  nextStep: z.enum(DEAL_NEXT_STEPS).nullable(),
+  /** Brand only: applications on the deal, any status. */
+  applicantCount: z.number().int().nullable(),
+  /** Brand only. */
+  applicationsOpen: z.boolean().nullable(),
+  /** Brand only: the confirmed creator. */
+  creator: dealPartySchema.nullable(),
+  /** Creator only: what the brand has paid and the creator confirmed so far (advance and final, not the fee). */
+  receivedPaise: z.number().int().nullable(),
+  completedAt: z.string().nullable(),
+  cancelledAt: z.string().nullable(),
+  cancelledByRole: z.enum(CANCELLED_BY_ROLES).nullable(),
+  cancellationReason: z.string().nullable(),
+});
+
+export const dealMineResponseSchema = z.object({
+  items: z.array(dealMineItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
 export type DealParty = z.infer<typeof dealPartySchema>;
 export type DealSummary = z.infer<typeof dealSummarySchema>;
 export type DealDetail = z.infer<typeof dealDetailSchema>;
 export type DealDetailResponse = z.infer<typeof dealDetailResponseSchema>;
 export type DealListResponse = z.infer<typeof dealListResponseSchema>;
+export type DealFeedItem = z.infer<typeof dealFeedItemSchema>;
+export type DealFeedResponse = z.infer<typeof dealFeedResponseSchema>;
+export type DealMineItem = z.infer<typeof dealMineItemSchema>;
+export type DealMineResponse = z.infer<typeof dealMineResponseSchema>;

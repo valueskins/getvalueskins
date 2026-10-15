@@ -4,7 +4,7 @@ import PDFDocument from 'pdfkit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../src/db/client.js';
 import { seed } from '../../src/db/seed/index.js';
-import { deals, invoices } from '../../src/db/schema/index.js';
+import { dealEvents, deals, invoices } from '../../src/db/schema/index.js';
 import { adpBlocks } from '../../src/documents/adpBlocks.js';
 import { loadAdpData } from '../../src/documents/adpData.js';
 import type { Block } from '../../src/documents/blocks.js';
@@ -269,7 +269,7 @@ describe('every seeded deal renders its documents', () => {
     for (const deal of all) {
       const report = await renderAdp(deal.id, new Date('2026-10-10T00:00:00Z'));
       expect(report.content.subarray(0, 5).toString(), deal.shortId).toBe('%PDF-');
-      expect(report.filename).toBe(`ValueSkins-Deal-Report-${deal.shortId}.pdf`);
+      expect(report.filename).toBe(`ValueSkins-Deal-Record-${deal.shortId}.pdf`);
     }
   });
 });
@@ -289,7 +289,7 @@ describe('the deal report covers every section of SPEC 17', () => {
       'Parties',
       'Terms',
       'Money',
-      'Commission tax invoice',
+      'ValueSkins fee tax invoice',
       'Advance payment record',
       'Final payment record',
       'Delivery proof',
@@ -303,7 +303,7 @@ describe('the deal report covers every section of SPEC 17', () => {
     // 1 header
     expect(text).toEqual(
       expect.arrayContaining([
-        'ValueSkins Deal Report',
+        'ValueSkins Deal Record',
         `${deal!.shortId}. Generated 10 Oct 2026, 13:30 IST`,
       ]),
     );
@@ -352,8 +352,14 @@ describe('the deal report covers every section of SPEC 17', () => {
     expect(text.join(' ')).not.toContain('seedcreator');
     expect(text.some((t) => t.startsWith('Confirmed '))).toBe(true);
     // 10 fees
-    expect(text).toEqual(expect.arrayContaining(['Payment: COMMISSION', 'Total absorbed']));
+    expect(text).toEqual(expect.arrayContaining(['Payment: ValueSkins fee', 'Total absorbed']));
     expect(text).not.toContain('Not recorded');
+    // Users see "ValueSkins fee" and "Deal record", never "commission" or "Deal Report".
+    // Provider ids and the status names of the timeline are identifiers, not wording.
+    const wording = text.filter(
+      (t) => !/^(pay|order)_\w+$/.test(t) && !/^[A-Z_]+ to [A-Z_]+$/.test(t),
+    );
+    expect(wording.filter((t) => /commission|deal report/i.test(t))).toEqual([]);
     // 11 timeline
     expect(text).toEqual(
       expect.arrayContaining([
@@ -363,6 +369,31 @@ describe('the deal report covers every section of SPEC 17', () => {
         '@creator_three',
       ]),
     );
+  });
+
+  it('the timeline names payment records in words, never as "X to X", and prints the refund reference', async () => {
+    await seed({ company: COMPANY });
+    const [deal] = await db.select().from(deals).where(eq(deals.status, 'COMPLETED'));
+    await db.insert(dealEvents).values({
+      dealId: deal!.id,
+      fromStatus: 'COMPLETED',
+      toStatus: 'COMPLETED',
+      actorType: 'SYSTEM',
+      note: 'Refund made by hand',
+      metadata: { adminCancel: true, refundReference: 'rfnd_ZZ99' },
+    });
+    const text = textOf(adpBlocks(await loadAdpData(deal!.id), new Date('2026-10-10T08:00:00Z')));
+
+    expect(text).toEqual(expect.arrayContaining(['Payment recorded (advance)']));
+    expect(text.some((t) => t.startsWith('Payment recorded (final)'))).toBe(true);
+    const same = text.filter((t) => {
+      const m = /^([A-Z_]+) to ([A-Z_]+)$/.exec(t);
+      return m !== null && m[1] === m[2];
+    });
+    // The event added above moves nothing and is not a payment record, so it is the only one.
+    expect(same).toEqual(['COMPLETED to COMPLETED']);
+    expect(text.some((t) => t.includes('Refund reference: rfnd_ZZ99'))).toBe(true);
+    expect(text.some((t) => t.includes('Refund made by hand'))).toBe(true);
   });
 
   it('shows what is missing instead of failing, for a deal that has not got far', async () => {

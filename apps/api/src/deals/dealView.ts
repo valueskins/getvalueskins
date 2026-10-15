@@ -49,6 +49,8 @@ export function toSummary(deal: Deal, brand: DealParty): DealSummary {
     description: deal.description,
     budgetPaise: deal.budgetPaise,
     creatorAmountPaise: deal.creatorAmountPaise,
+    advancePaise: deal.advancePaise,
+    finalPaise: deal.finalPaise,
     applicationDeadline: deal.applicationDeadline,
     contentUploadDeadline: deal.contentUploadDeadline,
     dealDeadline: deal.dealDeadline,

@@ -9,6 +9,7 @@ import { db } from '../db/client.js';
 import { dealEvents, emailLog, users } from '../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { DELETED_USER_NAME } from '../deals/dealView.js';
+import { eventColumns, toEventView } from '../deals/eventView.js';
 import type { Deal } from '../deals/stateMachine.js';
 
 /**
@@ -70,7 +71,7 @@ export async function listDealEmails(
   };
 }
 
-/** GET /deals/:id/events: every status change, oldest first. The internal metadata stays internal. */
+/** GET /deals/:id/events: every event of the deal, oldest first (status changes and payment records). The internal metadata stays internal. */
 export async function listDealEvents(
   deal: Deal,
   query: HistoryQuery,
@@ -80,7 +81,7 @@ export async function listDealEvents(
     conditions.push(gt(dealEvents.id, decodeCursor(query.cursor, { needsTime: false }).i));
 
   const rows = await db
-    .select({ event: dealEvents, username: users.username, deletedAt: users.deletedAt })
+    .select(eventColumns)
     .from(dealEvents)
     .leftJoin(users, eq(users.id, dealEvents.actorId))
     .where(and(...conditions))
@@ -90,17 +91,7 @@ export async function listDealEvents(
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
   return {
-    items: page.map((r) => ({
-      id: r.event.id,
-      fromStatus: r.event.fromStatus,
-      toStatus: r.event.toStatus,
-      actor: {
-        type: r.event.actorType,
-        username: r.username ? (r.deletedAt ? DELETED_USER_NAME : r.username) : null,
-      },
-      note: r.event.note,
-      createdAt: r.event.createdAt.toISOString(),
-    })),
+    items: page.map((r) => toEventView(r, deal)),
     nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.event.id }) : null,
   };
 }

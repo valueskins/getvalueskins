@@ -63,7 +63,7 @@ describe('GET /api/deals/:id/emails', () => {
       );
       expect(report).toMatchObject({
         recipient: { role: 'CREATOR', username: creator.user.username },
-        attachmentNames: [`ValueSkins-Deal-Report-${deal.shortId}.pdf`],
+        attachmentNames: [`ValueSkins-Deal-Record-${deal.shortId}.pdf`],
         status: 'SENT',
       });
       const text = JSON.stringify(res.body);
@@ -144,19 +144,27 @@ describe('GET /api/deals/:id/events', () => {
     const res = await call.get(`/api/deals/${deal.id}/events?limit=50`, creator.cookie);
     expect(res.status).toBe(200);
     const body = dealEventListResponseSchema.parse(res.body);
-    expect(body.items.map((e) => `${e.fromStatus}>${e.toStatus}`)).toEqual([
-      'CONFIRMED>COMMISSION_PAID',
-      'COMMISSION_PAID>ADVANCE_PAID',
-      'ADVANCE_PAID>CONTENT_UPLOADED',
-      'CONTENT_UPLOADED>REVISION_REQUESTED',
+    // The advance was recorded by the brand (an entry that left the status as it was), then confirmed.
+    expect(body.items.map((e) => `${e.kind}:${e.fromStatus}>${e.toStatus}`)).toEqual([
+      'TRANSITION:CONFIRMED>COMMISSION_PAID',
+      'PAYMENT_RECORDED:COMMISSION_PAID>COMMISSION_PAID',
+      'TRANSITION:COMMISSION_PAID>ADVANCE_PAID',
+      'TRANSITION:ADVANCE_PAID>CONTENT_UPLOADED',
+      'TRANSITION:CONTENT_UPLOADED>REVISION_REQUESTED',
     ]);
-    expect(body.items[0]).toMatchObject({ actor: { type: 'SYSTEM', username: null } });
-    expect(body.items[2]).toMatchObject({
-      actor: { type: 'USER', username: creator.user.username },
+    expect(body.items[0]).toMatchObject({
+      actor: { type: 'SYSTEM', role: 'SYSTEM', username: null },
+      refundReference: null,
+    });
+    expect(body.items[1]).toMatchObject({
+      actor: { type: 'USER', role: 'BRAND', username: brand.user.username },
     });
     expect(body.items[3]).toMatchObject({
+      actor: { type: 'USER', role: 'CREATOR', username: creator.user.username },
+    });
+    expect(body.items[4]).toMatchObject({
       note: 'Reshoot the intro',
-      actor: { type: 'USER', username: brand.user.username },
+      actor: { type: 'USER', role: 'BRAND', username: brand.user.username },
     });
     expect(JSON.stringify(res.body)).not.toContain('metadata');
     expect(JSON.stringify(res.body)).not.toContain('razorpayPaymentId');
@@ -164,10 +172,10 @@ describe('GET /api/deals/:id/events', () => {
 
   it('pages oldest first', async () => {
     const { brand, deal } = await runDeal(call, razorpay, 'CONTENT_UPLOADED');
-    const first = await call.get(`/api/deals/${deal.id}/events?limit=2`, brand.cookie);
-    expect(first.body.items).toHaveLength(2);
+    const first = await call.get(`/api/deals/${deal.id}/events?limit=3`, brand.cookie);
+    expect(first.body.items).toHaveLength(3);
     const second = await call.get(
-      `/api/deals/${deal.id}/events?limit=2&cursor=${first.body.nextCursor}`,
+      `/api/deals/${deal.id}/events?limit=3&cursor=${first.body.nextCursor}`,
       brand.cookie,
     );
     expect(second.body.items).toHaveLength(1);

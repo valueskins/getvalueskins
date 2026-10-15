@@ -3,9 +3,15 @@ import {
   APPLICATIONS_CLOSED,
   ALREADY_APPLIED_MESSAGE,
   ADD_UPI_TO_APPLY,
-  CREATOR_PAYOUT_NOT_SET,
+  APPLICANT_HAS_NO_UPI,
+  APPLICANT_NO_LONGER_AVAILABLE,
+  APPLICATION_ALREADY_DECIDED,
+  CREATOR_NOT_AGREED_TO_SHARE_UPI,
+  DEAL_NO_LONGER_OPEN,
   applicationsOpen,
+  type ApplicantConfirm,
   type ApplicationItem,
+  type CreatorPayoutStatus,
   type ApplicationListQuery,
   type DealApplicationListResponse,
   type MyApplicationListResponse,
@@ -23,10 +29,30 @@ import { consumeApplyLimit } from '../rateLimit/limiters.js';
 import { findDeal, loadOwnedDeal, notFound, parseId } from '../deals/access.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { DELETED_USER_NAME, loadParties, toParty } from '../deals/dealView.js';
-import { hasPayoutDetails } from '../deals/payoutDetails.js';
+import { hasPayoutDetails, loadPayoutStatuses } from '../deals/payoutDetails.js';
 import { transitionDeal, type Deal, type AfterCommitTask } from '../deals/stateMachine.js';
 
 type ApplicationRow = typeof applications.$inferSelect;
+
+/**
+ * Whether the brand can confirm an applicant now, and why not (SPEC 5.5). The same rule gates the
+ * confirm itself, so the list and the 409 always agree. The order is the one a person fixes in:
+ * the account, then the application and the deal, then the UPI ID, then the consent.
+ */
+function confirmState(input: {
+  deleted: boolean;
+  applicationStatus: ApplicationRow['status'];
+  dealStatus: Deal['status'];
+  payout: CreatorPayoutStatus | null;
+}): ApplicantConfirm {
+  const no = (reason: string): ApplicantConfirm => ({ enabled: false, reason });
+  if (input.deleted) return no(APPLICANT_NO_LONGER_AVAILABLE);
+  if (input.applicationStatus !== 'APPLIED') return no(APPLICATION_ALREADY_DECIDED);
+  if (input.dealStatus !== 'OPEN') return no(DEAL_NO_LONGER_OPEN);
+  if (input.payout === 'NO_CONSENT') return no(CREATOR_NOT_AGREED_TO_SHARE_UPI);
+  if (input.payout !== 'SET') return no(APPLICANT_HAS_NO_UPI);
+  return { enabled: true, reason: null };
+}
 
 function toApplication(row: ApplicationRow): ApplicationItem {
   return {
@@ -164,7 +190,7 @@ export async function confirmApplication(
     .limit(1);
   if (!found || found.deal.brandId !== user.id) throw notFound();
   if (found.application.status !== 'APPLIED') {
-    throw new AppError('APPLICATION_NOT_PENDING', 409, 'This application was already decided');
+    throw new AppError('APPLICATION_NOT_PENDING', 409, APPLICATION_ALREADY_DECIDED);
   }
 
   const { application, deal } = found;
@@ -184,10 +210,17 @@ export async function confirmApplication(
         .where(eq(users.id, application.creatorId))
         .limit(1);
       if (!creator || creator.deletedAt) {
-        throw new AppError('APPLICANT_UNAVAILABLE', 409, 'This creator is no longer available');
+        throw new AppError('APPLICANT_UNAVAILABLE', 409, APPLICANT_NO_LONGER_AVAILABLE);
       }
-      if (!(await hasPayoutDetails(application.creatorId, tx))) {
-        throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, CREATOR_PAYOUT_NOT_SET);
+      const payout = (await loadPayoutStatuses([application.creatorId], tx)).get(
+        application.creatorId,
+      );
+      if (payout !== 'SET') {
+        throw new AppError(
+          'CREATOR_PAYOUT_NOT_SET',
+          409,
+          payout === 'NO_CONSENT' ? CREATOR_NOT_AGREED_TO_SHARE_UPI : APPLICANT_HAS_NO_UPI,
+        );
       }
 
       const [confirmed] = await tx
@@ -196,7 +229,7 @@ export async function confirmApplication(
         .where(and(eq(applications.id, applicationId), eq(applications.status, 'APPLIED')))
         .returning({ id: applications.id });
       if (!confirmed) {
-        throw new AppError('APPLICATION_NOT_PENDING', 409, 'This application was already decided');
+        throw new AppError('APPLICATION_NOT_PENDING', 409, APPLICATION_ALREADY_DECIDED);
       }
 
       const rejected = await tx
@@ -294,6 +327,8 @@ export async function listDealApplications(
 
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
+  // One query for the page: each applicant's payout status (never the UPI ID itself).
+  const payouts = await loadPayoutStatuses(page.map((row) => row.application.creatorId));
   return {
     items: page.map((row) => {
       const party = toParty({
@@ -313,6 +348,12 @@ export async function listDealApplications(
             deleted || row.engagementRate === null ? null : Number(row.engagementRate),
           instagramVerified: !deleted && row.instagramUserId !== null,
         },
+        confirm: confirmState({
+          deleted,
+          applicationStatus: row.application.status,
+          dealStatus: deal.status,
+          payout: payouts.get(row.application.creatorId) ?? null,
+        }),
       };
     }),
     nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.application.id }) : null,

@@ -116,11 +116,7 @@ function assertCancellable(status: DealStatus): void {
       'A draft cannot be cancelled. Delete it instead.',
     );
   }
-  throw new AppError(
-    'INVALID_TRANSITION',
-    409,
-    `A ${status.toLowerCase()} deal cannot be cancelled`,
-  );
+  throw new AppError('INVALID_TRANSITION', 409, 'This deal cannot be cancelled');
 }
 
 /**

@@ -64,6 +64,7 @@ describe('GET /api/me', () => {
         followsCount: 100,
         mediaCount: 40,
         engagementRate: '3.25',
+        bio: 'Food and travel',
         instagramSyncedAt: new Date('2026-10-01T10:00:00.000Z'),
       })
       .where(eq(users.id, loginResponse.body.user.id));
@@ -80,6 +81,9 @@ describe('GET /api/me', () => {
       mediaCount: 40,
       engagementRate: 3.25,
       instagramSyncedAt: '2026-10-01T10:00:00.000Z',
+      biography: 'Food and travel',
+      // The dev login stands in for the Instagram account type of the role it was given.
+      accountType: 'MEDIA_CREATOR',
     });
     expect(JSON.stringify(meResponse.body)).not.toContain('dev-fake-token');
     expect(meResponseSchema.safeParse(meResponse.body).success).toBe(true);

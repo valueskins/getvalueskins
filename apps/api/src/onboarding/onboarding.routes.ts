@@ -1,4 +1,10 @@
-import { meBillingSchema, meEmailSchema, meEmailVerifySchema } from '@valueskins/shared';
+import {
+  meBillingSchema,
+  meEmailSchema,
+  meEmailVerifySchema,
+  type BillingView,
+} from '@valueskins/shared';
+import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { requireRole, requireUser } from '../auth/guards.js';
 import { db } from '../db/client.js';
@@ -13,6 +19,22 @@ import {
   verifyEmailToken,
 } from './emailVerification.service.js';
 import { completeOnboardingIfReady } from './onboarding.service.js';
+
+/** A brand's saved billing details as the API shows them, or null when none are saved. */
+async function loadBilling(userId: string): Promise<BillingView | null> {
+  const [row] = await db
+    .select()
+    .from(brandBilling)
+    .where(eq(brandBilling.userId, userId))
+    .limit(1);
+  if (!row) return null;
+  return {
+    billingName: row.billingName,
+    billingAddress: row.billingAddress,
+    billingState: row.billingState,
+    gstin: row.gstin,
+  };
+}
 
 /** SPEC 6.4 and 16: the onboarding steps. Every route answers with the fresh onboarding state. */
 export function onboardingRoutes(env: Env): Router {
@@ -68,6 +90,15 @@ export function onboardingRoutes(env: Env): Router {
     }
   });
 
+  // GET /api/me/billing (SPEC 16): the saved billing details, or null before the brand saves any.
+  router.get('/api/me/billing', requireRole('BRAND'), async (req, res, next) => {
+    try {
+      res.json({ billing: await loadBilling(req.user!.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.put('/api/me/billing', requireRole('BRAND'), async (req, res, next) => {
     try {
       const input = meBillingSchema.parse(req.body);
@@ -83,7 +114,10 @@ export function onboardingRoutes(env: Env): Router {
         .values({ userId: req.user!.id, ...values })
         .onConflictDoUpdate({ target: brandBilling.userId, set: values });
 
-      res.json({ onboarding: await completeOnboardingIfReady(req.user!.id) });
+      res.json({
+        billing: await loadBilling(req.user!.id),
+        onboarding: await completeOnboardingIfReady(req.user!.id),
+      });
     } catch (error) {
       next(error);
     }

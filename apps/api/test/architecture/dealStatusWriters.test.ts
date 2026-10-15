@@ -100,3 +100,28 @@ describe('who may touch direct_payments', () => {
     ]);
   });
 });
+
+/**
+ * SPEC 15: a deal's history is written by the state machine (status changes) and by the payment
+ * record helper (a recorded or not-received payment, in the same transaction as that change). The
+ * seed inserts its own. Nothing else may add or change an event.
+ */
+describe('who may write deal_events', () => {
+  const writers = (pattern: RegExp) =>
+    sourceFiles(SRC)
+      .filter((file) => pattern.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(SRC, file))
+      .sort();
+
+  it('only the state machine, the payment event helper and the seed insert events', () => {
+    expect(writers(/\.insert\(dealEvents\)/)).toEqual([
+      'db/seed/dealMatrix.ts',
+      'deals/dealEvents.ts',
+      'deals/stateMachine.ts',
+    ]);
+  });
+
+  it('nothing updates or deletes an event', () => {
+    expect(writers(/\.(update|delete)\(dealEvents\)/)).toEqual([]);
+  });
+});

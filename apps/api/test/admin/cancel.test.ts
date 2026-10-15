@@ -95,7 +95,8 @@ describe('POST /api/admin/deals/:id/cancel', () => {
       toStatus: 'CANCELLED',
       actorType: 'ADMIN',
       actorId: admin.user.id,
-      note: `${NOTE}\nRefund reference: rfnd_Abc123`,
+      // The note is the note; the reference is its own field.
+      note: NOTE,
       metadata: { adminCancel: true, refundReference: 'rfnd_Abc123' },
     });
 

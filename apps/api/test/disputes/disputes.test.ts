@@ -28,6 +28,11 @@ const BODY = { subject: 'Late delivery', description: 'The content is two weeks 
 const raise = (cookie: string | undefined, dealId: string, body: object = BODY) =>
   api.send('post', `/api/deals/${dealId}/disputes`, cookie, body);
 
+/** Resolves a dispute straight in the database, so the next one can be raised. */
+async function resolveInDb(id: string) {
+  await db.update(disputes).set({ status: 'RESOLVED', resolvedAt: NOW }).where(eq(disputes.id, id));
+}
+
 async function confirmedDeal(status: DealStatus = 'ADVANCE_PAID') {
   const brand = await brandWithBilling();
   const creator = await creatorWithPayout();
@@ -39,8 +44,7 @@ describe('POST /api/deals/:id/disputes: who and when', () => {
   const ELIGIBLE = DEAL_STATUSES.filter((s) => s !== 'DRAFT' && s !== 'OPEN');
 
   it.each(ELIGIBLE)('the brand and the creator can raise one from %s', async (status) => {
-    const { brand, creator, deal } = await confirmedDeal(status);
-
+    const { brand, deal } = await confirmedDeal(status);
     const byBrand = await raise(brand.cookie, deal.id);
     expect(byBrand.status).toBe(201);
     expect(byBrand.body.dispute).toMatchObject({
@@ -48,12 +52,59 @@ describe('POST /api/deals/:id/disputes: who and when', () => {
       subject: BODY.subject,
       description: BODY.description,
       status: 'OPEN',
-      raisedBy: { id: brand.user.id },
+      raisedBy: { id: brand.user.id, role: 'BRAND' },
+      resolvedBy: null,
     });
 
-    const byCreator = await raise(creator.cookie, deal.id);
+    // The creator raises on a deal of its own, at the same stage.
+    const other = await confirmedDeal(status);
+    const byCreator = await raise(other.creator.cookie, other.deal.id);
     expect(byCreator.status).toBe(201);
+    expect(byCreator.body.dispute.raisedBy).toMatchObject({
+      id: other.creator.user.id,
+      role: 'CREATOR',
+    });
+  });
+
+  it('only one dispute can be open on a deal: the other party gets 409, and may raise once it is resolved', async () => {
+    const { brand, creator, deal } = await confirmedDeal();
+    const first = await raise(brand.cookie, deal.id);
+    expect(first.status).toBe(201);
+
+    const second = await raise(creator.cookie, deal.id);
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('DISPUTE_ALREADY_OPEN');
+    const again = await raise(brand.cookie, deal.id);
+    expect(again.status).toBe(409);
+    expect(await db.select().from(disputes).where(eq(disputes.dealId, deal.id))).toHaveLength(1);
+
+    await resolveInDb(first.body.dispute.id);
+    expect((await raise(creator.cookie, deal.id)).status).toBe(201);
     expect(await db.select().from(disputes).where(eq(disputes.dealId, deal.id))).toHaveLength(2);
+  });
+
+  it('two disputes raised at the same moment make one, and the other answers 409', async () => {
+    const { brand, creator, deal } = await confirmedDeal();
+    const results = await Promise.all([
+      raise(brand.cookie, deal.id),
+      raise(creator.cookie, deal.id),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await db.select().from(disputes).where(eq(disputes.dealId, deal.id))).toHaveLength(1);
+  });
+
+  it('a refused second dispute does not use the rate limit allowance', async () => {
+    const { brand, deal } = await confirmedDeal();
+    const first = await raise(brand.cookie, deal.id);
+    for (let i = 0; i < 6; i++) expect((await raise(brand.cookie, deal.id)).status).toBe(409);
+    await resolveInDb(first.body.dispute.id);
+    // Three allowed a day: the first plus two more.
+    for (let i = 0; i < 2; i++) {
+      const res = await raise(brand.cookie, deal.id);
+      expect(res.status).toBe(201);
+      await resolveInDb(res.body.dispute.id);
+    }
+    expect((await raise(brand.cookie, deal.id)).status).toBe(429);
   });
 
   it('DRAFT and OPEN deals cannot have a dispute', async () => {
@@ -157,7 +208,11 @@ describe('POST /api/deals/:id/disputes: validation and rate limit', () => {
 
   it('allows 3 per deal per day, then 429 with Retry-After; other deals and users are not limited', async () => {
     const { brand, creator, deal } = await confirmedDeal();
-    for (let i = 0; i < 3; i++) expect((await raise(brand.cookie, deal.id)).status).toBe(201);
+    for (let i = 0; i < 3; i++) {
+      const res = await raise(brand.cookie, deal.id);
+      expect(res.status).toBe(201);
+      await resolveInDb(res.body.dispute.id);
+    }
 
     const limited = await raise(brand.cookie, deal.id);
     expect(limited.status).toBe(429);
@@ -178,6 +233,10 @@ describe('POST /api/deals/:id/disputes: validation and rate limit', () => {
       );
       expect((await raise(brand.cookie, early.id)).status).toBe(409);
     }
-    for (let i = 0; i < 3; i++) expect((await raise(brand.cookie, deal.id)).status).toBe(201);
+    for (let i = 0; i < 3; i++) {
+      const res = await raise(brand.cookie, deal.id);
+      expect(res.status).toBe(201);
+      await resolveInDb(res.body.dispute.id);
+    }
   });
 });

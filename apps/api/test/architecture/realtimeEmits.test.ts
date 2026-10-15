@@ -35,6 +35,7 @@ describe('who may send realtime events', () => {
   it('only the three service points send deal:updated and application:new outside a transition', () => {
     expect(using(/emitDealUpdated\(/)).toEqual([
       'directPayments/directPayments.service.ts',
+      'disputes/disputes.service.ts',
       'realtime/events.ts',
     ]);
     expect(using(/emitApplicationNew\(/)).toEqual([

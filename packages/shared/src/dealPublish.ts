@@ -20,10 +20,11 @@ export interface DealPublishIssue {
 
 const DEADLINE_FIELDS = ['applicationDeadline', 'contentUploadDeadline', 'dealDeadline'] as const;
 
+/** The names the form shows for the three deadlines, so an error names the field the user sees. */
 const DEADLINE_LABELS = {
-  applicationDeadline: 'Application deadline',
-  contentUploadDeadline: 'Content upload deadline',
-  dealDeadline: 'Deal deadline',
+  applicationDeadline: 'Apply by',
+  contentUploadDeadline: 'Content due',
+  dealDeadline: 'Deal ends',
 } as const;
 
 /**
@@ -57,11 +58,11 @@ export function validateDealForPublish(deal: DealPublishFields, now: Date): Deal
   for (const field of DEADLINE_FIELDS) {
     const value = deal[field];
     if (value === null) {
-      issues.push({ path: field, message: `Add the ${DEADLINE_LABELS[field].toLowerCase()}` });
+      issues.push({ path: field, message: `Add a date for "${DEADLINE_LABELS[field]}"` });
     } else if (!isValidCalendarDateString(value)) {
-      issues.push({ path: field, message: `${DEADLINE_LABELS[field]} is not a valid date` });
+      issues.push({ path: field, message: `"${DEADLINE_LABELS[field]}" is not a valid date` });
     } else if (endOfDayIST(value).getTime() <= now.getTime()) {
-      issues.push({ path: field, message: `${DEADLINE_LABELS[field]} must be in the future` });
+      issues.push({ path: field, message: `"${DEADLINE_LABELS[field]}" must be in the future` });
     } else {
       valid[field] = value;
     }
@@ -72,13 +73,13 @@ export function validateDealForPublish(deal: DealPublishFields, now: Date): Deal
   if (apply !== undefined && upload !== undefined && apply >= upload) {
     issues.push({
       path: 'contentUploadDeadline',
-      message: 'The content upload deadline must be after the application deadline',
+      message: '"Content due" must be after "Apply by"',
     });
   }
   if (upload !== undefined && end !== undefined && upload > end) {
     issues.push({
       path: 'dealDeadline',
-      message: 'The deal deadline must be on or after the content upload deadline',
+      message: '"Deal ends" must be on or after "Content due"',
     });
   }
 

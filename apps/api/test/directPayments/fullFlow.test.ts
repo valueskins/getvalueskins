@@ -1,5 +1,5 @@
 import { PAYMENT_RECORD_DISCLAIMER, computeBreakdown } from '@valueskins/shared';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -183,16 +183,25 @@ describe('the whole deal, with the real endpoints', () => {
       'not_due',
     );
 
-    // The timeline: every move is by the right actor.
-    const events = await db.select().from(dealEvents).where(eq(dealEvents.dealId, dealId));
+    // The timeline: every move is by the right actor, and each payment record is an entry too
+    // (the advance was recorded, refused, then recorded again).
+    const events = await db
+      .select()
+      .from(dealEvents)
+      .where(eq(dealEvents.dealId, dealId))
+      .orderBy(asc(dealEvents.id));
     const moves = events.map((e) => `${e.fromStatus}>${e.toStatus}:${e.actorType}`);
     expect(moves).toEqual([
       'DRAFT>OPEN:USER',
       'OPEN>CONFIRMED:USER',
       'CONFIRMED>COMMISSION_PAID:SYSTEM',
+      'COMMISSION_PAID>COMMISSION_PAID:USER',
+      'COMMISSION_PAID>COMMISSION_PAID:USER',
+      'COMMISSION_PAID>COMMISSION_PAID:USER',
       'COMMISSION_PAID>ADVANCE_PAID:USER',
       'ADVANCE_PAID>CONTENT_UPLOADED:USER',
       'CONTENT_UPLOADED>APPROVED:USER',
+      'APPROVED>APPROVED:USER',
       'APPROVED>COMPLETED:USER',
     ]);
 

@@ -38,7 +38,7 @@ export function dealRoutes(ctx: ApiContext): Router {
   // Registered before /api/deals/:id so "feed" and "mine" are not read as ids.
   router.get('/api/deals/feed', ...creatorOnly, async (req, res, next) => {
     try {
-      res.json(await listFeed(ctx, dealFeedQuerySchema.parse(req.query)));
+      res.json(await listFeed(ctx, req.user!, dealFeedQuerySchema.parse(req.query)));
     } catch (error) {
       next(error);
     }
@@ -46,7 +46,7 @@ export function dealRoutes(ctx: ApiContext): Router {
 
   router.get('/api/deals/mine', requireOnboarded, async (req, res, next) => {
     try {
-      res.json(await listMine(req.user!, dealMineQuerySchema.parse(req.query)));
+      res.json(await listMine(ctx, req.user!, dealMineQuerySchema.parse(req.query)));
     } catch (error) {
       next(error);
     }

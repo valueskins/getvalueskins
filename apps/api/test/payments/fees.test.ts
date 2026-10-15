@@ -59,7 +59,7 @@ describe("Razorpay's fees are recorded for the deal report (SPEC 4.3, 17)", () =
     const blocks = adpBlocks(await loadAdpData(f.deal.id), NOW);
     const table = blocks.find((b) => b.kind === 'table' && b.head[1] === 'Fee');
     // Only the commission goes through Razorpay, so it is the only line (SPEC 4.3).
-    expect(table).toMatchObject({ rows: [['Payment: COMMISSION', '₹65.49', '₹11.79']] });
+    expect(table).toMatchObject({ rows: [['Payment: ValueSkins fee', '₹65.49', '₹11.79']] });
     const total = blocks.find((b) => b.kind === 'row' && b.label === 'Total absorbed');
     expect(total).toMatchObject({ value: '₹77.28' });
   });

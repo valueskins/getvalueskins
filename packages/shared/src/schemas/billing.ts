@@ -13,3 +13,17 @@ export const meBillingSchema = z
   .strict();
 
 export type MeBillingInput = z.infer<typeof meBillingSchema>;
+
+/** The saved billing details of a brand. */
+export const billingViewSchema = z.object({
+  billingName: z.string(),
+  billingAddress: z.string(),
+  billingState: z.string(),
+  gstin: z.string().nullable(),
+});
+
+/** GET /api/me/billing, and the answer of PUT /api/me/billing: null until a brand has saved details. */
+export const meBillingResponseSchema = z.object({ billing: billingViewSchema.nullable() });
+
+export type BillingView = z.infer<typeof billingViewSchema>;
+export type MeBillingResponse = z.infer<typeof meBillingResponseSchema>;

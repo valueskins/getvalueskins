@@ -15,5 +15,7 @@ export function toMeProfile(row: typeof users.$inferSelect): MeProfile | null {
     mediaCount: row.mediaCount,
     engagementRate: row.engagementRate === null ? null : Number(row.engagementRate),
     instagramSyncedAt: row.instagramSyncedAt ? row.instagramSyncedAt.toISOString() : null,
+    biography: row.bio,
+    accountType: row.igAccountType,
   };
 }

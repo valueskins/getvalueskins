@@ -11,6 +11,8 @@ export interface RateLimiterOptions {
   blockDuration?: number;
   keyPrefix: string;
   keyFn: (req: Request) => string;
+  /** The error a rejected request gets. Defaults to `RATE_LIMITED` and "Too many requests". */
+  error?: { code: string; message: string };
 }
 
 function buildLimiter(opts: Omit<RateLimiterOptions, 'keyFn'>): RateLimiterPostgres {
@@ -29,11 +31,15 @@ function buildLimiter(opts: Omit<RateLimiterOptions, 'keyFn'>): RateLimiterPostg
  * consume() rejects with a RateLimiterRes (not an Error) when the limit is
  * exceeded; a real infra failure rejects with the raw driver error.
  */
-function toLimitError(rejOrErr: unknown, res: Response): Error {
+function toLimitError(
+  rejOrErr: unknown,
+  res: Response,
+  error: { code: string; message: string } = { code: 'RATE_LIMITED', message: 'Too many requests' },
+): Error {
   if (rejOrErr instanceof Error) return rejOrErr;
   const { msBeforeNext } = rejOrErr as RateLimiterRes;
   res.set('Retry-After', String(Math.ceil(msBeforeNext / 1000)));
-  return new AppError('RATE_LIMITED', 429, 'Too many requests');
+  return new AppError(error.code, 429, error.message);
 }
 
 /**
@@ -48,7 +54,7 @@ export function createRateLimiter(opts: RateLimiterOptions) {
       await limiter.consume(opts.keyFn(req));
       next();
     } catch (rejOrErr) {
-      next(toLimitError(rejOrErr, res));
+      next(toLimitError(rejOrErr, res, opts.error));
     }
   };
 }
@@ -65,7 +71,7 @@ export function createKeyedLimiter(opts: Omit<RateLimiterOptions, 'keyFn'>) {
     try {
       await limiter.consume(key);
     } catch (rejOrErr) {
-      throw toLimitError(rejOrErr, res);
+      throw toLimitError(rejOrErr, res, opts.error);
     }
   };
 }

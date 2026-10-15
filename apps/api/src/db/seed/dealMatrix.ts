@@ -229,6 +229,26 @@ export async function insertDealAtCheckpoint(
     }
   }
 
+  /** The activity entry a recorded or refused payment leaves, as the API writes it (ids only). */
+  const seedPaymentEvent = async (
+    kind: 'PAYMENT_RECORDED' | 'PAYMENT_NOT_RECEIVED',
+    stage: 'ADVANCE' | 'FINAL',
+    directPaymentId: string,
+    actorId: string,
+    note: string | null = null,
+  ) => {
+    const status: DealStatus = stage === 'ADVANCE' ? 'COMMISSION_PAID' : 'APPROVED';
+    await db.insert(dealEvents).values({
+      dealId,
+      fromStatus: status,
+      toStatus: status,
+      actorId,
+      actorType: 'USER',
+      note,
+      metadata: { kind, directPaymentId, stage },
+    });
+  };
+
   /** A direct UPI payment the brand recorded and the creator confirmed, with its payment record. */
   const seedDirectPayment = async (stage: 'ADVANCE' | 'FINAL', amountPaise: number) => {
     const key = stage.toLowerCase();
@@ -247,6 +267,7 @@ export async function insertDealAtCheckpoint(
       })
       .returning();
     if (!record) return;
+    await seedPaymentEvent('PAYMENT_RECORDED', stage, record.id, input.brandId);
     await issuePaymentRecord(db, {
       deal: dealRow,
       directPayment: { ...record, recordedAt: now },
@@ -257,17 +278,30 @@ export async function insertDealAtCheckpoint(
 
   // One disputed attempt before the confirmed one, so the report shows a record that did not arrive.
   if (breakdown && input.status === 'ADVANCE_PAID') {
-    await db.insert(directPayments).values({
-      dealId,
-      stage: 'ADVANCE',
-      amountPaise: breakdown.advancePaise,
-      reference: `SEEDUTR${input.index}first`,
-      paidToVpa: input.confirmedCreatorVpa,
-      recordedBy: input.brandId,
-      recordedAt: now,
-      disputedAt: now,
-      disputeReason: 'Seed data: the first payment did not arrive',
-    });
+    const [refused] = await db
+      .insert(directPayments)
+      .values({
+        dealId,
+        stage: 'ADVANCE',
+        amountPaise: breakdown.advancePaise,
+        reference: `SEEDUTR${input.index}first`,
+        paidToVpa: input.confirmedCreatorVpa,
+        recordedBy: input.brandId,
+        recordedAt: now,
+        disputedAt: now,
+        disputeReason: 'Seed data: the first payment did not arrive',
+      })
+      .returning();
+    if (refused) {
+      await seedPaymentEvent('PAYMENT_RECORDED', 'ADVANCE', refused.id, input.brandId);
+      await seedPaymentEvent(
+        'PAYMENT_NOT_RECEIVED',
+        'ADVANCE',
+        refused.id,
+        input.confirmedCreatorId,
+        'Seed data: the first payment did not arrive',
+      );
+    }
   }
   if (breakdown && isAdvancePaid) await seedDirectPayment('ADVANCE', breakdown.advancePaise);
   if (breakdown && isCompleted) await seedDirectPayment('FINAL', breakdown.finalPaise);

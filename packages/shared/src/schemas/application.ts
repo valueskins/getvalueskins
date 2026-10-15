@@ -31,7 +31,16 @@ export const applicationSchema = z.object({
   createdAt: z.string(),
 });
 
-export const dealApplicationItemSchema = applicationSchema.extend({ creator: applicantSchema });
+/** Whether the brand can confirm this applicant now, and if not, why (SPEC 5.5). */
+export const applicantConfirmSchema = z.object({
+  enabled: z.boolean(),
+  reason: z.string().nullable(),
+});
+
+export const dealApplicationItemSchema = applicationSchema.extend({
+  creator: applicantSchema,
+  confirm: applicantConfirmSchema,
+});
 
 export const dealApplicationListResponseSchema = z.object({
   items: z.array(dealApplicationItemSchema),
@@ -58,6 +67,7 @@ export const myApplicationListResponseSchema = z.object({
 
 export const applicationResponseSchema = z.object({ application: applicationSchema });
 
+export type ApplicantConfirm = z.infer<typeof applicantConfirmSchema>;
 export type Applicant = z.infer<typeof applicantSchema>;
 export type ApplicationItem = z.infer<typeof applicationSchema>;
 export type DealApplicationItem = z.infer<typeof dealApplicationItemSchema>;

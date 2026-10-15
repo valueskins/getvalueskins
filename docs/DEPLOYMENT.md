@@ -131,6 +131,8 @@ Until the domain is verified, sends fail and are recorded as FAILED in the `emai
 5. Wait for the first deploy. The build installs, builds `packages/shared` and the API; the pre-deploy command then runs the database migrations; the service starts only when `/api/health` answers.
 6. Open the service page and copy its default address, for example `https://valueskins-api-staging.onrender.com`. Check `<that address>/api/health`: it must show `{"ok":true}`.
 
+**Migration 0010 (one open dispute per deal).** It adds a unique index so a deal has at most one open dispute. Before it does, it marks every extra open dispute on the same deal as resolved with the resolution "Closed automatically when one open dispute per deal became the rule.", keeping the newest one open. Staging may have such rows from testing. Nothing is emailed, and the closed disputes are still listed in the admin views.
+
 If the deploy fails, open the **Logs** tab. A line starting `Invalid environment configuration` names the missing or wrong variable. A line starting `Startup guard failed` means a safety rule stopped the API on purpose (for example a live Razorpay key on staging, or `EMAIL_TRANSPORT=console` in production).
 
 ## 9. Vercel (web)
@@ -325,6 +327,8 @@ Do these in order on a clean browser profile. This is the "done" check for stagi
 
        Expected: four PDFs with the rupee sign showing, the numbers `VS/...` on the invoice and `VS-PR/...` on the two payment records, and the wording "Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money." on the records. The creator's UPI ID is masked on every document, and the deal report lists every direct payment, a not-received one included. `call GET /deals/$DEAL/emails brand.jar` and `call GET /deals/$DEAL/events brand.jar` show the deal's communication history and timeline.
 
+    The `adp` document is the deal record: its PDF is titled "ValueSkins Deal Record" and downloads as `ValueSkins-Deal-Record-<short id>.pdf`, and email 10 is "Deal record ready". Emails and PDFs say "ValueSkins fee", never "commission". The deal's `documents` list (`GET /api/deals/$DEAL`) gives the number and date of each document that exists.
+
     Deals paid through Route before Prompt 13 have no payment records: use a fresh deal. On staging the commission document is a GST tax invoice: ₹750 plus 18% GST is ₹885.
 
     The fee is the only Razorpay payment: `q "select type, amount_paise, status from payments where deal_id = '$DEAL'"` shows the commission as `CAPTURED`, and `direct_payments` holds the other two: `q "select stage, amount_paise, reference, confirmed_at, disputed_at from direct_payments where deal_id = '$DEAL' order by recorded_at"`. The three amounts add up to the budget.
@@ -469,40 +473,42 @@ Only one free Postgres can be active per Render workspace.
 
 ### Render, API service `valueskins-api-staging`
 
-| Variable                   | Staging value                                                    | Where it comes from                                                                                      |
-| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `NODE_VERSION`             | `22`                                                             | `render.yaml` (Render setting, not read by the app)                                                      |
-| `PORT`                     | injected by Render                                               | Render sets it (default 10000); not in `render.yaml`                                                     |
-| `NODE_ENV`                 | `staging`                                                        | `render.yaml`                                                                                            |
-| `DATABASE_URL`             | internal connection string                                       | `render.yaml`, from `valueskins-staging-db`                                                              |
-| `TEST_DATABASE_URL`        | omitted (defaults to empty)                                      | Vitest only                                                                                              |
-| `WEB_ORIGIN`               | `https://staging.valueskins.com`                                 | `render.yaml`                                                                                            |
-| `COOKIE_DOMAIN`            | `.valueskins.com`                                                | `render.yaml`                                                                                            |
-| `SESSION_COOKIE_NAME`      | `vs_session_staging`                                             | `render.yaml`                                                                                            |
-| `SESSION_SECRET`           | generated                                                        | Render generates it                                                                                      |
-| `TOKEN_ENCRYPTION_KEY`     | generated                                                        | Render generates it; if you change it, stored Instagram tokens cannot be decrypted (users sign in again) |
-| `INSTAGRAM_APP_ID`         | prompted                                                         | Meta, Instagram business login settings (section 5)                                                      |
-| `INSTAGRAM_APP_SECRET`     | prompted                                                         | Meta, Instagram business login settings (section 5)                                                      |
-| `INSTAGRAM_REDIRECT_URI`   | `https://api-staging.valueskins.com/api/auth/instagram/callback` | `render.yaml`; must match Meta exactly                                                                   |
-| `META_APP_SECRET`          | prompted                                                         | Meta, App settings > Basic (section 5)                                                                   |
-| `RAZORPAY_KEY_ID`          | prompted, `rzp_test_...`                                         | Razorpay test mode (section 6)                                                                           |
-| `RAZORPAY_KEY_SECRET`      | prompted                                                         | Razorpay test mode (section 6)                                                                           |
-| `RAZORPAY_WEBHOOK_SECRET`  | prompted                                                         | you make it up (section 6); same value in the Razorpay webhook form                                      |
-| `RESEND_API_KEY`           | prompted                                                         | Resend (section 7)                                                                                       |
-| `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>`                      | `render.yaml`                                                                                            |
-| `EMAIL_TRANSPORT`          | `resend`                                                         | `render.yaml`; `console` is refused in production                                                        |
-| `ADMIN_INSTAGRAM_USER_IDS` | prompted (`none`, then your id)                                  | section 14                                                                                               |
-| `SUPPORT_EMAIL`            | `valueskinsfounder@gmail.com`                                    | `render.yaml`. The one address users write to: every email footer, the reply-to and error messages       |
-| `DISPUTE_EMAIL`            | omitted (defaults to `SUPPORT_EMAIL`)                            | optional: where disputes and admin alerts go, if not the support address                                 |
-| `ENABLE_DEV_LOGIN`         | `true`                                                           | `render.yaml`; must be false or absent in production                                                     |
-| `COMPANY_LEGAL_NAME`       | `Valueskins Private Limited`                                     | `render.yaml`                                                                                            |
-| `COMPANY_ADDRESS`          | prompted                                                         | you                                                                                                      |
-| `COMPANY_STATE`            | prompted                                                         | you                                                                                                      |
-| `COMPANY_GSTIN`            | prompted                                                         | your GSTIN; required while `GST_RATE_BPS` is above 0, which is the default                               |
-| `COMMISSION_SAC_CODE`      | prompted                                                         | your CA (SPEC 21)                                                                                        |
-| `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`; staging and tests only, the API refuses `true` when `NODE_ENV=production`                 |
-| `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                    |
-| `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                         |
+| Variable                   | Staging value                                                    | Where it comes from                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_VERSION`             | `22`                                                             | `render.yaml` (Render setting, not read by the app)                                                                                    |
+| `PORT`                     | injected by Render                                               | Render sets it (default 10000); not in `render.yaml`                                                                                   |
+| `NODE_ENV`                 | `staging`                                                        | `render.yaml`                                                                                                                          |
+| `DATABASE_URL`             | internal connection string                                       | `render.yaml`, from `valueskins-staging-db`                                                                                            |
+| `TEST_DATABASE_URL`        | omitted (defaults to empty)                                      | Vitest only                                                                                                                            |
+| `WEB_ORIGIN`               | `https://staging.valueskins.com`                                 | `render.yaml`                                                                                                                          |
+| `COOKIE_DOMAIN`            | `.valueskins.com`                                                | `render.yaml`                                                                                                                          |
+| `SESSION_COOKIE_NAME`      | `vs_session_staging`                                             | `render.yaml`                                                                                                                          |
+| `SESSION_SECRET`           | generated                                                        | Render generates it                                                                                                                    |
+| `TOKEN_ENCRYPTION_KEY`     | generated                                                        | Render generates it; if you change it, stored Instagram tokens cannot be decrypted (users sign in again)                               |
+| `INSTAGRAM_APP_ID`         | prompted                                                         | Meta, Instagram business login settings (section 5)                                                                                    |
+| `INSTAGRAM_APP_SECRET`     | prompted                                                         | Meta, Instagram business login settings (section 5)                                                                                    |
+| `INSTAGRAM_REDIRECT_URI`   | `https://api-staging.valueskins.com/api/auth/instagram/callback` | `render.yaml`; must match Meta exactly                                                                                                 |
+| `META_APP_SECRET`          | prompted                                                         | Meta, App settings > Basic (section 5)                                                                                                 |
+| `RAZORPAY_KEY_ID`          | prompted, `rzp_test_...`                                         | Razorpay test mode (section 6)                                                                                                         |
+| `RAZORPAY_KEY_SECRET`      | prompted                                                         | Razorpay test mode (section 6)                                                                                                         |
+| `RAZORPAY_WEBHOOK_SECRET`  | prompted                                                         | you make it up (section 6); same value in the Razorpay webhook form                                                                    |
+| `RESEND_API_KEY`           | prompted                                                         | Resend (section 7)                                                                                                                     |
+| `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>`                      | `render.yaml`                                                                                                                          |
+| `EMAIL_TRANSPORT`          | `resend`                                                         | `render.yaml`; `console` is refused in production                                                                                      |
+| `ADMIN_INSTAGRAM_USER_IDS` | prompted (`none`, then your id)                                  | section 14                                                                                                                             |
+| `SUPPORT_EMAIL`            | `founder@valueskins.com`                                         | `render.yaml`. Required, with no default anywhere. The one address users write to: every email footer, the reply-to and error messages |
+| `DISPUTE_EMAIL`            | omitted (defaults to `SUPPORT_EMAIL`)                            | optional: where disputes and admin alerts go, if not the support address                                                               |
+| `ENABLE_DEV_LOGIN`         | `true`                                                           | `render.yaml`; must be false or absent in production                                                                                   |
+| `COMPANY_LEGAL_NAME`       | `Valueskins Private Limited`                                     | `render.yaml`                                                                                                                          |
+| `COMPANY_ADDRESS`          | prompted                                                         | you                                                                                                                                    |
+| `COMPANY_STATE`            | prompted                                                         | you                                                                                                                                    |
+| `COMPANY_GSTIN`            | prompted                                                         | your GSTIN; required while `GST_RATE_BPS` is above 0, which is the default                                                             |
+| `COMMISSION_SAC_CODE`      | prompted                                                         | your CA (SPEC 21)                                                                                                                      |
+| `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`; staging and tests only, the API refuses `true` when `NODE_ENV=production`                                               |
+| `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
+| `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
+
+**`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging (set in `render.yaml`) and in production (set in the production service's environment when it is created; there is no production blueprint yet). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
 
 ### Vercel, project `valueskins-staging-web`
 
