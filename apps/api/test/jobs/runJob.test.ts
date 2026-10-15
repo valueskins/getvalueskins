@@ -111,7 +111,14 @@ describe('runJob', () => {
       runJob(feeReminderJob, jobCtx()),
     ]);
 
-    expect(results.filter((r) => r.status === 'ok')).toHaveLength(1);
+    // The lock keeps two runs from overlapping (the test above), but a run that
+    // starts after another has finished is allowed, so how many report "ok"
+    // depends on timing. What must hold every time: nothing fails, and the
+    // email goes out once, from one run.
+    expect(results.every((r) => r.status === 'ok' || r.status === 'skipped')).toBe(true);
+    expect(results.some((r) => r.status === 'ok')).toBe(true);
+    const sent = results.reduce((total, r) => total + Number(r.counts?.sent ?? 0), 0);
+    expect(sent).toBe(1);
     const rows = await pool.query(
       "select * from email_log where template = 'COMMISSION_PAYMENT_REMINDER'",
     );
