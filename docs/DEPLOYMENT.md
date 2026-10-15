@@ -156,13 +156,13 @@ Variables starting `NEXT_PUBLIC_` are baked in at build time. After changing one
 
 Pull request preview deployments on their own `*.vercel.app` address are build checks only: that address is not `WEB_ORIGIN`, the session cookie is set for `.valueskins.com`, and the Instagram callback sends you back to `WEB_ORIGIN`, so sign-in cannot work there. To try a web branch with sign-in, serve it on `staging.valueskins.com` for a while (section 9a).
 
-"Sign in with email" on the home page follows the API's `GET /api/config` (`authEmailEnabled`, from Render's `AUTH_EMAIL_ENABLED`). There is no web variable for it.
+"Sign in with email" on the home page follows the API's `GET /api/config` (`authEmailEnabled`, from Render's `AUTH_EMAIL_ENABLED`). There is no web variable for it any more: the web app no longer reads `NEXT_PUBLIC_AUTH_EMAIL_ENABLED`. If the project still has it, delete it in **Settings > Environment Variables** (it does nothing, but it suggests a switch that is not there).
 
 ## 9a. Checking a web branch on staging
 
 Use this to check a web branch, for example a W1 to W3 branch, with real sign-in before it is merged. While it runs, `staging.valueskins.com` serves the branch instead of `main`. Nothing changes on Render or Meta.
 
-1. In Vercel, project `valueskins-staging-web`, **Settings > Environment Variables**: make sure the four variables in step 5 above also exist for the **Preview** environment, with the same values. You can limit them to the branch (Vercel lets you scope a Preview variable to one Git branch). Then redeploy the branch's latest preview, because `NEXT_PUBLIC_` values are baked in at build time.
+1. In Vercel, project `valueskins-staging-web`, **Settings > Environment Variables**: make sure the three variables in step 5 above also exist for the **Preview** environment, with the same values. You can limit them to the branch (Vercel lets you scope a Preview variable to one Git branch). Then redeploy the branch's latest preview, because `NEXT_PUBLIC_` values are baked in at build time.
 2. **Settings > Domains > `staging.valueskins.com` > Edit**: connect the domain to the **Preview** environment and enter the branch name in **Git Branch** (for example `feat/web-shell`). Save. Each new push to the branch now updates `staging.valueskins.com`. To pin one deployment instead, `vercel alias set <deployment-url> staging.valueskins.com` works too.
 3. Check sign-in on `https://staging.valueskins.com`: section 13 steps 2 to 10.
 4. When you are done, edit the domain again and connect it back to **Production** (branch `main`). Check that `staging.valueskins.com` shows `main` again.

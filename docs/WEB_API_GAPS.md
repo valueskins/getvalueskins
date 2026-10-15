@@ -87,3 +87,5 @@ Found while building W1. Open items need a short API prompt or a decision; the w
   - **Open.** Remove it in the next API prompt (SPEC 5.5 already says so).
 - **Preview deployments and sign-in:** a `*.vercel.app` preview cannot sign in, because `WEB_ORIGIN` is a single origin, the session cookie is set for `.valueskins.com`, and the Instagram callback returns to `WEB_ORIGIN`.
   - **Not doing (later).** Decided for W1: a web branch is checked by pointing `staging.valueskins.com` at it for a while (DEPLOYMENT.md section 9a). Supporting previews would need several allowed origins in CORS, the Origin check and Socket.io, plus a cookie and callback plan for another domain.
+- **Deploy doc test:** `apps/api/test/deploy/deployConfig.test.ts` ("documents the web env vars") still expects `NEXT_PUBLIC_AUTH_EMAIL_ENABLED` in `docs/DEPLOYMENT.md`. W1 retired that variable: "Sign in with email" follows `GET /api/config` `authEmailEnabled`.
+  - **Open.** DEPLOYMENT.md section 9 now names the variable only to say it is unused and can be deleted from Vercel, which is a real manual step. Drop the key from that test's list in the next API prompt.
