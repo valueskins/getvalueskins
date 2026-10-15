@@ -136,6 +136,13 @@ describe('onboarding', () => {
     fireEvent.change(screen.getByLabelText(/Hiring pitch/), { target: { value: 'Short pitch' } });
     expect(screen.getByText('11 / 1000')).toBeInTheDocument();
 
+    // The error summary names the brand's own field.
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByRole('link', { name: /^Brand name:/ })).toHaveAttribute(
+      'href',
+      '#profile-name',
+    );
+
     fireEvent.change(screen.getByLabelText('Brand name'), { target: { value: 'Test Brand' } });
     fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Mumbai' } });
     fireEvent.change(screen.getByLabelText('Website'), {

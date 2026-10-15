@@ -74,9 +74,10 @@ export function ProfileForm({ role, onSaved }: { role: UserRole; onSaved: () => 
   }
 
   const f = errors.fields;
+  const labels = isBrand ? { ...LABELS, name: 'Brand name' } : LABELS;
   const summary = Object.entries(f).map(([key, message]) => ({
     id: `profile-${key}`,
-    message: `${LABELS[key] ?? key}: ${message}`,
+    message: `${labels[key] ?? key}: ${message}`,
   }));
 
   return (

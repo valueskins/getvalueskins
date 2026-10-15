@@ -19,6 +19,14 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
+export function hasInstagramStats(profile: MeProfile): boolean {
+  return (
+    profile.followersCount !== null ||
+    profile.mediaCount !== null ||
+    profile.engagementRate !== null
+  );
+}
+
 /** Followers, posts and engagement, as read from Instagram. A number Instagram did not give is left out. */
 export function InstagramStats({ profile }: { profile: MeProfile }) {
   return (
@@ -53,10 +61,14 @@ export function InstagramSummary({ profile }: { profile: MeProfile }) {
           ) : null}
         </div>
       </div>
-      <div className="hr" />
-      <div className="p-5 md:p-6">
-        <InstagramStats profile={profile} />
-      </div>
+      {hasInstagramStats(profile) ? (
+        <>
+          <div className="hr" />
+          <div className="p-5 md:p-6">
+            <InstagramStats profile={profile} />
+          </div>
+        </>
+      ) : null}
       {profile.biography ? (
         <>
           <div className="hr" />

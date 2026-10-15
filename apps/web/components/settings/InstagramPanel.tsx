@@ -3,7 +3,11 @@ import { formatDateTime } from '@/lib/format';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
-import { accountTypeLabel, InstagramStats } from '@/components/onboarding/InstagramSummary';
+import {
+  accountTypeLabel,
+  hasInstagramStats,
+  InstagramStats,
+} from '@/components/onboarding/InstagramSummary';
 import { Panel } from './Rows';
 
 export function InstagramPanel({ me }: { me: MeResponse }) {
@@ -40,7 +44,7 @@ export function InstagramPanel({ me }: { me: MeResponse }) {
               ) : null}
             </div>
           </div>
-          <InstagramStats profile={p} />
+          {hasInstagramStats(p) ? <InstagramStats profile={p} /> : null}
           <p className="t-small c-ink-2">
             {p.instagramSyncedAt
               ? `Updated from Instagram on ${formatDateTime(p.instagramSyncedAt)}. `

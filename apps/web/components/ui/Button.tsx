@@ -35,6 +35,8 @@ interface ButtonProps extends Common, Omit<ButtonHTMLAttributes<HTMLButtonElemen
   /**
    * Why the button cannot be used. When set, the button is disabled and the
    * reason is shown under it, word for word (DESIGN_HANDOFF: disabled controls).
+   * Pass null (not undefined) for "can be used now": the button then keeps its
+   * place in the DOM, and its focus, when a reason comes and goes.
    */
   disabledReason?: string | null;
 }
@@ -81,14 +83,16 @@ export function Button({
       {children}
     </button>
   );
-  if (!disabledReason) return button;
+  if (disabledReason === undefined) return button;
   return (
     <div className={block ? 'w-full' : undefined}>
       {button}
-      <p id={reasonId} className="reason">
-        <Icon name="info" size={16} />
-        {disabledReason}
-      </p>
+      {disabledReason ? (
+        <p id={reasonId} className="reason">
+          <Icon name="info" size={16} />
+          {disabledReason}
+        </p>
+      ) : null}
     </div>
   );
 }
