@@ -70,3 +70,20 @@ The gaps below were closed in the `feat/web-api-gaps` change. SPEC section numbe
   - **Not doing (later).** Refunds are manual and rare, and the reference already has a field on the cancel event and on the dispute. A refund table needs a real refund flow, which v1 does not have.
 - **Admin alerts:** these go by email only, and admins have no list of them.
   - **Not doing (later).** It needs a new table and screens. The alerts reach `DISPUTE_EMAIL`, and the failed ones are on the `webhook_events` rows. Revisit when the admin screens are built.
+
+## W1: shell, sign-in, onboarding, settings, public pages
+
+Found while building W1. Open items need a short API prompt or a decision; the web works around each one as described.
+
+- **Pending email address:** `GET /me` does not say which address a verification link was last sent to (it is only in `email_verification_tokens`). Onboarding's "Check your inbox" and the Settings "Confirm <new address>" panel need it after a reload or on another tab.
+  - **Open.** The web keeps the address in `sessionStorage` for the tab, so a reload in the same tab still shows it. In a new tab the page falls back to the email form, and sending again replaces the old link. Suggested fix: `GET /me` adds `pendingEmail: string | null`.
+- **18 or older, confirmed on:** the design's Settings shows "18 or older: Confirmed on 14 Oct 2026". `adult_confirmed_at` is stored but never returned.
+  - **Open.** The row is left out. Suggested fix: `profileDetails.adultConfirmedAt`.
+- **Deleting an account keeps brand billing:** `DELETE /me` clears a creator's UPI details but not the `brand_billing` row (DEPLOYMENT.md section 19). The design's delete text said billing details are removed, and so does the Privacy text.
+  - **Open.** The brand's delete text leaves billing out, and the Privacy page has a "Not in this version" note. Decide whether billing is kept as part of the invoice record (then say so in Privacy) or cleared (then change the deletion).
+- **Names with digits:** the shared name rule (`^\p{L}[\p{L}\p{M} .'’-]*$`) is used for a brand's name too, so a brand called "Studio 9" or "21st Street" cannot save its profile.
+  - **Open, needs a decision.** The web shows the shared message. A brand name rule that allows digits and `&` would fix it.
+- **Unused copy:** `payCommissionLabel` in `copy.ts` was kept only for the temporary pay page, which W1 deleted.
+  - **Open.** Remove it in the next API prompt (SPEC 5.5 already says so).
+- **Preview deployments and sign-in:** a `*.vercel.app` preview cannot sign in, because `WEB_ORIGIN` is a single origin, the session cookie is set for `.valueskins.com`, and the Instagram callback returns to `WEB_ORIGIN`.
+  - **Not doing (later).** Decided for W1: a web branch is checked by pointing `staging.valueskins.com` at it for a while (DEPLOYMENT.md section 9a). Supporting previews would need several allowed origins in CORS, the Origin check and Socket.io, plus a cookie and callback plan for another domain.

@@ -14,7 +14,7 @@ The design for the web rebuild (W1 to W3 in `docs/REPLACEMENT_PLAN.md` section 7
 
 - **Direction:** "Receipt". Off-white page, white cards with a 1px rule, ink text, and one vermilion accent.
   - **Light only.** There is no dark mode.
-  - This replaces the black, `#FF0000` and 4px rules in `docs/SPEC.md` section 18. W1 updates SPEC 18 to match in the same change.
+  - This replaced the black, `#FF0000` and 4px rules. `docs/SPEC.md` section 18 now describes it.
 - **Colour tokens** (all on `:root` in `receipt.css`):
   - **Page and surfaces:** page `#F7F8F8`, surface `#FFFFFF`, sunken `#EFF1F1`.
   - **Ink:** ink `#101113`, ink-2 `#4A4F55`, ink-3 `#6B7177`. Never use ink-3 on sunken.
@@ -96,14 +96,14 @@ Board names are the canvas file names. Routes are suggestions.
 
 ### Public, sign-in, onboarding, settings, legal (pages Public, Onboarding, Settings, Legal)
 
-| Screen                                | Boards                                                                                                                                       | Route                 | API                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| Home                                  | Home, HomeM                                                                                                                                  | `/`                   | `GET /config`                                                                                          |
-| How it works                          | HowItWorks, HowItWorksM                                                                                                                      | `/how-it-works`       |                                                                                                        |
-| Sign-in errors                        | ErrPersonal, ErrRole, ErrGeneric, ErrPersonalM                                                                                               | `/signin/error?code=` | codes from the Instagram callback                                                                      |
-| Onboarding                            | OnbInstagram, OnbEmail, OnbEmailSent, OnbEmailVerified, OnbProfileCreator, OnbProfileBrand, OnbUpi, OnbUpiError, OnbBilling and the M boards | `/onboarding`         | `GET /me` (`onboarding`), `POST /me/email`, `PUT /me/profile`, `PUT /me/payout-upi`, `PUT /me/billing` |
-| Settings                              | SettingsCreator, SettingsBrand, SettingsDialogs, SettingsCreatorM                                                                            | `/settings`           | `GET /me`, `GET /me/payout-upi`, the PUTs above, `DELETE /me`                                          |
-| Terms, Privacy, Refunds, Contact, 404 | Terms, Privacy, Refunds, Contact, NotFound and the M boards                                                                                  | `/terms` and so on    |                                                                                                        |
+| Screen                                | Boards                                                                                                                                       | Route              | API                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| Home                                  | Home, HomeM                                                                                                                                  | `/`                | `GET /config`                                                                                          |
+| How it works                          | HowItWorks, HowItWorksM                                                                                                                      | `/how-it-works`    |                                                                                                        |
+| Sign-in errors                        | ErrPersonal, ErrRole, ErrGeneric, ErrPersonalM                                                                                               | `/login?error=`    | codes from the Instagram callback                                                                      |
+| Onboarding                            | OnbInstagram, OnbEmail, OnbEmailSent, OnbEmailVerified, OnbProfileCreator, OnbProfileBrand, OnbUpi, OnbUpiError, OnbBilling and the M boards | `/onboarding`      | `GET /me` (`onboarding`), `POST /me/email`, `PUT /me/profile`, `PUT /me/payout-upi`, `PUT /me/billing` |
+| Settings                              | SettingsCreator, SettingsBrand, SettingsDialogs, SettingsCreatorM                                                                            | `/settings`        | `GET /me`, `GET /me/payout-upi`, the PUTs above, `DELETE /me`                                          |
+| Terms, Privacy, Refunds, Contact, 404 | Terms, Privacy, Refunds, Contact, NotFound and the M boards                                                                                  | `/terms` and so on |                                                                                                        |
 
 ### Creator (page Creator)
 
@@ -191,7 +191,7 @@ The 9 steps are Posted, Creator confirmed, Fee paid, Advance confirmed, Content 
   - The form saves to localStorage every 30 seconds and on blur. "Save draft" saves to the server.
   - Publish checks the fields and either shows the errors or opens the confirm.
 - **Applying:** a confirm step comes first, because an application cannot be withdrawn.
-- **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri`; the temporary page already does this with `uqr`.
+- **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri` with `uqr`, which is already a dependency of `apps/web`.
 - **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. There is no total count.
 - **Sample data:** one consistent story runs through every board (Festive kurta try-on reel, `8K2M4QXZ`, @urbanthreads.in and @riya.eats, ₹10,000.00, 1 to 11 Oct 2026). It is sample data only. Every amount comes from `computeBreakdown`.
 
