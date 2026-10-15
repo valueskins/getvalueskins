@@ -1,30 +1,5 @@
-import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import DevLoginPage from '../app/(temporary)/dev/login/page';
-import { assertSafeWebEnv } from '../lib/temporary/envGuard';
-
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('next/navigation')>()),
-  useRouter: () => ({ push: vi.fn() }),
-}));
-
-describe('/dev/login', () => {
-  it('is a 404 unless NEXT_PUBLIC_ENABLE_DEV_LOGIN is "true"', () => {
-    expect(() => DevLoginPage()).toThrow();
-
-    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'false');
-    expect(() => DevLoginPage()).toThrow();
-  });
-
-  it('renders the form when the flag is on, with the reason the button is disabled', () => {
-    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'true');
-    render(<DevLoginPage />);
-
-    expect(screen.getByRole('heading', { name: 'Dev login' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Dev login' })).toBeDisabled();
-    expect(screen.getByText('Enter a username to log in.')).toBeInTheDocument();
-  });
-});
+import { assertSafeWebEnv, isDevLoginEnabled, isProductionTarget } from '../lib/env';
 
 describe('assertSafeWebEnv', () => {
   it('allows dev login against the staging API', () => {
@@ -59,5 +34,24 @@ describe('assertSafeWebEnv', () => {
 
   it('allows dev login with an unset API URL (local development)', () => {
     expect(() => assertSafeWebEnv({ NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true' })).not.toThrow();
+  });
+});
+
+describe('flags', () => {
+  it('turns dev login on only for the literal "true"', () => {
+    expect(isDevLoginEnabled()).toBe(false);
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'TRUE');
+    expect(isDevLoginEnabled()).toBe(false);
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'true');
+    expect(isDevLoginEnabled()).toBe(true);
+  });
+
+  it('treats only the production API host as a production target', () => {
+    vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api-staging.valueskins.com');
+    expect(isProductionTarget()).toBe(false);
+    vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.valueskins.com/');
+    expect(isProductionTarget()).toBe(true);
+    vi.stubEnv('NEXT_PUBLIC_API_URL', '');
+    expect(isProductionTarget()).toBe(false);
   });
 });

@@ -1,13 +1,8 @@
 import type { NextConfig } from 'next';
-import { assertSafeWebEnv } from './lib/temporary/envGuard';
-import { temporaryRedirects } from './lib/temporary/redirects';
+import { assertSafeWebEnv } from './lib/env';
 
 assertSafeWebEnv(process.env);
 
-const nextConfig: NextConfig = {
-  async redirects() {
-    return temporaryRedirects;
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
