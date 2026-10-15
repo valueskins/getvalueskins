@@ -1,14 +1,12 @@
 'use client';
 
-import { PageIntro, RolePage } from '@/components/shell/RolePage';
+import { RolePage } from '@/components/shell/RolePage';
+import { DealForm } from '@/components/brand/DealForm';
 
 export default function Page() {
   return (
     <RolePage role="BRAND">
-      <PageIntro
-        title="Post a deal"
-        lede="Write the brief, set the amount and the dates, then publish."
-      />
+      <DealForm draft={null} />
     </RolePage>
   );
 }
