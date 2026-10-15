@@ -2,6 +2,20 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { resetNav } from './helpers/nav';
+import { resetSockets } from './helpers/socket';
+
+// No real socket in tests: io() returns a FakeSocket a test can drive.
+vi.mock('socket.io-client', async () => {
+  const { FakeSocket, sockets } = await import('./helpers/socket');
+  return {
+    io: (...args: unknown[]) => {
+      const socket = new FakeSocket();
+      sockets.last = socket;
+      sockets.args.push(args);
+      return socket;
+    },
+  };
+});
 
 vi.mock('next/navigation', async (importOriginal) => {
   const { nav } = await import('./helpers/nav');
@@ -35,6 +49,7 @@ vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
 afterEach(() => {
   cleanup();
   resetNav();
+  resetSockets();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   try {

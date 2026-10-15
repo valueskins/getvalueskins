@@ -1,11 +1,12 @@
 'use client';
 
-import { PageIntro, RolePage } from '@/components/shell/RolePage';
+import { RolePage } from '@/components/shell/RolePage';
+import { MyDealsPage } from '@/components/creator/MyDealsPage';
 
 export default function Page() {
   return (
     <RolePage role="CREATOR">
-      <PageIntro title="My deals" lede="Deals where a brand confirmed you." />
+      <MyDealsPage />
     </RolePage>
   );
 }

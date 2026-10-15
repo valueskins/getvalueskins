@@ -1,8 +1,14 @@
 import { cx } from './cx';
 
 /** Loading pages use skeletons, not spinners. */
-export function Skeleton({ className }: { className?: string }) {
-  return <span className={cx('skel block', className)} aria-hidden="true" />;
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return <span className={cx('skel block', className)} style={style} aria-hidden="true" />;
 }
 
 export function PageSkeleton() {
