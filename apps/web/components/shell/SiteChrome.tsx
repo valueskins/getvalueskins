@@ -1,7 +1,11 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { SupportEmail } from './SupportEmail';
 
-export function SiteHeader({ active }: { active?: 'how-it-works' }) {
+export function SiteHeader() {
+  const active = usePathname() === '/how-it-works' ? 'how-it-works' : undefined;
   return (
     <header className="site-header">
       <div className="site-header-in">
@@ -31,6 +35,7 @@ const FOOTER_LINKS = [
 ];
 
 export function SiteFooter() {
+  const pathname = usePathname();
   return (
     <footer className="site-footer">
       <div className="site-footer-in">
@@ -42,7 +47,11 @@ export function SiteFooter() {
         </div>
         <nav className="footer-links" aria-label="Footer">
           {FOOTER_LINKS.map((l) => (
-            <Link key={l.href} href={l.href}>
+            <Link
+              key={l.href}
+              href={l.href}
+              aria-current={pathname === l.href ? 'page' : undefined}
+            >
               {l.label}
             </Link>
           ))}
