@@ -370,7 +370,7 @@ Do not touch any account yourself. Walk me through docs/CUTOVER.md and the SPEC 
 
 ## 5. Cutover in one paragraph
 
-Saketh pauses new deal posting on the live app. In-flight deals either finish there or are imported (the Prompt 18 report decides each one). A final import runs. valueskins.com's DNS moves to the new Vercel project. The Razorpay webhook and Meta URLs point to the new API. The old app stays deployed on a different hostname for a week as the rollback. Everyone signs in again with Instagram.
+**No import was needed.** The live app's database holds only the two founders' test accounts, with no deals, payments or invoices, so nothing is carried over: Prompt 18's import is not used. Everyone signs in again with Instagram, and fee invoice numbering starts at `VS/2026-27/000001` for the current financial year. Production starts with `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off` and opens later without a deploy. The new app is checked on production first, on a temporary hostname. Then the Meta deauthorize and data-deletion URLs point to the new API, `WEB_ORIGIN` moves to `https://valueskins.com`, and the `valueskins.com` and `www` domains move to the new Vercel project. The old app stays deployed on another hostname for a week as the rollback. The Razorpay webhook is registered on the new API only when payments open. The steps, who does them, how to check each one and the rollback are in `docs/CUTOVER.md`.
 
 ---
 
