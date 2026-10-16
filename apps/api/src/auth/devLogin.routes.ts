@@ -5,20 +5,23 @@ import { db } from '../db/client.js';
 import { users } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { setSessionCookie } from './cookies.js';
+import { notFound } from '../deals/access.js';
 import { createSession, toAuthenticatedUser } from './session.js';
 
 const DEV_TOKEN_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 /**
- * SPEC 6.2: creates or logs in a fake user with fake Instagram data. Only
- * mounted when NODE_ENV !== 'production' && ENABLE_DEV_LOGIN (see app.ts) —
- * when disabled, this route is genuinely absent, not present-but-guarded.
+ * SPEC 6.2: creates or logs in a fake user with fake Instagram data, optionally an admin. Only
+ * mounted when NODE_ENV !== 'production' && ENABLE_DEV_LOGIN (see app.ts): when disabled, this
+ * route is genuinely absent. As a second guard the handler itself answers 404 in production, so a
+ * mistaken mount can still never sign anyone in or create an admin there.
  */
 export function devLoginRoutes(env: Env): Router {
   const router = Router();
 
   router.post('/api/dev/login', async (req, res, next) => {
     try {
+      if (env.NODE_ENV === 'production' || !env.ENABLE_DEV_LOGIN) throw notFound();
       const input = devLoginSchema.parse(req.body);
 
       const existing = await db
@@ -41,6 +44,9 @@ export function devLoginRoutes(env: Env): Router {
             roleLockedAt: new Date(),
             igTokenEncrypted: 'dev-fake-token',
             igTokenExpiresAt: new Date(Date.now() + DEV_TOKEN_TTL_MS),
+            // Like the role, admin applies only when the dev user is created. A dev user is never
+            // touched by the Instagram sign-in, which sets is_admin for real accounts.
+            isAdmin: input.admin === true,
           })
           .returning();
         user = inserted[0];

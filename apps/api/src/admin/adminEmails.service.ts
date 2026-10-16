@@ -1,3 +1,4 @@
+import type { ResendEmailResponse } from '@valueskins/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { emailLog } from '../db/schema/index.js';
@@ -16,7 +17,7 @@ export async function resendEmail(
   env: Env,
   now: Date,
   rawId: unknown,
-): Promise<{ emailLogId: string; status: string; missingAttachments: string[] }> {
+): Promise<ResendEmailResponse> {
   const [original] = await db
     .select()
     .from(emailLog)

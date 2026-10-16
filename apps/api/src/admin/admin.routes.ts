@@ -8,7 +8,11 @@ import { Router } from 'express';
 import { requireAdmin } from '../auth/guards.js';
 import type { ApiContext } from '../context.js';
 import { buildDealDetail } from '../deals/dealDetail.js';
-import { getDispute, listDisputes, resolveDispute } from '../disputes/disputes.service.js';
+import {
+  getAdminDisputeDetail,
+  listDisputes,
+  resolveDispute,
+} from '../disputes/disputes.service.js';
 import { adminCancelDeal, getAdminDealDetail, listAdminDeals } from './adminDeals.service.js';
 import { resendEmail } from './adminEmails.service.js';
 
@@ -64,7 +68,7 @@ export function adminRoutes(ctx: ApiContext): Router {
 
   router.get('/api/admin/disputes/:id', async (req, res, next) => {
     try {
-      res.json({ dispute: await getDispute(req.params.id) });
+      res.json(await getAdminDisputeDetail(req.params.id));
     } catch (error) {
       next(error);
     }

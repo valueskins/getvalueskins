@@ -6,8 +6,11 @@ import {
   type DisputeCreateInput,
   type DisputeListQuery,
   type DisputeResolveInput,
+  type AdminDisputeDetailResponse,
+  type AdminDisputeListResponse,
+  type DisputeView,
 } from '@valueskins/shared';
-import { and, desc, eq, lt, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, lt, ne, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Response } from 'express';
 import type { AuthenticatedUser } from '../auth/types.js';
@@ -17,7 +20,7 @@ import { isUniqueViolation } from '../db/pgErrors.js';
 import { deals, disputes, users } from '../db/schema/index.js';
 import { decodeCursor, encodeCursor } from '../deals/cursor.js';
 import { findDeal, notFound, parseId } from '../deals/access.js';
-import { DELETED_USER_NAME } from '../deals/dealView.js';
+import { DELETED_USER_NAME, iso, loadParties } from '../deals/dealView.js';
 import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { AppError } from '../errors/AppError.js';
@@ -26,24 +29,6 @@ import { consumeDisputeLimit } from '../rateLimit/limiters.js';
 import { emitDealUpdated } from '../realtime/events.js';
 
 type DisputeRow = typeof disputes.$inferSelect;
-
-export interface DisputeView {
-  id: string;
-  dealId: string;
-  dealShortId: string;
-  dealTitle: string | null;
-  subject: string;
-  description: string;
-  status: DisputeRow['status'];
-  /** Only a deal's brand or its confirmed creator can raise a dispute. */
-  raisedBy: { id: string; username: string; role: 'BRAND' | 'CREATOR' };
-  resolution: string | null;
-  refundReference: string | null;
-  /** The admin who resolved it ("Deleted user" if that account is gone). Null while it is open. */
-  resolvedBy: { id: string | null; username: string } | null;
-  resolvedAt: string | null;
-  createdAt: string;
-}
 
 interface DisputeContext {
   dispute: DisputeRow;
@@ -127,13 +112,55 @@ export async function listDealDisputeViews(dealId: string): Promise<DisputeView[
   return rows.map(viewOfRow);
 }
 
-/** GET /admin/disputes/:id (SPEC 12): one dispute, with who raised it and who resolved it. */
+/** One dispute, with who raised it and who resolved it. */
 export async function getDispute(rawId: unknown): Promise<DisputeView> {
   const [row] = await selectDisputes()
     .where(eq(disputes.id, parseId(rawId)))
     .limit(1);
   if (!row) throw notFound();
   return viewOfRow(row);
+}
+
+/**
+ * GET /admin/disputes/:id (SPEC 12): the dispute, the deal it is about (status, parties, amounts
+ * and dates, enough for the dispute page), and the deal's other disputes.
+ */
+export async function getAdminDisputeDetail(rawId: unknown): Promise<AdminDisputeDetailResponse> {
+  const [row] = await selectDisputes()
+    .where(eq(disputes.id, parseId(rawId)))
+    .limit(1);
+  if (!row) throw notFound();
+  const deal = row.deal;
+  const parties = await loadParties(
+    deal.creatorId ? [deal.brandId, deal.creatorId] : [deal.brandId],
+  );
+  const brand = parties.get(deal.brandId);
+  if (!brand) throw new Error(`deal ${deal.id} has no brand row`);
+  const others = await db
+    .select({ id: disputes.id, subject: disputes.subject, status: disputes.status })
+    .from(disputes)
+    .where(and(eq(disputes.dealId, deal.id), ne(disputes.id, row.dispute.id)))
+    .orderBy(desc(disputes.id));
+  return {
+    dispute: viewOfRow(row),
+    deal: {
+      id: deal.id,
+      shortId: deal.shortId,
+      title: deal.title,
+      status: deal.status,
+      brand,
+      creator: deal.creatorId ? (parties.get(deal.creatorId) ?? null) : null,
+      budgetPaise: deal.budgetPaise,
+      commissionTotalPaise: deal.commissionTotalPaise,
+      advancePaise: deal.advancePaise,
+      finalPaise: deal.finalPaise,
+      commissionPaidAt: iso(deal.commissionPaidAt),
+      advancePaidAt: iso(deal.advancePaidAt),
+      completedAt: iso(deal.completedAt),
+      contentUploadDeadline: deal.contentUploadDeadline,
+    },
+    otherDisputes: others,
+  };
 }
 
 /** Addresses of the deal's two parties that still exist; a deleted account has none. */
@@ -225,26 +252,32 @@ export async function raiseDispute(
   });
 }
 
-/** GET /admin/disputes: newest first, optionally one status. */
-export async function listDisputes(
-  query: DisputeListQuery,
-): Promise<{ items: DisputeView[]; nextCursor: string | null }> {
-  const conditions: SQL[] = [];
-  if (query.status) conditions.push(eq(disputes.status, query.status));
+/** GET /admin/disputes: newest first, optionally one status, with the total for that status. */
+export async function listDisputes(query: DisputeListQuery): Promise<AdminDisputeListResponse> {
+  const filters: SQL[] = [];
+  if (query.status) filters.push(eq(disputes.status, query.status));
+  const conditions = [...filters];
   if (query.cursor) {
     conditions.push(lt(disputes.id, decodeCursor(query.cursor, { needsTime: false }).i));
   }
 
-  const rows = await selectDisputes()
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(disputes.id))
-    .limit(query.limit + 1);
+  const [rows, [totalRow]] = await Promise.all([
+    selectDisputes()
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(disputes.id))
+      .limit(query.limit + 1),
+    db
+      .select({ value: count() })
+      .from(disputes)
+      .where(filters.length > 0 ? and(...filters) : undefined),
+  ]);
 
   const page = rows.slice(0, query.limit);
   const last = page[page.length - 1];
   return {
     items: page.map(viewOfRow),
     nextCursor: rows.length > query.limit && last ? encodeCursor({ i: last.dispute.id }) : null,
+    total: totalRow?.value ?? 0,
   };
 }
 
