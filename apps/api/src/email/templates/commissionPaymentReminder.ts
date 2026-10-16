@@ -2,7 +2,7 @@ import { formatInr } from '@valueskins/shared';
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #12: ValueSkins fee reminder (SPEC 8) — sent to the brand daily while CONFIRMED. */
+/** #12: ValueSkins fee reminder (SPEC 8) - sent to the brand daily while CONFIRMED. */
 export function commissionPaymentReminderTemplate(
   data: EmailTemplateDataMap['COMMISSION_PAYMENT_REMINDER'],
 ): EmailContent {

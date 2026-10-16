@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #7: Changes requested (SPEC 8) — sent to the creator, includes the feedback text. */
+/** #7: Changes requested (SPEC 8) - sent to the creator, includes the feedback text. */
 export function changesRequestedTemplate(
   data: EmailTemplateDataMap['CHANGES_REQUESTED'],
 ): EmailContent {

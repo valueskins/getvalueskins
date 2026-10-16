@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #8: Content approved (SPEC 8) — sent to the creator. */
+/** #8: Content approved (SPEC 8) - sent to the creator. */
 export function contentApprovedTemplate(
   data: EmailTemplateDataMap['CONTENT_APPROVED'],
 ): EmailContent {

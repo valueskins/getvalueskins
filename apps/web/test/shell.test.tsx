@@ -49,6 +49,30 @@ describe('the signed-in shell', () => {
     );
   });
 
+  it('gives an admin a link to the admin pages in the user menu', async () => {
+    nav.pathname = '/campaigns';
+    mockApi({
+      'GET /me': makeMe({ role: 'BRAND', done: ['email', 'profile', 'billing'], isAdmin: true }),
+      'GET /config': CONFIG,
+    });
+    renderPage(<CampaignsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /@test\.brand/ }));
+    expect(screen.getByRole('menuitem', { name: 'Admin' })).toHaveAttribute('href', '/admin/deals');
+  });
+
+  it('moves focus into the phone menu, and back to its button on Escape', async () => {
+    nav.pathname = '/campaigns';
+    mockApi({ 'GET /me': brand, 'GET /config': CONFIG });
+    renderPage(<CampaignsPage />);
+    const button = await screen.findByRole('button', { name: 'Open menu' });
+    fireEvent.click(button);
+    const sheet = document.getElementById('app-sheet')!;
+    expect(document.activeElement).toBe(within(sheet).getAllByRole('link')[0]);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.getElementById('app-sheet')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(button);
+  });
+
   it('gives the other role a 404', async () => {
     mockApi({ 'GET /me': creator });
     renderPage(<CampaignsPage />);

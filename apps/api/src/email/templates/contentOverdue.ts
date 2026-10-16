@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #13: Content overdue (SPEC 8) — sent to both parties daily while content is overdue. */
+/** #13: Content overdue (SPEC 8) - sent to both parties daily while content is overdue. */
 export function contentOverdueTemplate(
   data: EmailTemplateDataMap['CONTENT_OVERDUE'],
 ): EmailContent {

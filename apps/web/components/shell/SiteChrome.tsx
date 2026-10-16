@@ -2,27 +2,31 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SkipLink } from './SkipLink';
 import { SupportEmail } from './SupportEmail';
 
 export function SiteHeader() {
   const active = usePathname() === '/how-it-works' ? 'how-it-works' : undefined;
   return (
-    <header className="site-header">
-      <div className="site-header-in">
-        <Link href="/" className="wordmark">
-          ValueSkins
-        </Link>
-        <nav aria-label="Site">
-          <Link
-            href="/how-it-works"
-            className={active === 'how-it-works' ? 'site-link is-active' : 'site-link'}
-            aria-current={active === 'how-it-works' ? 'page' : undefined}
-          >
-            How it works
+    <>
+      <SkipLink />
+      <header className="site-header">
+        <div className="site-header-in">
+          <Link href="/" className="wordmark">
+            ValueSkins
           </Link>
-        </nav>
-      </div>
-    </header>
+          <nav aria-label="Site">
+            <Link
+              href="/how-it-works"
+              className={active === 'how-it-works' ? 'site-link is-active' : 'site-link'}
+              aria-current={active === 'how-it-works' ? 'page' : undefined}
+            >
+              How it works
+            </Link>
+          </nav>
+        </div>
+      </header>
+    </>
   );
 }
 

@@ -112,3 +112,28 @@ Found while building W2. The web works around each one as described.
   - **Open.** The web maps those codes to plain text (`apps/web/lib/dealErrors.ts`). Plain API messages would let it show them as they are.
 - **SPEC 16 field name:** SPEC 16 says `creatorPayoutStatus` on `GET /deals/:id`; the API returns `creatorPayoutSet: boolean | null`.
   - **Open.** The web does not need it (the `PAY_*` reasons say which UPI detail is missing). Fix the SPEC wording in the next API prompt.
+
+## W3: admin, copy check, page pass, CSP
+
+Found while building W3. The web works around each one as described.
+
+- **Admin analytics:** SPEC 12 lists an analytics screen (`GET /admin/analytics`), but there is no endpoint and no design board for it.
+  - **Open.** Not built. The admin starts on the deals list. It needs an API prompt and a design.
+- **Admin responses are not shared schemas:** `GET /admin/deals`, `GET /admin/deals/:id`, the disputes routes and the resend answer use API-local types.
+  - **Open.** The web writes the shapes out in `apps/web/lib/api/admin.ts`. Shared Zod schemas would keep both sides in step.
+- **No admin `allowedActions`:** an admin reads a deal as viewer `NONE`, so the detail lists no actions and no reasons.
+  - **Open.** The web enables Cancel from the shared transition table (`canTransition(status, 'CANCELLED', 'ADMIN')`) and shows `ADMIN_CANCEL_WINDOW`, or "This deal is already cancelled", as the reason. The API still refuses outside the window. Admin actions (cancel, resolve, resend) with reasons in the detail would remove the web's rule.
+- **No counts on the disputes tabs:** `GET /admin/disputes` has no `total`, unlike the deals list.
+  - **Open.** The tabs show no counts. A `total` per status would match the design.
+- **No party emails on the admin deal:** the design shows each person's email under their name on the admin deal page. The detail has only usernames. The addresses appear only on the email rows.
+  - **Open.** Left out of the header. Adding `email` to the parties in the admin detail only would match the design.
+- **Admins are not in deal rooms:** the admin pages get no socket events.
+  - **Not doing (later).** They re-read after every admin action and on window focus, which is enough for a few admins.
+- **Dispute detail loads the whole admin deal:** the dispute view has no deal status or amounts, so the side card calls `GET /admin/deals/:id`.
+  - **Open (works today).** One extra call per dispute page. The deal's status and money in the dispute view would save it.
+- **Sentry in the CSP:** Sentry is added in Prompt 17, so the CSP allows its ingest hosts by pattern (`*.ingest.sentry.io`, `*.ingest.us.sentry.io`, `*.ingest.de.sentry.io`).
+  - **Open (Prompt 17).** Narrow `SENTRY` in `apps/web/lib/csp.ts` to the DSN's host when Sentry is added.
+- **Checking the admin screens locally:** dev login never sets `is_admin` (it comes only from `ADMIN_INSTAGRAM_USER_IDS` at Instagram sign-in).
+  - **Open (works today).** Locally, set it by hand on a dev user (`update users set is_admin = true where username = '...'`). This is deliberate, so nothing to change unless a local admin is wanted often.
+- **Copy rules in the email templates and shared copy:** the copy check found em dashes in 18 code comments in `apps/api/src/email` and `packages/shared/src/copy.ts`.
+  - **Done.** Replaced with hyphens in this change, comments only, as W3 asked. No user-facing text had a hit.

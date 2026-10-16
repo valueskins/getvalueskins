@@ -6,13 +6,11 @@ import { useEffect, useState } from 'react';
 import type { DealDetail, MeResponse } from '@valueskins/shared';
 import { ApiError } from '@/lib/api/client';
 import { useDeal, useDealEmails, useDealEvents } from '@/lib/api/deals';
-import { errorText } from '@/lib/api/errors';
 import { useMe } from '@/lib/api/queries';
 import { dealSteps } from '@/lib/dealStatus';
 import { formatFullDayTime } from '@/lib/dealFormat';
 import { viewerOf, type Viewer } from '@/lib/dealView';
-import { Button } from '@/components/ui/Button';
-import { Callout } from '@/components/ui/Callout';
+import { LoadError } from '@/components/ui/LoadError';
 import { Icon } from '@/components/ui/Icon';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { ResumeCard } from '@/components/resume/ResumeCard';
@@ -96,6 +94,12 @@ function DealView({ deal, me }: { deal: DealDetail; me: MeResponse }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   useDealRoom(deal.id, party);
+  const eventsFailed = events.isError
+    ? { error: events.error, retry: () => void events.refetch() }
+    : undefined;
+  const emailsFailed = emails.isError
+    ? { error: emails.error, retry: () => void emails.refetch() }
+    : undefined;
 
   return (
     <div className="page">
@@ -110,11 +114,11 @@ function DealView({ deal, me }: { deal: DealDetail; me: MeResponse }) {
           {party ? (
             <>
               <LinksSection deal={deal} />
-              <FeedbackSection deal={deal} events={events.data} />
+              <FeedbackSection deal={deal} events={events.data} failed={eventsFailed} />
               <PaymentsSection deal={deal} viewer={viewer} />
               <DocumentsSection deal={deal} />
-              <EmailsSection emails={emails.data} />
-              <ActivitySection deal={deal} events={events.data} />
+              <EmailsSection emails={emails.data} failed={emailsFailed} />
+              <ActivitySection deal={deal} events={events.data} failed={eventsFailed} />
             </>
           ) : null}
         </div>
@@ -145,14 +149,12 @@ export function DealPage({ id }: { id: string }) {
   if (deal.error instanceof ApiError && deal.error.status === 404) notFound();
   if (deal.isError) {
     return (
-      <div className="page">
-        <Callout tone="error" title="We could not load this deal" role="alert">
-          <p>{errorText(deal.error)}</p>
-        </Callout>
-        <Button variant="secondary" className="mt-4" onClick={() => void deal.refetch()}>
-          Try again
-        </Button>
-      </div>
+      <LoadError
+        className="page"
+        title="We could not load this deal"
+        error={deal.error}
+        onRetry={() => void deal.refetch()}
+      />
     );
   }
   if (!deal.data || !me.data || isDraft) return <PageSkeleton />;

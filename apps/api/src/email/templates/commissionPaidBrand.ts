@@ -2,7 +2,7 @@ import { formatInr } from '@valueskins/shared';
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #4 (brand side): ValueSkins fee paid (SPEC 8) — the tax invoice is attached by
+/** #4 (brand side): ValueSkins fee paid (SPEC 8) - the tax invoice is attached by
  * the caller via send()'s attachments option, not built here. */
 export function commissionPaidBrandTemplate(
   data: EmailTemplateDataMap['COMMISSION_PAID_BRAND'],

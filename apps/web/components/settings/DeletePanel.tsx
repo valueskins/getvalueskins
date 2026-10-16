@@ -21,6 +21,15 @@ function removedText(me: MeResponse): string {
 function InProgress({ open }: { open: boolean }) {
   const deals = useDealsInProgress(open);
   const items = deals.data?.items ?? [];
+  if (deals.isError) {
+    return (
+      <Callout tone="wait" className="mt-4">
+        <p>
+          We could not check for deals in progress. Deleting does not cancel a deal you are part of.
+        </p>
+      </Callout>
+    );
+  }
   if (items.length === 0) return null;
   const first = items[0]!.title;
   const text =

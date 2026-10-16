@@ -7,10 +7,10 @@ export interface ConsoleSendResult {
 }
 
 /**
- * Prints the email instead of sending it (SPEC 8) — a startup guard forbids
+ * Prints the email instead of sending it (SPEC 8) - a startup guard forbids
  * this transport whenever NODE_ENV=production, which is the actual SPEC 20
  * risk scenario (shared log aggregation); a solo developer's own local
- * terminal isn't that, so this logs at `info` rather than `debug` — the
+ * terminal isn't that, so this logs at `info` rather than `debug` - the
  * whole point of this transport is that a developer can read it without any
  * extra setup. Logged as a single plain message string, not structured
  * fields: the root logger's deepRedact walk would otherwise mangle any field

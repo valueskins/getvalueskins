@@ -18,8 +18,11 @@ import { useNow } from './useNow';
 
 type Mark = [string, BadgeKind] | null;
 
-function stageMark(deal: DealDetail, viewer: Viewer, stage: 'ADVANCE' | 'FINAL'): Mark {
-  const brand = viewer === 'brand';
+/** Who reads the panel: a party, anyone else, or an admin (who sees the brand's view of the money). */
+export type PanelViewer = Viewer | 'admin';
+
+function stageMark(deal: DealDetail, viewer: PanelViewer, stage: 'ADVANCE' | 'FINAL'): Mark {
+  const brand = viewer === 'brand' || viewer === 'admin';
   const doneAt = stage === 'ADVANCE' ? deal.advancePaidAt : deal.completedAt;
   if (doneAt) return [`${brand ? 'Confirmed' : 'Received'} ${formatShortDateTime(doneAt)}`, 'ok'];
   if (deal.status === 'CANCELLED') return ['Not paid', 'cancelled'];
@@ -32,7 +35,7 @@ function stageMark(deal: DealDetail, viewer: Viewer, stage: 'ADVANCE' | 'FINAL')
   return [stage === 'ADVANCE' ? 'Not due yet' : 'After approval', 'draft'];
 }
 
-function feeMark(deal: DealDetail, viewer: Viewer): Mark {
+function feeMark(deal: DealDetail, viewer: PanelViewer): Mark {
   if (deal.commissionPaidAt) {
     return [
       deal.status === 'CANCELLED'
@@ -43,7 +46,7 @@ function feeMark(deal: DealDetail, viewer: Viewer): Mark {
   }
   if (deal.status === 'CANCELLED') return ['Not charged', 'cancelled'];
   if (deal.status === 'CONFIRMED')
-    return [viewer === 'brand' ? 'Due now' : 'Brand pays now', 'wait'];
+    return [viewer === 'creator' || viewer === 'other' ? 'Brand pays now' : 'Due now', 'wait'];
   return ['After confirming', 'draft'];
 }
 
@@ -78,10 +81,11 @@ function Row({
   );
 }
 
-function Amounts({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
+export function Amounts({ deal, viewer }: { deal: DealDetail; viewer: PanelViewer }) {
   const U = deal.creator ? at(deal.creator.username) : 'the creator';
   const BU = at(deal.brand.username);
-  const isCreator = viewer !== 'brand';
+  const brandSide = viewer === 'brand' || viewer === 'admin';
+  const isCreator = !brandSide;
   const masked = deal.directPayments[deal.directPayments.length - 1]?.maskedVpa;
   const fee = `${deal.commissionBasePaise !== null ? formatInr(deal.commissionBasePaise) : ''} + GST ${
     deal.commissionGstPaise !== null ? formatInr(deal.commissionGstPaise) : ''
@@ -103,9 +107,14 @@ function Amounts({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
         </div>
       ) : null}
       <div className="px-5 pb-2 pt-1">
-        {viewer === 'brand' ? (
+        {brandSide ? (
           <>
-            <Row label="Budget" paise={deal.budgetPaise} sub="What you pay in total" strong />
+            <Row
+              label="Budget"
+              paise={deal.budgetPaise}
+              sub={viewer === 'admin' ? 'What the brand pays in total' : 'What you pay in total'}
+              strong
+            />
             <Row
               label="ValueSkins fee"
               paise={deal.commissionTotalPaise}
@@ -121,7 +130,7 @@ function Amounts({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
             <Row
               label={`70% to ${U}`}
               paise={deal.finalPaise}
-              sub="By UPI, after you approve"
+              sub={viewer === 'admin' ? 'By UPI, after approval' : 'By UPI, after you approve'}
               mark={stageMark(deal, viewer, 'FINAL')}
             />
           </>
@@ -188,7 +197,7 @@ function deadlineMark(
   return [c.text, c.overdue ? 'error' : c.soon ? 'wait' : 'draft'];
 }
 
-function Deadlines({ deal }: { deal: DealDetail }) {
+export function Deadlines({ deal }: { deal: DealDetail }) {
   const now = useNow();
   const rows: Array<[string, string | null, 'apply' | 'due' | 'end']> = [
     ['Apply by', deal.applicationDeadline, 'apply'],

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import './receipt.css';
@@ -27,7 +28,9 @@ export const viewport: Viewport = {
   colorScheme: 'light',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Every page renders on request, so Next.js can put the CSP nonce on its scripts (middleware.ts).
+  await connection();
   return (
     <html lang="en-IN" className={`${geist.variable} ${geistMono.variable}`}>
       <body>

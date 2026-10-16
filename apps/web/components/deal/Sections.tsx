@@ -12,12 +12,33 @@ import { parseBrief } from '@/lib/brief';
 import { formatDayTime, formatFullDayTime } from '@/lib/dealFormat';
 import { at, type Viewer } from '@/lib/dealView';
 import { longDate } from '@/lib/deadlines';
+import { errorText } from '@/lib/api/errors';
 import { Badge } from '@/components/ui/Callout';
+import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cx } from '@/components/ui/cx';
 import { DocumentLink } from './DocumentLink';
 import { PaymentRecord } from './PaymentRecord';
 import { Section } from './Section';
+
+/** A history read that failed: what is missing, and Try again. */
+export interface Failed {
+  error: unknown;
+  retry: () => void;
+}
+
+function SectionError({ what, failed }: { what: string; failed: Failed }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+      <p className="t-small text-error" role="alert">
+        We could not load the {what}. {errorText(failed.error)}
+      </p>
+      <Button variant="secondary" size="sm" onClick={failed.retry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
 
 export function BriefSection({ deal, defaultOpen }: { deal: DealDetail; defaultOpen: boolean }) {
   const parts = parseBrief(deal.description ?? '');
@@ -76,9 +97,11 @@ export function LinksSection({ deal }: { deal: DealDetail }) {
 export function FeedbackSection({
   deal,
   events,
+  failed,
 }: {
   deal: DealDetail;
   events: DealEvent[] | undefined;
+  failed?: Failed;
 }) {
   const rounds = (events ?? []).filter(
     (e) => e.kind === 'TRANSITION' && e.toStatus === 'REVISION_REQUESTED' && e.note,
@@ -90,7 +113,9 @@ export function FeedbackSection({
         rounds.length ? `${rounds.length} ${rounds.length === 1 ? 'round' : 'rounds'}` : undefined
       }
     >
-      {events === undefined ? (
+      {failed ? (
+        <SectionError what="feedback" failed={failed} />
+      ) : events === undefined ? (
         <div className="px-6 py-4">
           <Skeleton className="h-10 w-full" />
         </div>
@@ -232,13 +257,21 @@ function EmailRow({ email }: { email: DealEmail }) {
   );
 }
 
-export function EmailsSection({ emails }: { emails: DealEmail[] | undefined }) {
+export function EmailsSection({
+  emails,
+  failed,
+}: {
+  emails: DealEmail[] | undefined;
+  failed?: Failed;
+}) {
   const [all, setAll] = useState(false);
   const list = emails ?? [];
   const shown = all ? list : list.slice(0, 5);
   return (
     <Section title="Emails sent" aside="To both of you, newest first">
-      {emails === undefined ? (
+      {failed ? (
+        <SectionError what="emails" failed={failed} />
+      ) : emails === undefined ? (
         <div className="px-6 py-4">
           <Skeleton className="h-10 w-full" />
         </div>
@@ -299,9 +332,11 @@ function who(e: DealEvent): string {
 export function ActivitySection({
   deal,
   events,
+  failed,
 }: {
   deal: DealDetail;
   events: DealEvent[] | undefined;
+  failed?: Failed;
 }) {
   const list = (events ?? []).filter((e) => e.kind === 'TRANSITION');
   return (
@@ -310,7 +345,9 @@ export function ActivitySection({
       aside="Oldest first"
       footer="Payments recorded by UPI are listed under Payments."
     >
-      {events === undefined ? (
+      {failed ? (
+        <SectionError what="activity" failed={failed} />
+      ) : events === undefined ? (
         <div className="px-6 py-4">
           <Skeleton className="h-10 w-full" />
         </div>
