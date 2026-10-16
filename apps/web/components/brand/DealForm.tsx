@@ -11,6 +11,7 @@ import {
   MAX_TITLE_LENGTH,
   MIN_BUDGET_PAISE,
   todayIST,
+  POSTING_NOT_OPEN,
   validateDealForPublish,
   type DealDetail,
 } from '@valueskins/shared';
@@ -239,6 +240,8 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
   const toast = useToast();
   const me = useMe();
   const config = useConfig();
+  // SPEC 19: drafts work while posting is closed; only Publish is off, and it says why.
+  const postingReason = config.data?.postingOpen === false ? POSTING_NOT_OPEN : undefined;
   const gst = config.data?.gstRateBps ?? GST_RATE_BPS;
   const draftId = draft?.id ?? null;
   const serverFields = useMemo(() => (draft ? fieldsFromDeal(draft) : EMPTY), [draft]);
@@ -627,7 +630,9 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
                 >
                   Save draft
                 </Button>
-                <Button type="submit">Publish</Button>
+                <Button type="submit" disabledReason={postingReason}>
+                  Publish
+                </Button>
               </div>
             </div>
           </div>
@@ -644,7 +649,11 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
             <Button variant="secondary" onClick={() => setPublishOpen(false)}>
               Keep editing
             </Button>
-            <Button onClick={() => void confirmPublish()} loading={saving || publish.isPending}>
+            <Button
+              onClick={() => void confirmPublish()}
+              loading={saving || publish.isPending}
+              disabledReason={postingReason}
+            >
               Publish
             </Button>
           </>

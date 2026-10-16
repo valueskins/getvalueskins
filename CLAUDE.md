@@ -58,12 +58,14 @@ Commands (from the repo root):
 - All configuration comes from env vars, validated with Zod at startup in `apps/api/src/env/`. The process exits with a clear message if anything is missing or invalid. A new env var needs four things: the schema, `.env.example` (name and one-line comment, no value), CI, and `docs/DEPLOYMENT.md`.
 - Startup guards (`apps/api/src/env/startupGuards.ts`) refuse to start when:
   - production has `ENABLE_DEV_LOGIN=true`
-  - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else)
+  - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else), checked whenever a key is set
+  - production has `PAYMENTS_MODE` other than `off` without a live key id, key secret, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
   Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
+- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
 - **Dev login** exists only when `NODE_ENV !== 'production'` and `ENABLE_DEV_LOGIN=true`. **Email-code sign-in** is for staging and tests only, never production.
 
 ## 6. Product rules the code must always enforce

@@ -23,11 +23,28 @@ export function getStartupGuardViolations(env: Env): string[] {
 
   // Razorpay's own docs use the rzp_test_/rzp_live_ key id prefix convention;
   // only the key id (not the secret) carries this documented prefix.
+  // The keys are optional while payments are off, so the prefix is checked only when a key is set.
   const expectedPrefix = env.NODE_ENV === 'production' ? 'rzp_live_' : 'rzp_test_';
-  if (!env.RAZORPAY_KEY_ID.startsWith(expectedPrefix)) {
+  if (env.RAZORPAY_KEY_ID !== '' && !env.RAZORPAY_KEY_ID.startsWith(expectedPrefix)) {
     violations.push(
       `RAZORPAY_KEY_ID must start with "${expectedPrefix}" when NODE_ENV=${env.NODE_ENV}`,
     );
+  }
+
+  // Opening payments in production needs everything to take a real payment and issue its invoice.
+  // A key that is set must also be a live key: the prefix check above covers that.
+  if (env.NODE_ENV === 'production' && env.PAYMENTS_MODE !== 'off') {
+    const required: Array<[string, string]> = [
+      ['RAZORPAY_KEY_ID', env.RAZORPAY_KEY_ID],
+      ['RAZORPAY_KEY_SECRET', env.RAZORPAY_KEY_SECRET],
+      ['RAZORPAY_WEBHOOK_SECRET', env.RAZORPAY_WEBHOOK_SECRET],
+      ['COMPANY_GSTIN', env.COMPANY_GSTIN],
+    ];
+    for (const [name, value] of required) {
+      if (value.trim() === '') {
+        violations.push(`${name} is required when PAYMENTS_MODE is not "off" in production`);
+      }
+    }
   }
 
   if (env.GST_RATE_BPS > 0 && env.COMPANY_GSTIN.trim() === '') {

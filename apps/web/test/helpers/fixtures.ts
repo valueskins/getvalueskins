@@ -99,4 +99,6 @@ export const CONFIG = {
   authEmailEnabled: false,
   razorpayKeyId: 'rzp_test_fake',
   supportEmail: 'support@example.test',
+  paymentsOpen: true,
+  postingOpen: true,
 };

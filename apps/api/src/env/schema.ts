@@ -1,4 +1,8 @@
-import { GST_RATE_BPS as DEFAULT_GST_RATE_BPS } from '@valueskins/shared';
+import {
+  GST_RATE_BPS as DEFAULT_GST_RATE_BPS,
+  LAUNCH_MODES,
+  type LaunchMode,
+} from '@valueskins/shared';
 import { z } from 'zod';
 
 const requiredString = z.string().min(1);
@@ -6,6 +10,15 @@ const requiredString = z.string().min(1);
 /** 'true'/'false' string env var -> boolean. Never z.coerce.boolean() — it does
  * Boolean(str), so the literal string 'false' would coerce to true. */
 const booleanFlag = z.enum(['true', 'false']).transform((v) => v === 'true');
+
+/**
+ * off | admins | on. Blank counts as unset. The default depends on NODE_ENV, so parseEnv fills it
+ * in: `off` in production, `on` everywhere else (SPEC 19).
+ */
+const launchMode = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.enum(LAUNCH_MODES).optional(),
+);
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
@@ -25,9 +38,11 @@ export const envSchema = z.object({
   INSTAGRAM_APP_SECRET: requiredString,
   INSTAGRAM_REDIRECT_URI: z.string().url(),
   META_APP_SECRET: requiredString,
-  RAZORPAY_KEY_ID: requiredString,
-  RAZORPAY_KEY_SECRET: requiredString,
-  RAZORPAY_WEBHOOK_SECRET: requiredString,
+  // Optional while PAYMENTS_MODE=off. A startup guard requires all three live values in production
+  // when payments are not off, and the key prefix must match the environment whenever a key is set.
+  RAZORPAY_KEY_ID: z.string().default(''),
+  RAZORPAY_KEY_SECRET: z.string().default(''),
+  RAZORPAY_WEBHOOK_SECRET: z.string().default(''),
   RESEND_API_KEY: requiredString,
   EMAIL_FROM: requiredString,
   EMAIL_TRANSPORT: z.enum(['console', 'resend']),
@@ -62,6 +77,8 @@ export const envSchema = z.object({
       .refine((value) => value.startsWith('https://'), 'must be an https URL')
       .optional(),
   ),
+  PAYMENTS_MODE: launchMode,
+  DEAL_POSTING_MODE: launchMode,
   // Blank counts as unset: z.coerce.number() would turn '' into 0 and silently drop the GST.
   GST_RATE_BPS: z.preprocess(
     (value) => (value === '' ? undefined : value),
@@ -71,5 +88,12 @@ export const envSchema = z.object({
 
 type ParsedEnv = z.infer<typeof envSchema>;
 
-/** The validated environment. `DISPUTE_EMAIL` is always set: it falls back to `SUPPORT_EMAIL`. */
-export type Env = Omit<ParsedEnv, 'DISPUTE_EMAIL'> & { DISPUTE_EMAIL: string };
+/**
+ * The validated environment. `DISPUTE_EMAIL` is always set: it falls back to `SUPPORT_EMAIL`. The two
+ * launch modes are always set: `off` in production and `on` elsewhere unless the env var says otherwise.
+ */
+export type Env = Omit<ParsedEnv, 'DISPUTE_EMAIL' | 'PAYMENTS_MODE' | 'DEAL_POSTING_MODE'> & {
+  DISPUTE_EMAIL: string;
+  PAYMENTS_MODE: LaunchMode;
+  DEAL_POSTING_MODE: LaunchMode;
+};

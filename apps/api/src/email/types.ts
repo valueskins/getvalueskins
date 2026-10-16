@@ -77,4 +77,6 @@ export interface EmailTemplateDataMap {
   };
   ADMIN_ALERT: { subjectLine: string; details: string };
   SIGN_IN_CODE: { code: string; expiresInMinutes: number };
+  LAUNCH_BRANDS: { appUrl: string };
+  LAUNCH_CREATORS: { appUrl: string };
 }

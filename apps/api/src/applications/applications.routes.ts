@@ -68,7 +68,7 @@ export function applicationRoutes(ctx: ApiContext): Router {
       try {
         applicationConfirmSchema.parse(req.body ?? {});
         const deal = await confirmApplication(ctx, req.user!, req.params.id);
-        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) });
       } catch (error) {
         next(error);
       }

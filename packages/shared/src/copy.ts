@@ -73,6 +73,14 @@ export const FEE_CAPTURED_DEAL_CHANGED_ALERT =
 // Publishing (SPEC 13)
 export const PUBLISH_LIMIT_MESSAGE = 'You can publish up to 10 deals a day';
 
+// Launch gates (SPEC 19): payments and deal posting open later without a deploy
+export const PAYMENTS_NOT_OPEN = 'Payments open soon. We will email you when they do.';
+export const POSTING_NOT_OPEN = 'Posting deals opens soon. We will email you when it does.';
+export const LAUNCH_BANNER_BRAND =
+  'Posting deals opens soon. You can set up your profile and billing, and save drafts.';
+export const LAUNCH_BANNER_CREATOR =
+  'Deals will appear here once brands start posting. Finish your profile and UPI ID so you can apply.';
+
 // Revision limit notice (SPEC 5.5)
 export const FIVE_REVISIONS_WARNING =
   'This deal has had 5 revisions. If you cannot agree, raise a dispute.';

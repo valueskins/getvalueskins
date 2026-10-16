@@ -52,6 +52,8 @@ jobs:
       COMMISSION_SAC_CODE: '998399'
       AUTH_EMAIL_ENABLED: 'false'
       GST_RATE_BPS: '0'
+      PAYMENTS_MODE: 'on'
+      DEAL_POSTING_MODE: 'on'
 
     steps:
       - uses: actions/checkout@v4

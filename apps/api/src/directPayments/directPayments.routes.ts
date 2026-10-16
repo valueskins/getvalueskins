@@ -64,7 +64,10 @@ export function directPaymentRoutes(ctx: ApiContext): Router {
       try {
         directPaymentConfirmSchema.parse(req.body ?? {});
         const { directPayment, deal } = await confirmDirectPayment(ctx, req.user!, req.params.id);
-        res.json({ directPayment, deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({
+          directPayment,
+          deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env),
+        });
       } catch (error) {
         next(error);
       }
@@ -80,7 +83,10 @@ export function directPaymentRoutes(ctx: ApiContext): Router {
       try {
         const input = directPaymentNotReceivedSchema.parse(req.body);
         const { directPayment, deal } = await markNotReceived(ctx, req.user!, req.params.id, input);
-        res.json({ directPayment, deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({
+          directPayment,
+          deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env),
+        });
       } catch (error) {
         next(error);
       }

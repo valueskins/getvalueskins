@@ -15,7 +15,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:deploy": "node dist/db/seed.js",
     "job": "tsx src/jobs/run.ts",
-    "job:deploy": "node dist/jobs/run.js"
+    "job:deploy": "node dist/jobs/run.js",
+    "notify:launch": "tsx src/scripts/notifyLaunch.ts",
+    "notify:launch:deploy": "node dist/scripts/notifyLaunch.js"
   },
   "dependencies": {
     "@sentry/node": "^11.8.0",

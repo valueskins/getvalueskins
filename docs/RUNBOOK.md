@@ -188,6 +188,15 @@ pnpm --filter @valueskins/api run job:deploy -- fee-reminder
 
 It prints one JSON line with `status` (`ok`, `skipped` if the job is already running, or `failed`) and counts. Reminders send at most one email per deal per day, so running one again is safe.
 
+## Launch emails
+
+`notify:launch` tells every onboarded account that posting or deals are open. It is a dry run unless you add `--send`, and a second `--send` sends nothing new because each send is in `email_log`. The steps, and when to run it, are in `docs/DEPLOYMENT.md` section 16a.
+
+```bash
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience brands
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience creators --send
+```
+
 ## Errors in Sentry
 
 Sentry gets **errors only** (no performance data, no sessions, no replays). Before an event leaves the process, the user and IP, request headers, cookies, bodies and query strings, breadcrumbs, stack variables, email addresses, UPI IDs, bank-account-shaped numbers, PAN and IFSC shapes and tokens are removed. So an event shows the error, the stack and a request path, not who caused it. To find the person, use the time and the request path with the Render Logs.

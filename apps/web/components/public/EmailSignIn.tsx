@@ -73,6 +73,8 @@ export function EmailSignIn() {
       await api('POST', '/auth/email/verify', parsed.data);
       const me = await api<MeResponse>('GET', '/me');
       client.setQueryData(queryKeys.me, me);
+      // The launch flags in the config depend on who is signed in (SPEC 19).
+      void client.invalidateQueries({ queryKey: queryKeys.config });
       router.replace(homePathFor(me));
     } catch (err) {
       setError(errorText(err, { RATE_LIMITED: 'Too many tries. Wait a while, then try again.' }));

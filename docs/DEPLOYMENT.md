@@ -510,10 +510,42 @@ Submission text for reviewers: the staging URL, the step-by-step above, and the 
 
 **Switch features off without code.**
 
-- Email sign-in: Render `AUTH_EMAIL_ENABLED=false` (production must always have it `false`: the API refuses to start otherwise). The web hides "Sign in with email" within a minute (`GET /api/config` is cached for 60 seconds); no web redeploy is needed.
+- Email sign-in: Render `AUTH_EMAIL_ENABLED=false` (production must always have it `false`: the API refuses to start otherwise). The web hides "Sign in with email" within five minutes of the next page load (`GET /api/config` is never cached by the browser or a proxy, and the web keeps what it fetched for five minutes); no web redeploy is needed.
+- Posting deals: `DEAL_POSTING_MODE=off` (or `admins`), then restart the service. Publishing answers `403 POSTING_NOT_OPEN` and drafts keep working. Deals already published are not touched.
+- Fee payments: `PAYMENTS_MODE=off` (or `admins`), then restart. The fee order endpoint answers `503 PAYMENTS_NOT_OPEN`. With `off` the Razorpay webhook also answers 404, so switch to `off` only when no fee order is open; use `admins` to close payments to everyone else while keeping the webhook working.
 - Dev login: Render `ENABLE_DEV_LOGIN=false`; Vercel `NEXT_PUBLIC_ENABLE_DEV_LOGIN=false` and redeploy.
 
 **Undo a merge.** Revert the pull request on GitHub; Render and Vercel deploy `main` again.
+
+## 16a. Opening payments and posting
+
+Production starts closed: with `PAYMENTS_MODE` and `DEAL_POSTING_MODE` unset, both are `off`. Nothing needs setting for the first launch. Each takes `off`, `admins` (only users in `ADMIN_INSTAGRAM_USER_IDS`) or `on`, and takes effect when the API restarts. No deploy is needed.
+
+| Environment  | `PAYMENTS_MODE`                       | `DEAL_POSTING_MODE`   |
+| ------------ | ------------------------------------- | --------------------- |
+| Local and CI | unset, which is `on`                  | unset, which is `on`  |
+| Staging      | `on` (`render.yaml`)                  | `on` (`render.yaml`)  |
+| Production   | unset, which is `off`, until you open | unset, until you open |
+
+While payments are `off` in production, the Razorpay variables can be left out. To open payments:
+
+1. In the production service set `RAZORPAY_KEY_ID` (a `rzp_live_` key), `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`. The API refuses to start in production with `PAYMENTS_MODE` other than `off` if any is missing, or if the key is a test key.
+2. Register the live webhook in Razorpay (section 12, with the production URL and the live secret).
+3. Set `PAYMENTS_MODE=admins` and restart. Sign in as an admin (an admin added to `ADMIN_INSTAGRAM_USER_IDS` must sign in again) and run one small real deal.
+4. Set `PAYMENTS_MODE=on` and restart.
+
+To open posting, set `DEAL_POSTING_MODE=admins`, check with an admin, then `on`, and restart each time. Until it is `on`, brands see a banner and the Publish button says why it is off.
+
+Then tell people. In the Render Shell, run each command without `--send` first (it prints counts and sends nothing), then with it:
+
+```bash
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience brands
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience brands --send
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience creators
+pnpm --filter @valueskins/api run notify:launch:deploy -- --audience creators --send
+```
+
+It emails each onboarded account with a verified email once. Every send is recorded in `email_log`, so running it again sends nothing new, and a send that failed is tried again. It prints counts, never addresses. Do this after posting is `on`. There is no email for payments opening: the "We will email you when they do" text on the fee button is not backed by a script yet.
 
 ## 17. The free Postgres expires after 30 days
 
@@ -561,8 +593,12 @@ Only one free Postgres can be active per Render workspace.
 | `COMMISSION_SAC_CODE`      | prompted                                                         | your CA (SPEC 21)                                                                                                                      |
 | `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`; staging and tests only, the API refuses `true` when `NODE_ENV=production`                                               |
 | `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
+| `PAYMENTS_MODE`            | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
+| `DEAL_POSTING_MODE`        | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
 | `SENTRY_DSN`               | optional, blank turns it off                                     | Sentry project settings (RUNBOOK). Errors only; personal data is removed before sending                                                |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
+
+**Razorpay keys.** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` may be left out while `PAYMENTS_MODE=off`. When a key id is set it must match the environment (`rzp_test_` outside production, `rzp_live_` in production).
 
 **`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging (set in `render.yaml`) and in production (set in the production service's environment when it is created; there is no production blueprint yet). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
 
@@ -599,24 +635,26 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 ## 20. Troubleshooting
 
-| Symptom                                                                            | Likely cause and fix                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Instagram says "Invalid redirect_uri"                                              | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                       |
-| After Instagram you land on `/login?error=state_invalid`                           | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                              |
-| `/login?error=account_type_unsupported`                                            | The Instagram account is not a Business or Creator account (a personal account, or Meta sent no account type). Switch it to a Professional Business or Creator account in Instagram settings.                                 |
-| `/login?error=account_type_change_blocked`                                         | The account's Instagram type changed (Business to Creator or back), but it already has deals or applications in its old role. Write to `SUPPORT_EMAIL`; the account type is not changed automatically once there is activity. |
-| `409 PROFILE_LOCKED`                                                               | The profile is saved once. To correct it, update the row by hand (Render Shell: set the fields and, to let the user save again, `profile_locked_at = null`).                                                                  |
-| Render deploy fails with `COMPANY_GSTIN is required when GST_RATE_BPS is above 0`  | GST is charged by default. Set `COMPANY_GSTIN` in Render, or set `GST_RATE_BPS=0` on a test service that should not charge GST.                                                                                               |
-| Sign-in works but `/me` says you are signed out                                    | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                    |
-| API returns `403 ORIGIN_MISMATCH`                                                  | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                      |
-| "Sign in with email" button missing                                                | `AUTH_EMAIL_ENABLED` is not `true` on Render. The web reads it from `GET /api/config`, cached for 60 seconds.                                                                                                                 |
-| Email routes return 404                                                            | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                 |
-| Emails do not arrive                                                               | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                |
-| Render deploy fails with `Invalid environment`                                     | A required variable is missing or wrong; the log names it.                                                                                                                                                                    |
-| Render build fails on `--frozen-lockfile`                                          | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                                                                                                          |
-| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`                       | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                                                                                                           |
-| Everyone gets `429`                                                                | See the client IP limitation in section 19.                                                                                                                                                                                   |
-| Webhook deliveries show `400`                                                      | `RAZORPAY_WEBHOOK_SECRET` on Render differs from the secret in the Razorpay webhook form.                                                                                                                                     |
-| `/dev/login` is a 404                                                              | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                             |
-| The console shows "Refused to ... because it violates the Content Security Policy" | A host the page needs is not in `apps/web/lib/csp.ts`. The message names the host and the directive. For Razorpay, add it to `RAZORPAY`; for the API, check `NEXT_PUBLIC_API_URL` on Vercel.                                  |
-| `/admin/deals` is a 404 for your admin account                                     | Your Instagram user id is not in `ADMIN_INSTAGRAM_USER_IDS`, or you have not signed in again since it was set (section 14).                                                                                                   |
+| Symptom                                                                                    | Likely cause and fix                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instagram says "Invalid redirect_uri"                                                      | The URI in Meta must equal `INSTAGRAM_REDIRECT_URI` character for character (https, no trailing slash).                                                                                                                       |
+| After Instagram you land on `/login?error=state_invalid`                                   | The sign-in took more than 5 minutes, was opened in a different browser, or cookies are blocked. Start again from the home page.                                                                                              |
+| `/login?error=account_type_unsupported`                                                    | The Instagram account is not a Business or Creator account (a personal account, or Meta sent no account type). Switch it to a Professional Business or Creator account in Instagram settings.                                 |
+| `/login?error=account_type_change_blocked`                                                 | The account's Instagram type changed (Business to Creator or back), but it already has deals or applications in its old role. Write to `SUPPORT_EMAIL`; the account type is not changed automatically once there is activity. |
+| `409 PROFILE_LOCKED`                                                                       | The profile is saved once. To correct it, update the row by hand (Render Shell: set the fields and, to let the user save again, `profile_locked_at = null`).                                                                  |
+| Render deploy fails with `COMPANY_GSTIN is required when GST_RATE_BPS is above 0`          | GST is charged by default. Set `COMPANY_GSTIN` in Render, or set `GST_RATE_BPS=0` on a test service that should not charge GST.                                                                                               |
+| Sign-in works but `/me` says you are signed out                                            | `COOKIE_DOMAIN` must be `.valueskins.com`, and both hosts must be under `valueskins.com`. Check the cookie in the browser developer tools.                                                                                    |
+| API returns `403 ORIGIN_MISMATCH`                                                          | `WEB_ORIGIN` must equal the web address exactly, with no trailing slash.                                                                                                                                                      |
+| "Sign in with email" button missing                                                        | `AUTH_EMAIL_ENABLED` is not `true` on Render. The web reads it from `GET /api/config`, kept by the web for five minutes.                                                                                                      |
+| Email routes return 404                                                                    | `AUTH_EMAIL_ENABLED` is not `true` on Render.                                                                                                                                                                                 |
+| Emails do not arrive                                                                       | The Resend domain is not verified, or the key is wrong. Look for FAILED rows in `email_log` (Shell, then `psql`-style query as in section 14).                                                                                |
+| Production fails to start with `is required when PAYMENTS_MODE is not "off" in production` | `PAYMENTS_MODE` is `admins` or `on` but a live Razorpay value or `COMPANY_GSTIN` is missing. Set it, or set `PAYMENTS_MODE=off` (section 16a).                                                                                |
+| Publish answers `403 POSTING_NOT_OPEN` or the fee answers `503 PAYMENTS_NOT_OPEN`          | `DEAL_POSTING_MODE` or `PAYMENTS_MODE` is closed for that user. In `admins` mode an admin who was added recently must sign in again. Change the variable and restart (section 16a).                                           |
+| Render deploy fails with `Invalid environment`                                             | A required variable is missing or wrong; the log names it.                                                                                                                                                                    |
+| Render build fails on `--frozen-lockfile`                                                  | `pnpm-lock.yaml` is out of date. Run `pnpm install` locally and commit the lockfile.                                                                                                                                          |
+| Vercel build fails mentioning `NEXT_PUBLIC_ENABLE_DEV_LOGIN`                               | The guard stopped a build that has dev login on and the production API URL. Set the flag to false for that project.                                                                                                           |
+| Everyone gets `429`                                                                        | See the client IP limitation in section 19.                                                                                                                                                                                   |
+| Webhook deliveries show `400`                                                              | `RAZORPAY_WEBHOOK_SECRET` on Render differs from the secret in the Razorpay webhook form.                                                                                                                                     |
+| `/dev/login` is a 404                                                                      | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                             |
+| The console shows "Refused to ... because it violates the Content Security Policy"         | A host the page needs is not in `apps/web/lib/csp.ts`. The message names the host and the directive. For Razorpay, add it to `RAZORPAY`; for the API, check `NEXT_PUBLIC_API_URL` on Vercel.                                  |
+| `/admin/deals` is a 404 for your admin account                                             | Your Instagram user id is not in `ADMIN_INSTAGRAM_USER_IDS`, or you have not signed in again since it was set (section 14).                                                                                                   |

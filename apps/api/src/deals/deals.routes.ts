@@ -23,7 +23,7 @@ export function dealRoutes(ctx: ApiContext): Router {
   const creatorOnly = [requireRole('CREATOR'), requireOnboarded];
 
   async function detail(req: Request, deal: Deal) {
-    return { deal: await buildDealDetail(deal, req.user!, ctx.now()) };
+    return { deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) };
   }
 
   router.post('/api/deals', ...brandOnly, async (req, res, next) => {

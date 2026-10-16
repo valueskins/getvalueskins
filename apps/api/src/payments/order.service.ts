@@ -1,5 +1,6 @@
 import {
   FEE_NOT_DUE,
+  PAYMENTS_NOT_OPEN,
   paymentTypeFromParam,
   type PaymentOrderResponse,
   type PaymentTypeParam,
@@ -11,6 +12,7 @@ import { payments } from '../db/schema/index.js';
 import { loadOwnedDeal } from '../deals/access.js';
 import type { Deal } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
+import { paymentsOpenFor } from '../launch/access.js';
 import type { CreateOrderBody } from '../razorpay/client.js';
 import { mapRazorpayError } from './errors.js';
 import { PAYMENT_RULES, type PaymentsDeps } from './types.js';
@@ -40,6 +42,10 @@ export async function createOrReuseOrder(
   const rules = PAYMENT_RULES[type];
   const deal = await loadOwnedDeal(rawDealId, user.id);
 
+  // SPEC 19: before the status check, Razorpay and any payment row.
+  if (!paymentsOpenFor(deps.env, user)) {
+    throw new AppError('PAYMENTS_NOT_OPEN', 503, PAYMENTS_NOT_OPEN);
+  }
   if (deal.status !== rules.from) {
     throw new AppError('WRONG_DEAL_STATUS', 409, FEE_NOT_DUE);
   }

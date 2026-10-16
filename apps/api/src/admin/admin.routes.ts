@@ -44,7 +44,7 @@ export function adminRoutes(ctx: ApiContext): Router {
     try {
       const input = adminCancelSchema.parse(req.body);
       const deal = await adminCancelDeal(ctx, req.user!, req.params.id, input);
-      res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+      res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) });
     } catch (error) {
       next(error);
     }

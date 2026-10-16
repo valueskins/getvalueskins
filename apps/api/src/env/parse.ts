@@ -21,5 +21,12 @@ export function parseEnv(raw: NodeJS.ProcessEnv): Env {
   if (!result.success) {
     throw new EnvValidationError(formatZodIssues(result.error));
   }
-  return { ...result.data, DISPUTE_EMAIL: result.data.DISPUTE_EMAIL ?? result.data.SUPPORT_EMAIL };
+  const { data } = result;
+  const defaultMode = data.NODE_ENV === 'production' ? 'off' : 'on';
+  return {
+    ...data,
+    DISPUTE_EMAIL: data.DISPUTE_EMAIL ?? data.SUPPORT_EMAIL,
+    PAYMENTS_MODE: data.PAYMENTS_MODE ?? defaultMode,
+    DEAL_POSTING_MODE: data.DEAL_POSTING_MODE ?? defaultMode,
+  };
 }

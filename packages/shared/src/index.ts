@@ -1,6 +1,7 @@
 export const APP_NAME = 'ValueSkins';
 
 export * from './config.js';
+export * from './launch.js';
 export * from './money.js';
 export * from './dealStateMachine.js';
 export * from './dealPublish.js';

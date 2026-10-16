@@ -12,6 +12,8 @@ import {
   UPLOAD_LIMIT_REACHED,
   NO_APPLICATIONS_YET,
   ADD_UPI_TO_APPLY,
+  PAYMENTS_NOT_OPEN,
+  POSTING_NOT_OPEN,
 } from './copy.js';
 import { computeDealActions, disputeAllowed, type DealActionsInput } from './dealActions.js';
 import { DEAL_STATUSES, type DealStatus } from './dealStateMachine.js';
@@ -31,6 +33,8 @@ function input(overrides: Partial<DealActionsInput>): DealActionsInput {
     pendingRecord: false,
     hasBilling: true,
     publishIssues: [],
+    paymentsOpen: true,
+    postingOpen: true,
     ...overrides,
   };
 }
@@ -56,6 +60,38 @@ describe('computeDealActions: brand owner', () => {
       'PUBLISH',
       false,
       'Add a title',
+    ]);
+  });
+
+  it('DRAFT: publish is disabled while posting is closed, before any other reason, and drafts still work', () => {
+    expect(
+      summary({
+        status: 'DRAFT',
+        postingOpen: false,
+        hasBilling: false,
+        publishIssues: ['Add a title'],
+      }),
+    ).toEqual([
+      ['EDIT_DRAFT', true, null],
+      ['DELETE_DRAFT', true, null],
+      ['PUBLISH', false, POSTING_NOT_OPEN],
+    ]);
+  });
+
+  it('CONFIRMED: the fee is disabled while payments are closed, cancel and dispute are not', () => {
+    expect(summary({ status: 'CONFIRMED', paymentsOpen: false })).toEqual([
+      ['PAY_COMMISSION', false, PAYMENTS_NOT_OPEN],
+      ['CANCEL', true, null],
+      ['RAISE_DISPUTE', true, null],
+    ]);
+  });
+
+  it('the payment gate does not touch posting, and the posting gate does not touch payments', () => {
+    expect(summary({ status: 'DRAFT', paymentsOpen: false })[2]).toEqual(['PUBLISH', true, null]);
+    expect(summary({ status: 'CONFIRMED', postingOpen: false })[0]).toEqual([
+      'PAY_COMMISSION',
+      true,
+      null,
     ]);
   });
 

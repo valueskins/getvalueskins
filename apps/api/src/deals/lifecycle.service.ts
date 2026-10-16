@@ -2,6 +2,7 @@ import {
   ADD_BILLING_TO_PUBLISH,
   CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   computeBreakdown,
+  POSTING_NOT_OPEN,
   validateDealForPublish,
   type DealStatus,
 } from '@valueskins/shared';
@@ -11,6 +12,7 @@ import type { ApiContext } from '../context.js';
 import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { AppError } from '../errors/AppError.js';
+import { postingOpenFor } from '../launch/access.js';
 import { consumePublishDealLimit } from '../rateLimit/limiters.js';
 import { loadOwnedDeal } from './access.js';
 import { hasBillingDetails } from './dealDetail.js';
@@ -57,6 +59,10 @@ export async function publishDeal(
 ): Promise<Deal> {
   const now = ctx.now();
   const deal = await loadOwnedDeal(rawId, user.id);
+  // SPEC 19: before every other check, and before the daily limit, so a refused attempt costs nothing.
+  if (!postingOpenFor(ctx.env, user)) {
+    throw new AppError('POSTING_NOT_OPEN', 403, POSTING_NOT_OPEN);
+  }
   if (deal.status !== 'DRAFT') {
     throw new AppError('DEAL_NOT_DRAFT', 409, 'Only a draft can be published');
   }

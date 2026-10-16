@@ -110,4 +110,9 @@ services:
         sync: false
       - key: GST_RATE_BPS
         value: '1800'
+      # Launch gates (SPEC 19): off | admins | on. Staging is fully open; production defaults to off.
+      - key: PAYMENTS_MODE
+        value: 'on'
+      - key: DEAL_POSTING_MODE
+        value: 'on'
       # TEST_DATABASE_URL is omitted on purpose: Vitest-only, defaults to empty.
