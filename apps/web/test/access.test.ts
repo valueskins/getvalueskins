@@ -6,6 +6,8 @@ const creatorDone = makeMe({ role: 'CREATOR', done: ['email', 'profile'] });
 const brandDone = makeMe({ role: 'BRAND', done: ['email', 'profile', 'billing'] });
 const brandHalfway = makeMe({ role: 'BRAND', done: ['email'] });
 const emailOnly = makeMe({ role: null, done: ['email'] });
+const adminDone = makeMe({ role: 'BRAND', done: ['email', 'profile', 'billing'], isAdmin: true });
+const adminHalfway = makeMe({ role: 'CREATOR', done: [], isAdmin: true });
 
 describe('decideAccess', () => {
   it('lets anyone open public pages', () => {
@@ -55,5 +57,27 @@ describe('decideAccess', () => {
   it('starts each role on its own home', () => {
     expect(homePathFor(creatorDone)).toBe('/deals');
     expect(homePathFor(brandDone)).toBe('/campaigns');
+  });
+
+  it('starts an admin on the admin deals list, set up or not', () => {
+    expect(homePathFor(adminDone)).toBe('/admin/deals');
+    expect(homePathFor(adminHalfway)).toBe('/admin/deals');
+  });
+});
+
+describe('admin pages', () => {
+  it('let admins in, onboarded or not', () => {
+    expect(decideAccess(adminDone, 'admin')).toEqual({ kind: 'ok' });
+    expect(decideAccess(adminHalfway, 'admin')).toEqual({ kind: 'ok' });
+  });
+
+  it('are a 404 for everyone else, signed out included', () => {
+    expect(decideAccess(null, 'admin')).toEqual({ kind: 'notFound' });
+    expect(decideAccess(brandDone, 'admin')).toEqual({ kind: 'notFound' });
+    expect(decideAccess(creatorDone, 'admin')).toEqual({ kind: 'notFound' });
+  });
+
+  it("keep an admin's role pages open", () => {
+    expect(decideAccess(adminDone, 'BRAND')).toEqual({ kind: 'ok' });
   });
 });

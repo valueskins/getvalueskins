@@ -41,7 +41,9 @@ export function bannedWords(claudeMd: string): string[] {
 /** A whole-word match for the word and its usual endings (-s, -ed, -ing, -ly). */
 function wordPattern(word: string): RegExp {
   const base = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
-  const stem = base.endsWith('e') ? `${base.slice(0, -1)}(?:e|es|ed|ing)` : `${base}(?:s|ed|ing|ly)?`;
+  const stem = base.endsWith('e')
+    ? `${base.slice(0, -1)}(?:e|es|ed|ing)`
+    : `${base}(?:s|ed|ing|ly)?`;
   return new RegExp(`\\b${stem}\\b`, 'i');
 }
 
