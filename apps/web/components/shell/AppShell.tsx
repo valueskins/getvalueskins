@@ -7,6 +7,8 @@ import type { MeResponse } from '@valueskins/shared';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
+import { focusables, trapTab } from '@/components/ui/focus';
+import { SkipLink } from './SkipLink';
 import { useSignOut } from './useSignOut';
 
 export interface NavItem {
@@ -153,13 +155,26 @@ export function MobileMenu({
 }) {
   const [open, setOpen] = useState(false);
   const { signOut, pending } = useSignOut();
+  const toggle = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLElement>(null);
 
   // Close on navigation.
   useEffect(() => setOpen(false), [pathname]);
 
+  // While open: focus moves into the sheet, Tab stays within the button and the sheet,
+  // and Escape closes it and puts focus back on the button.
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    if (sheet.current) focusables(sheet.current)[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggle.current?.focus();
+        return;
+      }
+      const root = sheet.current?.parentElement;
+      if (root) trapTab(event, root);
+    };
     document.addEventListener('keydown', onKey);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -172,6 +187,7 @@ export function MobileMenu({
   return (
     <>
       <button
+        ref={toggle}
         type="button"
         className="btn btn-ghost btn-icon"
         aria-label={open ? 'Close menu' : 'Open menu'}
@@ -182,7 +198,7 @@ export function MobileMenu({
         <Icon name={open ? 'x' : 'list'} />
       </button>
       {open ? (
-        <nav id="app-sheet" className="sheet is-fixed" aria-label={label}>
+        <nav ref={sheet} id="app-sheet" className="sheet is-fixed" aria-label={label}>
           {postDeal ? (
             <Link href="/campaigns/new" className="btn btn-primary btn-block mb-2">
               <Icon name="plus" />
@@ -234,12 +250,7 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
   const home = nav[0]!.href;
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
-      >
-        Skip to content
-      </a>
+      <SkipLink />
       <header className="topbar hidden md:block">
         <div className="topbar-in">
           <Link href={home} className="wordmark">

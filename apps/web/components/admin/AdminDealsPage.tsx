@@ -49,59 +49,61 @@ function Flags({ deal }: { deal: AdminDealItem }) {
 
 function Rows({ items }: { items: AdminDealItem[] }) {
   return (
-    <table className="dt dt-stack">
-      <thead>
-        <tr>
-          <th scope="col" className="w-[120px]">
-            Id
-          </th>
-          <th scope="col">Deal</th>
-          <th scope="col" className="w-[170px]">
-            Status
-          </th>
-          <th scope="col" className="w-[170px]">
-            Brand
-          </th>
-          <th scope="col" className="w-[160px]">
-            Creator
-          </th>
-          <th scope="col" className="w-[130px] text-right">
-            Budget
-          </th>
-          <th scope="col" className="w-[120px]">
-            Created
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((d) => (
-          <tr key={d.id}>
-            <td className="idc" data-label="Id">
-              {d.shortId}
-            </td>
-            <td data-label="Deal">
-              <Link href={`/admin/deals/${d.id}`} className="ttl">
-                {d.title ?? 'Untitled draft'}
-              </Link>
-              <Flags deal={d} />
-            </td>
-            <td data-label="Status">
-              <StatusBadge status={d.status} />
-            </td>
-            <td data-label="Brand">@{d.brand.username}</td>
-            <td data-label="Creator" className={d.creator ? undefined : 'c-ink-3'}>
-              {d.creator ? `@${d.creator.username}` : 'Not confirmed'}
-            </td>
-            <td className="num" data-label="Budget">
-              {d.budgetPaise !== null ? formatInr(d.budgetPaise) : 'Not set'}
-            </td>
-            <td className="c-ink-2" data-label="Created">
-              {formatDate(d.createdAt)}
-            </td>
+    <div className="dt-wrap" tabIndex={0}>
+      <table className="dt dt-stack">
+        <thead>
+          <tr>
+            <th scope="col" className="w-[120px]">
+              Id
+            </th>
+            <th scope="col">Deal</th>
+            <th scope="col" className="w-[170px]">
+              Status
+            </th>
+            <th scope="col" className="w-[170px]">
+              Brand
+            </th>
+            <th scope="col" className="w-[160px]">
+              Creator
+            </th>
+            <th scope="col" className="w-[130px] text-right">
+              Budget
+            </th>
+            <th scope="col" className="w-[120px]">
+              Created
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {items.map((d) => (
+            <tr key={d.id}>
+              <td className="idc" data-label="Id">
+                {d.shortId}
+              </td>
+              <td data-label="Deal">
+                <Link href={`/admin/deals/${d.id}`} className="ttl">
+                  {d.title ?? 'Untitled draft'}
+                </Link>
+                <Flags deal={d} />
+              </td>
+              <td data-label="Status">
+                <StatusBadge status={d.status} />
+              </td>
+              <td data-label="Brand">@{d.brand.username}</td>
+              <td data-label="Creator" className={d.creator ? undefined : 'c-ink-3'}>
+                {d.creator ? `@${d.creator.username}` : 'Not confirmed'}
+              </td>
+              <td className="num" data-label="Budget">
+                {d.budgetPaise !== null ? formatInr(d.budgetPaise) : 'Not set'}
+              </td>
+              <td className="c-ink-2" data-label="Created">
+                {formatDate(d.createdAt)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

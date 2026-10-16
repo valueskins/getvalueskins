@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import type { MeResponse } from '@valueskins/shared';
 import { cx } from '@/components/ui/cx';
 import { ADMIN_NAV, isActive, MobileMenu, UserMenu } from './AppShell';
+import { SkipLink } from './SkipLink';
 
 function Wordmark() {
   return (
@@ -23,12 +24,7 @@ export function AdminShell({ me, children }: { me: MeResponse; children: ReactNo
   const pathname = usePathname() ?? '';
   return (
     <>
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
-      >
-        Skip to content
-      </a>
+      <SkipLink />
       <header className="topbar hidden md:block">
         <div className="topbar-in">
           <Wordmark />

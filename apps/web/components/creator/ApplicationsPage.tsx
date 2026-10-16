@@ -26,6 +26,15 @@ interface RowView {
  * no longer open, unless they were confirmed, so only those rows link.
  */
 export function applicationView(a: MyApplicationItem, now: Date): RowView {
+  if (a.status === 'CONFIRMED' && a.deal.status === 'CANCELLED') {
+    // The confirmed creator can still open a cancelled deal and its records.
+    return {
+      label: 'Deal cancelled',
+      kind: 'cancelled',
+      note: 'This deal was cancelled. You can still open it.',
+      link: { href: `/deals/${a.deal.id}`, text: 'Go to deal' },
+    };
+  }
   if (a.status === 'CONFIRMED') {
     return {
       label: 'Confirmed',

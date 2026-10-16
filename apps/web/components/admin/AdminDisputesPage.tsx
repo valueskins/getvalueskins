@@ -22,51 +22,53 @@ function preview(d: AdminDispute): string {
 
 function Rows({ items, resolved }: { items: AdminDispute[]; resolved: boolean }) {
   return (
-    <table className="dt dt-stack">
-      <thead>
-        <tr>
-          <th scope="col">Dispute</th>
-          <th scope="col" className="w-[300px]">
-            Deal
-          </th>
-          <th scope="col" className="w-[210px]">
-            Raised by
-          </th>
-          <th scope="col" className="w-[170px]">
-            {resolved ? 'Resolved' : 'Raised'}
-          </th>
-          <th scope="col" className="w-[120px]">
-            Status
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((d) => (
-          <tr key={d.id}>
-            <td data-label="Dispute">
-              <Link href={`/admin/disputes/${d.id}`} className="ttl">
-                {d.subject}
-              </Link>
-              <p className="rec-sub mt-1">{preview(d)}</p>
-            </td>
-            <td data-label="Deal">
-              <p className="t-mono text-[13px]">{d.dealShortId}</p>
-              <p>{d.dealTitle ?? 'Untitled deal'}</p>
-            </td>
-            <td data-label="Raised by">
-              <p>@{d.raisedBy.username}</p>
-              <p className="rec-sub">{d.raisedBy.role === 'BRAND' ? 'Brand' : 'Creator'}</p>
-            </td>
-            <td className="c-ink-2" data-label={resolved ? 'Resolved' : 'Raised'}>
-              {formatFullDayTime(resolved && d.resolvedAt ? d.resolvedAt : d.createdAt)}
-            </td>
-            <td data-label="Status">
-              <DisputeBadge dispute={d} />
-            </td>
+    <div className="dt-wrap" tabIndex={0}>
+      <table className="dt dt-stack">
+        <thead>
+          <tr>
+            <th scope="col">Dispute</th>
+            <th scope="col" className="w-[300px]">
+              Deal
+            </th>
+            <th scope="col" className="w-[210px]">
+              Raised by
+            </th>
+            <th scope="col" className="w-[170px]">
+              {resolved ? 'Resolved' : 'Raised'}
+            </th>
+            <th scope="col" className="w-[120px]">
+              Status
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {items.map((d) => (
+            <tr key={d.id}>
+              <td data-label="Dispute">
+                <Link href={`/admin/disputes/${d.id}`} className="ttl">
+                  {d.subject}
+                </Link>
+                <p className="rec-sub mt-1">{preview(d)}</p>
+              </td>
+              <td data-label="Deal">
+                <p className="t-mono text-[13px]">{d.dealShortId}</p>
+                <p>{d.dealTitle ?? 'Untitled deal'}</p>
+              </td>
+              <td data-label="Raised by">
+                <p>@{d.raisedBy.username}</p>
+                <p className="rec-sub">{d.raisedBy.role === 'BRAND' ? 'Brand' : 'Creator'}</p>
+              </td>
+              <td className="c-ink-2" data-label={resolved ? 'Resolved' : 'Raised'}>
+                {formatFullDayTime(resolved && d.resolvedAt ? d.resolvedAt : d.createdAt)}
+              </td>
+              <td data-label="Status">
+                <DisputeBadge dispute={d} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

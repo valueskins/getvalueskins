@@ -252,7 +252,7 @@ function UpiSection({ detail }: { detail: AdminDealDetail }) {
   return (
     <Section
       title="UPI records"
-      aside="Every record, including Not received"
+      aside="Every record"
       footer="Paid directly by the brand to the creator by UPI. ValueSkins did not receive or hold this money."
     >
       {detail.directPayments.length ? (
@@ -341,27 +341,29 @@ function EmailsSection({ emails }: { emails: AdminEmail[] }) {
     <Section title="Emails" aside="Newest first, with addresses">
       {emails.length ? (
         <>
-          <table className="dt dt-stack">
-            <thead>
-              <tr>
-                <th scope="col">Email</th>
-                <th scope="col" className="w-[230px]">
-                  To
-                </th>
-                <th scope="col" className="w-[130px]">
-                  Status
-                </th>
-                <th scope="col" className="w-[110px]">
-                  <span className="sr-only">Action</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((e) => (
-                <EmailRow key={e.id} email={e} />
-              ))}
-            </tbody>
-          </table>
+          <div className="dt-wrap" tabIndex={0}>
+            <table className="dt dt-stack">
+              <thead>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col" className="w-[230px]">
+                    To
+                  </th>
+                  <th scope="col" className="w-[130px]">
+                    Status
+                  </th>
+                  <th scope="col" className="w-[110px]">
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((e) => (
+                  <EmailRow key={e.id} email={e} />
+                ))}
+              </tbody>
+            </table>
+          </div>
           {emails.length > EMAILS_SHOWN ? (
             <div className="sec-foot px-6 py-2">
               <button
