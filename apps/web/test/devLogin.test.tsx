@@ -33,4 +33,23 @@ describe('/dev/login', () => {
       role: 'BRAND',
     });
   });
+
+  it('creates an admin with the Admin box, who starts on the admin deals list', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'true');
+    const api = mockApi({
+      'GET /config': CONFIG,
+      'POST /dev/login': json(200, { user: {} }),
+      'GET /me': makeMe({ role: 'BRAND', isAdmin: true }),
+    });
+    renderWithProviders(<DevLoginPage />);
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'test.admin' } });
+    fireEvent.click(screen.getByLabelText('Admin'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/admin/deals'));
+    expect(api.called('POST /dev/login')[0]!.body).toEqual({
+      username: 'test.admin',
+      role: 'CREATOR',
+      admin: true,
+    });
+  });
 });

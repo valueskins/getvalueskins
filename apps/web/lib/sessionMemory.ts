@@ -19,15 +19,6 @@ function write(key: string, value: string | null): void {
   }
 }
 
-/**
- * The address a verification link was last sent to. GET /me does not return it
- * (docs/WEB_API_GAPS.md), so "Check your inbox" is kept for this tab only.
- */
-export const pendingEmail = {
-  get: (userId: string) => read(`vs:pending-email:${userId}`),
-  set: (userId: string, email: string | null) => write(`vs:pending-email:${userId}`, email),
-};
-
 /** Whether the user pressed "This is me" on the Instagram step. */
 export const instagramConfirmed = {
   get: (userId: string) => read(`vs:ig-confirmed:${userId}`) === '1',

@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { isOnboarded } from '@/lib/access';
 import { errorText, isApiError } from '@/lib/api/errors';
 import { useMe, useVerifyEmail } from '@/lib/api/queries';
-import { pendingEmail } from '@/lib/sessionMemory';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { PageSkeleton } from '@/components/ui/Skeleton';
@@ -43,10 +42,8 @@ export function VerifyEmail() {
       setState({ kind: 'failed', message: 'This link is invalid or has expired.', taken: false });
       return;
     }
-    const userId = me.data.user.id;
     verify.mutate(token, {
       onSuccess: () => {
-        pendingEmail.set(userId, null);
         setState({ kind: 'done' });
       },
       onError: (err) => {

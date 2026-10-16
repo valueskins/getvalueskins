@@ -12,7 +12,6 @@ describe('/verify-email', () => {
   it('confirms the email for the signed-in user and continues setup', async () => {
     setSearch(`token=${TOKEN}`);
     const me = makeMe({ role: 'CREATOR' });
-    window.sessionStorage.setItem(`vs:pending-email:${me.user.id}`, 'person@example.test');
     const api = mockApi({
       'GET /me': me,
       'GET /config': CONFIG,
@@ -22,7 +21,6 @@ describe('/verify-email', () => {
     expect(await screen.findByRole('heading', { name: 'Email confirmed' })).toBeInTheDocument();
     expect(api.called('POST /me/email/verify')[0]!.body).toEqual({ token: TOKEN });
     expect(screen.getByRole('link', { name: 'Continue' })).toHaveAttribute('href', '/onboarding');
-    expect(window.sessionStorage.getItem(`vs:pending-email:${me.user.id}`)).toBeNull();
   });
 
   it('shows the API message for a bad link', async () => {

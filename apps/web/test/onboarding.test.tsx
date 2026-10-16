@@ -58,6 +58,12 @@ describe('onboarding', () => {
     expect(await screen.findByRole('heading', { name: 'Add your email' })).toBeInTheDocument();
   });
 
+  it('shows the inbox state from GET /me after a reload, and skips "This is me"', async () => {
+    start(makeMe({ role: 'CREATOR', pendingEmail: 'waiting@example.test' }));
+    expect(await screen.findByRole('heading', { name: 'Check your inbox' })).toBeInTheDocument();
+    expect(screen.getByText('waiting@example.test')).toBeInTheDocument();
+  });
+
   it('sends the email link, then shows the inbox state with resend and its limit', async () => {
     window.sessionStorage.setItem(`vs:ig-confirmed:${fresh.user.id}`, '1');
     const { api } = start(fresh, {

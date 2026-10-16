@@ -44,11 +44,7 @@ We do not sell your data and we do not use advertising trackers.
 
 ## How long we keep it
 
-We keep your data while your account is active. When you delete your account, we remove your profile, email, UPI ID, billing details and Instagram data and sign you out. Deal records, payments and invoices are kept for as long as the law requires, with your name replaced by "Deleted user".
-
-:::missing
-Deleting an account in this version clears the profile, email, UPI ID and Instagram data, but keeps a brand's billing details.
-:::
+We keep your data while your account is active. When you delete your account, we remove your profile, email, UPI ID, billing details and Instagram data and sign you out. Deal records, payments and invoices are kept for as long as the law requires, with your name replaced by "Deleted user". An invoice already issued keeps the billing details it was issued with.
 
 ## Your rights
 

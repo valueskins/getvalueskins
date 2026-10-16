@@ -64,7 +64,6 @@ describe('content pages', () => {
       {
         "how-it-works": [],
         "privacy": [
-          "Deleting an account in this version clears the profile, email, UPI ID and Instagram data, but keeps a brand's billing details.",
           "The only cookies are the session cookie and a short-lived cookie that protects the Instagram sign-in. Forms are protected by an Origin check, not a cookie.",
         ],
         "refunds": [

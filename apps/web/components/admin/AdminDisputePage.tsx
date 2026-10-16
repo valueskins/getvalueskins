@@ -25,7 +25,7 @@ import { Badge, Callout } from '@/components/ui/Callout';
 import { describedBy, Field, Input, Textarea } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { LoadError } from '@/components/ui/LoadError';
-import { PageSkeleton, Skeleton } from '@/components/ui/Skeleton';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { StatusBadge } from '@/components/deal/StatusBadge';
 import { DisputeBadge, roleWord } from './AdminDealPage';

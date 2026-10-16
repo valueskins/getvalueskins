@@ -10,7 +10,7 @@ import { errorText, isApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/queries';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
-import { Field, Input, Select } from '@/components/ui/Field';
+import { Checkbox, Field, Input, Select } from '@/components/ui/Field';
 
 const ROLE_LABELS: Record<UserRole, string> = { CREATOR: 'Creator', BRAND: 'Brand' };
 
@@ -19,6 +19,7 @@ export function DevLoginForm() {
   const client = useQueryClient();
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<UserRole>('CREATOR');
+  const [admin, setAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +31,11 @@ export function DevLoginForm() {
     setBusy(true);
     setError(null);
     try {
-      await api('POST', '/dev/login', { username: username.trim(), role });
+      await api('POST', '/dev/login', {
+        username: username.trim(),
+        role,
+        ...(admin ? { admin: true } : {}),
+      });
       const me = await api<MeResponse>('GET', '/me');
       client.setQueryData(queryKeys.me, me);
       router.replace(homePathFor(me));
@@ -72,6 +77,17 @@ export function DevLoginForm() {
           ))}
         </Select>
       </Field>
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          label="Admin"
+          checked={admin}
+          aria-describedby="dev-admin-help"
+          onChange={(e) => setAdmin(e.target.checked)}
+        />
+        <p id="dev-admin-help" className="field-help">
+          Makes a new user an admin. Like the role, it is used only when the user is created.
+        </p>
+      </div>
       {error ? (
         <Callout tone="error" role="alert">
           <p>{error}</p>
