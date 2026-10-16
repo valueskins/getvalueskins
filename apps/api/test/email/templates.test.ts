@@ -52,6 +52,7 @@ describe('email templates', () => {
   it('no template output contains an em dash or a marketing word', () => {
     const sampleData: Record<string, unknown> = {
       verifyUrl: 'https://valueskins.com/verify/token',
+      appUrl: 'https://valueskins.com',
       code: '123456',
       expiresInMinutes: 10,
       dealShortId: 'ABC12345',

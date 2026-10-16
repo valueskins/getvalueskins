@@ -48,6 +48,7 @@ describe('fee and deal record wording in emails', () => {
     const data = {
       ...SAMPLE,
       verifyUrl: 'https://valueskins.com/verify/token',
+      appUrl: 'https://valueskins.com',
       code: '123456',
       expiresInMinutes: 10,
       applicationDeadline: '2026-01-01',

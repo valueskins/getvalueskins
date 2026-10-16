@@ -10,8 +10,16 @@ import { attachRealtime } from './realtime/server.js';
 
 const env = getEnv();
 
-// SPEC 7.1: log the Razorpay mode at startup (the startup guards already enforce it).
-logger.info({ razorpayMode: razorpayModeFromKeyId(env.RAZORPAY_KEY_ID) }, 'razorpay mode');
+// SPEC 7.1: log the Razorpay mode at startup (the startup guards already enforce it). The keys are
+// optional while payments are off.
+logger.info(
+  {
+    razorpayMode: env.RAZORPAY_KEY_ID === '' ? 'none' : razorpayModeFromKeyId(env.RAZORPAY_KEY_ID),
+    paymentsMode: env.PAYMENTS_MODE,
+    dealPostingMode: env.DEAL_POSTING_MODE,
+  },
+  'razorpay mode and launch modes',
+);
 const app = createApp(env);
 
 const server = app.listen(env.PORT, () => {

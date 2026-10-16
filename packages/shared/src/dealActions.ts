@@ -5,6 +5,8 @@ import {
   CANCELLATION_NOT_POSSIBLE_AFTER_FEE,
   ADD_UPI_TO_APPLY,
   NO_APPLICATIONS_YET,
+  PAYMENTS_NOT_OPEN,
+  POSTING_NOT_OPEN,
   CREATOR_HAS_NO_UPI,
   CREATOR_NOT_AGREED_TO_SHARE_UPI,
   DISPUTE_ALREADY_OPEN,
@@ -74,6 +76,10 @@ export interface DealActionsInput {
   hasBilling: boolean;
   /** Messages from validateDealForPublish for the draft, empty when it is ready. */
   publishIssues: readonly string[];
+  /** PAYMENTS_MODE is open for the viewer (SPEC 19). Closed disables PAY_COMMISSION. */
+  paymentsOpen: boolean;
+  /** DEAL_POSTING_MODE is open for the viewer (SPEC 19). Closed disables PUBLISH. */
+  postingOpen: boolean;
 }
 
 /** The fee is paid, so only an admin can cancel (REPLACEMENT_PLAN 2.6). */
@@ -126,13 +132,16 @@ function brandActions(input: DealActionsInput): DealActionState[] {
   const { status } = input;
   if (status === 'DRAFT') {
     let publish = on('PUBLISH');
-    if (!input.hasBilling) publish = off('PUBLISH', ADD_BILLING_TO_PUBLISH);
+    if (!input.postingOpen) publish = off('PUBLISH', POSTING_NOT_OPEN);
+    else if (!input.hasBilling) publish = off('PUBLISH', ADD_BILLING_TO_PUBLISH);
     else if (input.publishIssues[0] !== undefined) publish = off('PUBLISH', input.publishIssues[0]);
     return [on('EDIT_DRAFT'), on('DELETE_DRAFT'), publish];
   }
 
   const actions: DealActionState[] = [];
-  if (status === 'CONFIRMED') actions.push(on('PAY_COMMISSION'));
+  if (status === 'CONFIRMED') {
+    actions.push(input.paymentsOpen ? on('PAY_COMMISSION') : off('PAY_COMMISSION', PAYMENTS_NOT_OPEN));
+  }
   if (status === 'COMMISSION_PAID') actions.push(payAction('PAY_ADVANCE', input));
   if (status === 'APPROVED') actions.push(payAction('PAY_FINAL', input));
   if (status === 'CONTENT_UPLOADED') actions.push(on('SEND_FEEDBACK'), on('APPROVE'));

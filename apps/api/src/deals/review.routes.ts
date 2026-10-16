@@ -17,7 +17,7 @@ export function reviewRoutes(ctx: ApiContext): Router {
       try {
         const { link } = dealContentLinkSchema.parse(req.body);
         const deal = await uploadContent(ctx, req.user!, req.params.id, link);
-        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) });
       } catch (error) {
         next(error);
       }
@@ -32,7 +32,7 @@ export function reviewRoutes(ctx: ApiContext): Router {
       try {
         const { feedback } = dealFeedbackSchema.parse(req.body);
         const deal = await sendFeedback(ctx, req.user!, req.params.id, feedback);
-        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) });
       } catch (error) {
         next(error);
       }
@@ -47,7 +47,7 @@ export function reviewRoutes(ctx: ApiContext): Router {
       try {
         dealApproveSchema.parse(req.body ?? {});
         const deal = await approveContent(ctx, req.user!, req.params.id);
-        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now()) });
+        res.json({ deal: await buildDealDetail(deal, req.user!, ctx.now(), ctx.env) });
       } catch (error) {
         next(error);
       }

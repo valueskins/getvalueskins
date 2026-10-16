@@ -85,7 +85,7 @@ export function paymentRoutes(deps: PaymentsDeps): Router {
 
       const body: PaymentVerifyResponse = {
         payment: { status: payment.status },
-        deal: await buildDealDetail(deal, req.user!, deps.now()),
+        deal: await buildDealDetail(deal, req.user!, deps.now(), deps.env),
       };
       res.json(body);
     } catch (error) {

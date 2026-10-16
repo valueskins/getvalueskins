@@ -107,6 +107,8 @@ describe('computeDealTurn agrees with computeDealActions', () => {
       pendingRecord,
       hasBilling: true,
       publishIssues: [],
+      paymentsOpen: true,
+      postingOpen: true,
     }).filter((a) => a.enabled && DOING.has(a.action));
 
   for (const status of DEAL_STATUSES) {

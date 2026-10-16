@@ -40,7 +40,7 @@ export type EmailLogStatus = (typeof EMAIL_LOG_STATUSES)[number];
 export const DISPUTE_STATUSES = ['OPEN', 'RESOLVED'] as const;
 export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
 
-// SPEC 8 templates, plus "Your sign-in code" (V0_LAUNCH 2.1 email-code login).
+// SPEC 8 templates, plus "Your sign-in code" (V0_LAUNCH 2.1 email-code login) and the two launch notices.
 export const EMAIL_TEMPLATES = [
   'VERIFY_EMAIL',
   'DEAL_PUBLISHED',
@@ -68,5 +68,7 @@ export const EMAIL_TEMPLATES = [
   'DIRECT_PAYMENT_CONFIRM_REMINDER',
   'ADMIN_ALERT',
   'SIGN_IN_CODE',
+  'LAUNCH_BRANDS',
+  'LAUNCH_CREATORS',
 ] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];

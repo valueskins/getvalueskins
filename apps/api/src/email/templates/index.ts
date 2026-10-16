@@ -21,6 +21,8 @@ import { directPaymentRecordedTemplate } from './directPaymentRecorded.js';
 import { disputeRaisedTemplate } from './disputeRaised.js';
 import { disputeResolvedTemplate } from './disputeResolved.js';
 import { finalPaymentDoneTemplate } from './finalPaymentDone.js';
+import { launchBrandsTemplate } from './launchBrands.js';
+import { launchCreatorsTemplate } from './launchCreators.js';
 import { newApplicationTemplate } from './newApplication.js';
 import { reviewReminderTemplate } from './reviewReminder.js';
 import { signInCodeTemplate } from './signInCode.js';
@@ -58,4 +60,6 @@ export const templateRegistry: TemplateRegistry = {
   DIRECT_PAYMENT_CONFIRM_REMINDER: directPaymentConfirmReminderTemplate,
   ADMIN_ALERT: adminAlertTemplate,
   SIGN_IN_CODE: signInCodeTemplate,
+  LAUNCH_BRANDS: launchBrandsTemplate,
+  LAUNCH_CREATORS: launchCreatorsTemplate,
 };

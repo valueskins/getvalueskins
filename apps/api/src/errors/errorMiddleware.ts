@@ -3,6 +3,9 @@ import { ZodError } from 'zod';
 import { captureError } from '../observability/sentry.js';
 import { AppError } from './AppError.js';
 
+/** A 5xx that is the expected answer in a state we chose (SPEC 19), not a fault to report. */
+const EXPECTED_5XX = new Set(['PAYMENTS_NOT_OPEN']);
+
 export function notFoundHandler(_req: Request, res: Response): void {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
 }
@@ -30,7 +33,7 @@ export function errorMiddleware(
   }
 
   if (err instanceof AppError) {
-    if (err.status >= 500) captureError(err, 'AppError 5xx');
+    if (err.status >= 500 && !EXPECTED_5XX.has(err.code)) captureError(err, 'AppError 5xx');
     res.status(err.status).json({
       error: {
         code: err.code,

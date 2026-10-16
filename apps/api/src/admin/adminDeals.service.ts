@@ -160,7 +160,7 @@ export async function getAdminDealDetail(
 
   const [detail, events, paymentRows, directPaymentRows, emailRows, disputeRows] =
     await Promise.all([
-      buildDealDetail(deal, admin, ctx.now()),
+      buildDealDetail(deal, admin, ctx.now(), ctx.env),
       db
         .select(eventColumns)
         .from(dealEvents)

@@ -6,6 +6,7 @@ import type { Env } from '../env/index.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
 import { captureError } from '../observability/sentry.js';
+import { notFoundHandler } from '../errors/errorMiddleware.js';
 import { RAZORPAY_WEBHOOK_PATH } from '../security/index.js';
 import { createWebhookHandlers } from './handlers/index.js';
 import { processWebhookEvent } from './processEvent.js';
@@ -25,6 +26,7 @@ function signatureMatches(rawBody: Buffer, secret: string, signature: string): b
 /**
  * SPEC 7.3. The body is the raw bytes (webhookRawBodyMiddleware, mounted in
  * app.ts before the JSON parser), because the signature is over the raw body.
+ * With PAYMENTS_MODE=off it answers 404 and does nothing else.
  * Flow: verify the signature (400 if invalid), deduplicate on the event id,
  * answer 200 straight away, then process in the background. Origin checks do
  * not apply (the path is exempt); the signature is the authentication.
@@ -36,6 +38,12 @@ export function razorpayWebhookRoutes(
   const router = Router();
 
   router.post(RAZORPAY_WEBHOOK_PATH, async (req, res, next) => {
+    // SPEC 19: with payments off the route does not exist. This is first, before the signature
+    // check, the event row and any processing.
+    if (env.PAYMENTS_MODE === 'off') {
+      notFoundHandler(req, res);
+      return;
+    }
     try {
       const signature = req.header('x-razorpay-signature');
       const eventId = req.header('x-razorpay-event-id');

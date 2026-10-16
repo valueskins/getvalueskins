@@ -112,11 +112,11 @@ add('feed, next page (cursor)', () =>
 );
 add('deal page, open deal, as a creator', async () => {
   const deal = await findDeal(openDeal[0].id);
-  return buildDealDetail(deal!, creator, now);
+  return buildDealDetail(deal!, creator, now, ctx.env);
 });
 add('deal page, completed deal, as its brand', async () => {
   const deal = await findDeal(doneDeal[0].id);
-  return buildDealDetail(deal!, brand, now);
+  return buildDealDetail(deal!, brand, now, ctx.env);
 });
 add('resume, busiest brand', () => loadResume(brand.id, now));
 add('resume, busy creator', () => loadResume(creator.id, now));

@@ -11,6 +11,8 @@ import {
 import { and, asc, count, eq } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import { db } from '../db/client.js';
+import type { Env } from '../env/index.js';
+import { launchAccessFor } from '../launch/access.js';
 import {
   applications,
   brandBilling,
@@ -120,6 +122,7 @@ export async function buildDealDetail(
   deal: Deal,
   viewer: AuthenticatedUser,
   now: Date,
+  env: Pick<Env, 'PAYMENTS_MODE' | 'DEAL_POSTING_MODE'>,
 ): Promise<DealDetail> {
   const isOwner = deal.brandId === viewer.id;
   const privileged = isOwner || viewer.isAdmin;
@@ -250,6 +253,7 @@ export async function buildDealDetail(
       pendingRecord,
       hasBilling,
       publishIssues,
+      ...launchAccessFor(env, viewer),
     }),
   };
 }
