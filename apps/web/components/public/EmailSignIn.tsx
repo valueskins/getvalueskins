@@ -11,6 +11,7 @@ import { queryKeys, useConfig } from '@/lib/api/queries';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { describedBy, Field, Input } from '@/components/ui/Field';
+import { LoadError } from '@/components/ui/LoadError';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -27,6 +28,16 @@ export function EmailSignIn() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  if (config.isError) {
+    return (
+      <LoadError
+        className="page"
+        title="We could not load the sign-in page"
+        error={config.error}
+        onRetry={() => void config.refetch()}
+      />
+    );
+  }
   if (config.isPending) return <PageSkeleton />;
   if (config.isSuccess && !config.data.authEmailEnabled) notFound();
 

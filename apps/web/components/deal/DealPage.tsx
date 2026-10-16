@@ -94,6 +94,12 @@ function DealView({ deal, me }: { deal: DealDetail; me: MeResponse }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   useDealRoom(deal.id, party);
+  const eventsFailed = events.isError
+    ? { error: events.error, retry: () => void events.refetch() }
+    : undefined;
+  const emailsFailed = emails.isError
+    ? { error: emails.error, retry: () => void emails.refetch() }
+    : undefined;
 
   return (
     <div className="page">
@@ -108,11 +114,11 @@ function DealView({ deal, me }: { deal: DealDetail; me: MeResponse }) {
           {party ? (
             <>
               <LinksSection deal={deal} />
-              <FeedbackSection deal={deal} events={events.data} />
+              <FeedbackSection deal={deal} events={events.data} failed={eventsFailed} />
               <PaymentsSection deal={deal} viewer={viewer} />
               <DocumentsSection deal={deal} />
-              <EmailsSection emails={emails.data} />
-              <ActivitySection deal={deal} events={events.data} />
+              <EmailsSection emails={emails.data} failed={emailsFailed} />
+              <ActivitySection deal={deal} events={events.data} failed={eventsFailed} />
             </>
           ) : null}
         </div>

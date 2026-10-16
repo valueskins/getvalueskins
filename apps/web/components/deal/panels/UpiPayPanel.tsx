@@ -13,6 +13,7 @@ import { actionOf, at, lastNotReceived, reasonOf } from '@/lib/dealView';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { describedBy, Field, Input, Textarea } from '@/components/ui/Field';
+import { LoadError } from '@/components/ui/LoadError';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PaymentRecord } from '../PaymentRecord';
 import { Qr } from '../Qr';
@@ -140,6 +141,17 @@ export function UpiPayPanel({ deal }: { deal: DealDetail }) {
   const creator = deal.creator ? at(deal.creator.username) : 'the creator';
 
   if (!action) return null;
+  if (info.isError) {
+    return (
+      <div className="np-body">
+        <LoadError
+          title="We could not load the payment details"
+          error={info.error}
+          onRetry={() => void info.refetch()}
+        />
+      </div>
+    );
+  }
   if (info.isPending) {
     return (
       <div className="np-body">
