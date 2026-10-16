@@ -84,13 +84,17 @@ describe('docs/DEPLOYMENT.md', () => {
   });
 
   it('documents the web env vars', () => {
-    for (const key of [
-      'NEXT_PUBLIC_API_URL',
-      'NEXT_PUBLIC_RAZORPAY_KEY_ID',
-      'NEXT_PUBLIC_ENABLE_DEV_LOGIN',
-      'NEXT_PUBLIC_AUTH_EMAIL_ENABLED',
-    ]) {
+    for (const key of ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_ENABLE_DEV_LOGIN']) {
       expect(deploymentDoc).toContain(key);
+    }
+  });
+
+  it('no longer names the retired web env vars', () => {
+    // Checkout takes its key from the fee order, and email sign-in follows GET /api/config.
+    const webEnvExample = readFileSync(new URL('apps/web/.env.example', REPO_ROOT), 'utf8');
+    for (const key of ['NEXT_PUBLIC_RAZORPAY_KEY_ID', 'NEXT_PUBLIC_AUTH_EMAIL_ENABLED']) {
+      expect(deploymentDoc).not.toContain(key);
+      expect(webEnvExample).not.toContain(key);
     }
   });
 });

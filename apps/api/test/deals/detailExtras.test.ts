@@ -213,3 +213,59 @@ describe('GET /api/deals/:id: disputes', () => {
     expect((await detail(creator.cookie, deal.id)).deal!.disputes).toHaveLength(1);
   });
 });
+
+describe('GET /api/deals/:id: feedback history', () => {
+  const feedback = (cookie: string, dealId: string, text: string) =>
+    call.send('post', `/api/deals/${dealId}/feedback`, cookie, { feedback: text });
+  const upload = (cookie: string, dealId: string) =>
+    call.send('post', `/api/deals/${dealId}/content`, cookie, {
+      link: 'https://drive.google.com/file/d/again/view',
+    });
+
+  it('lists every round, oldest first, to the two parties and admins only', async () => {
+    const { brand, creator, deal } = await runDeal(call, razorpay, 'CONTENT_UPLOADED');
+    expect((await feedback(brand.cookie, deal.id, 'Reshoot the intro')).status).toBe(200);
+    expect((await upload(creator.cookie, deal.id)).status).toBe(200);
+    expect((await feedback(brand.cookie, deal.id, 'Brighter light, please')).status).toBe(200);
+
+    const admin = await adminUser();
+    for (const who of [brand, creator, admin]) {
+      const d = (await detail(who.cookie, deal.id)).deal!;
+      expect(d.feedbackHistory.map((f) => f.feedback)).toEqual([
+        'Reshoot the intro',
+        'Brighter light, please',
+      ]);
+      expect(d.feedbackHistory.every((f) => typeof f.at === 'string')).toBe(true);
+    }
+  });
+
+  it('is empty for a deal with no feedback yet', async () => {
+    const { brand, deal } = await runDeal(call, razorpay, 'CONTENT_UPLOADED');
+    expect((await detail(brand.cookie, deal.id)).deal!.feedbackHistory).toEqual([]);
+  });
+});
+
+describe('GET /api/deals/:id: applied', () => {
+  it('tells a creator whether they applied, and is null for brands and admins', async () => {
+    const brand = await brandWithBilling();
+    const applicant = await creatorWithPayout();
+    const other = await creatorWithPayout();
+    const stranger = await brandWithBilling();
+    const admin = await adminUser();
+    const deal = await insertDeal(brand.user.id, 'OPEN');
+    await insertApplication(deal.id, applicant.user.id);
+
+    expect((await detail(applicant.cookie, deal.id)).deal!.applied).toBe(true);
+    expect((await detail(other.cookie, deal.id)).deal!.applied).toBe(false);
+    expect((await detail(brand.cookie, deal.id)).deal!.applied).toBeNull();
+    expect((await detail(stranger.cookie, deal.id)).deal!.applied).toBeNull();
+    expect((await detail(admin.cookie, deal.id)).deal!.applied).toBeNull();
+    // A creator who has not applied sees no delivery history of anyone else's deal.
+    expect((await detail(other.cookie, deal.id)).deal!.feedbackHistory).toEqual([]);
+  });
+
+  it('stays true for the creator once they are confirmed', async () => {
+    const { creator, deal } = await runDeal(call, razorpay, 'COMMISSION_PAID');
+    expect((await detail(creator.cookie, deal.id)).deal!.applied).toBe(true);
+  });
+});
