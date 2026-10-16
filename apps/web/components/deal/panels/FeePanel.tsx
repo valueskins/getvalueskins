@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { formatInr, payFeeLabel, type DealDetail } from '@valueskins/shared';
 import { refreshDeal, useCreateFeeOrder, useVerifyPayment } from '@/lib/api/deals';
+import { isApiError } from '@/lib/api/errors';
 import { useMe } from '@/lib/api/queries';
 import { dealErrorText } from '@/lib/dealErrors';
 import { actionOf, reasonOf } from '@/lib/dealView';
@@ -99,7 +100,14 @@ export function FeePanel({ deal }: { deal: DealDetail }) {
         text: 'Your tax invoice is under Documents and in your email.',
       });
       setPhase('idle');
-    } catch {
+    } catch (err) {
+      if (isApiError(err, 'FEE_CAPTURED_DEAL_CHANGED')) {
+        // The money went through, but the deal had changed: ValueSkins refunds it (SPEC 7.3).
+        toast.show({ tone: 'error', title: err.message });
+        refreshDeal(client, deal.id);
+        setPhase('idle');
+        return;
+      }
       // The money may have left the account even if verify failed: never invite a second payment.
       setPhase('unconfirmed');
     }

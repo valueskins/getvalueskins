@@ -1,3 +1,4 @@
+import { feeCapturedDealChangedTemplate } from './feeCapturedDealChanged.js';
 import type { EmailTemplate } from '@valueskins/shared';
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { adminAlertTemplate } from './adminAlert.js';
@@ -38,6 +39,7 @@ export const templateRegistry: TemplateRegistry = {
   APPLICATION_NOT_SELECTED: applicationNotSelectedTemplate,
   COMMISSION_PAID_BRAND: commissionPaidBrandTemplate,
   COMMISSION_PAID_CREATOR: commissionPaidCreatorTemplate,
+  FEE_CAPTURED_DEAL_CHANGED: feeCapturedDealChangedTemplate,
   ADVANCE_PAID: advancePaidTemplate,
   CONTENT_UPLOADED: contentUploadedTemplate,
   CHANGES_REQUESTED: changesRequestedTemplate,

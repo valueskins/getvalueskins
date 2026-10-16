@@ -39,6 +39,36 @@ export const DEAL_NO_LONGER_OPEN = 'This deal is no longer open for applications
 export const DEAL_JUST_CHANGED = 'This deal just changed. Reload it and try again.';
 export const ADMIN_CANCEL_WINDOW =
   'An admin can cancel a deal after the fee is paid and before it is completed.';
+export const ADMIN_DEAL_ALREADY_CANCELLED = 'This deal is already cancelled';
+export const ADMIN_NO_EMAILS_YET = 'No emails on this deal yet';
+
+// Role and payment errors (SPEC 16): plain words, never a raw role or a provider status
+export const ONLY_BRANDS_CAN = 'Only a brand account can do this.';
+export const ONLY_CREATORS_CAN = 'Only a creator account can do this.';
+export const PAYMENT_NOT_CONFIRMED_YET =
+  'Razorpay has not confirmed this payment yet. If money left your account, do not pay again.';
+export const PAYMENT_COULD_NOT_BE_CONFIRMED =
+  'We could not confirm this payment. If money left your account, do not pay again. We will check it and write to you.';
+
+// Why a deal action cannot be taken now (SPEC 16, WRONG_DEAL_STATUS): no step or status names
+export const FEE_NOT_DUE = 'The ValueSkins fee is not due on this deal';
+export const NOT_WAITING_FOR_THIS_PAYMENT = 'The deal is no longer waiting for this payment';
+export function paymentNotDueYet(stage: 'ADVANCE' | 'FINAL'): string {
+  return `The ${stage === 'ADVANCE' ? 'advance' : 'final'} payment is not due yet`;
+}
+export const CONTENT_CANNOT_BE_SHARED_NOW =
+  'Content can be shared once the advance is confirmed, or after the brand asks for changes.';
+export const FEEDBACK_NOT_POSSIBLE_NOW =
+  'Changes can be asked for only while the brand is looking at shared content.';
+export const APPROVAL_NOT_POSSIBLE_NOW =
+  'The content can be approved only while the brand is looking at it.';
+
+// The fee captured after the deal had changed (SPEC 7.3)
+export function feeCapturedDealChangedMessage(amountPaise: number): string {
+  return `Your payment of ${formatInr(amountPaise)} went through, but the deal had already changed. We will refund it.`;
+}
+export const FEE_CAPTURED_DEAL_CHANGED_ALERT =
+  'Fee received on a deal that had changed, refund by hand';
 
 // Publishing (SPEC 13)
 export const PUBLISH_LIMIT_MESSAGE = 'You can publish up to 10 deals a day';
@@ -73,11 +103,7 @@ export const DIRECT_PAYMENT_NOT_PENDING =
 export const CHECK_YOUR_UPI_APP = 'Check your UPI app and confirm if the money arrived.';
 
 // Payment CTAs (SPEC 5.5) - the amount varies per deal, so these are functions, not fixed strings.
-export function payCommissionLabel(commissionTotalPaise: number): string {
-  return `Pay commission: ${formatInr(commissionTotalPaise)}`;
-}
-
-/** The label for the ValueSkins fee. `payCommissionLabel` is kept for the temporary pay page until W2 replaces it. */
+/** The label for the ValueSkins fee. */
 export function payFeeLabel(commissionTotalPaise: number): string {
   return `Pay ValueSkins fee: ${formatInr(commissionTotalPaise)}`;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brandProfileSchema, creatorProfileSchema } from './profile.js';
+import { brandProfileSchema, creatorProfileSchema, INVALID_BRAND_NAME } from './profile.js';
 
 const creator = {
   name: 'Asha Rao',
@@ -62,6 +62,23 @@ describe('creatorProfileSchema', () => {
 });
 
 describe('brandProfileSchema', () => {
+  it('accepts a brand name with digits, also at the start', () => {
+    for (const name of ['Studio 9', '21st Street', 'Brew 2 Go']) {
+      expect(brandProfileSchema.safeParse({ ...brand, name }).success).toBe(true);
+    }
+  });
+
+  it('still refuses symbols in a brand name, with the brand message', () => {
+    const result = brandProfileSchema.safeParse({ ...brand, name: 'Acme @ Home' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(INVALID_BRAND_NAME);
+  });
+
+  it('keeps digits out of a creator name', () => {
+    expect(creatorProfileSchema.safeParse({ ...creator, name: 'Studio 9' }).success).toBe(false);
+    expect(creatorProfileSchema.safeParse({ ...creator, name: '21st Street' }).success).toBe(false);
+  });
+
   it('accepts a brand with no pitch, and leaves it out', () => {
     const result = brandProfileSchema.safeParse(brand);
     expect(result.success && result.data.pitch).toBeUndefined();

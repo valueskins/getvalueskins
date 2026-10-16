@@ -6,6 +6,8 @@ export * from './dealStateMachine.js';
 export * from './dealPublish.js';
 export * from './dealActions.js';
 export * from './dealTurn.js';
+export * from './dealSteps.js';
+export * from './adminActions.js';
 export * from './copy.js';
 export * from './onboarding.js';
 export * from './accountType.js';

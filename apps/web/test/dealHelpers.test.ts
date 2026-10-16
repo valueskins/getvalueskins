@@ -1,72 +1,26 @@
 import { describe, expect, it } from 'vitest';
+import {
+  FEE_NOT_DUE,
+  ONLY_BRANDS_CAN,
+  PAYMENT_COULD_NOT_BE_CONFIRMED,
+  feeCapturedDealChangedMessage,
+} from '@valueskins/shared';
 import { ApiError } from '@/lib/api/client';
 import { parseBrief } from '@/lib/brief';
 import { closingToday, countdown, isNew, longDate, shortDate } from '@/lib/deadlines';
 import { dealErrorText } from '@/lib/dealErrors';
-import { currentStepNumber, dealSteps } from '@/lib/dealStatus';
+import { currentStepNumber, dealStep, dealSteps } from '@/lib/dealStatus';
 import { groupRupees, sameFields } from '@/lib/draftStore';
 import { actionOf, lastNotReceived, pendingRecord, reasonOf, viewerOf } from '@/lib/dealView';
 import { act, BRAND, CREATOR, makeDeal, record } from './helpers/deals';
 import { makeMe } from './helpers/fixtures';
 
-const states = (d: Parameters<typeof dealSteps>[0]) => dealSteps(d).map((s) => s.state);
-
+// The 9-step bar itself is tested in packages/shared (dealSteps.test.ts). Here: the web uses it.
 describe('the 9 steps', () => {
-  it('marks done, current and to do from the status', () => {
-    expect(states(makeDeal('OPEN'))).toEqual([
-      'done',
-      'current',
-      'todo',
-      'todo',
-      'todo',
-      'todo',
-      'todo',
-      'todo',
-      'todo',
-    ]);
+  it('comes from shared, with the deal page fixture', () => {
     expect(currentStepNumber(dealSteps(makeDeal('COMMISSION_PAID')))).toBe(4);
-    expect(currentStepNumber(dealSteps(makeDeal('CONTENT_UPLOADED')))).toBe(6);
-    expect(currentStepNumber(dealSteps(makeDeal('APPROVED')))).toBe(8);
-    expect(states(makeDeal('COMPLETED')).every((s) => s === 'done')).toBe(true);
-  });
-
-  it('keeps changes requested on Review, never moving back', () => {
-    expect(states(makeDeal('REVISION_REQUESTED'))).toEqual(states(makeDeal('CONTENT_UPLOADED')));
-  });
-
-  it('shows how far a cancelled deal got, then stops', () => {
-    const beforeFee = makeDeal('CANCELLED', {
-      creator: CREATOR,
-      confirmedAt: '2026-10-02T05:50:00.000Z',
-      commissionPaidAt: null,
-    });
-    expect(states(beforeFee)).toEqual([
-      'done',
-      'done',
-      'stopped',
-      'void',
-      'void',
-      'void',
-      'void',
-      'void',
-      'void',
-    ]);
-    const afterAdvance = makeDeal('CANCELLED', {
-      creator: CREATOR,
-      confirmedAt: '2026-10-02T05:50:00.000Z',
-      commissionPaidAt: '2026-10-02T06:04:00.000Z',
-      advancePaidAt: '2026-10-03T08:45:00.000Z',
-    });
-    expect(currentStepNumber(dealSteps(afterAdvance))).toBe(5);
-    expect(states(makeDeal('CANCELLED', { publishedAt: '2026-10-01T02:35:00.000Z' }))[1]).toBe(
-      'stopped',
-    );
-  });
-
-  it('dates the finished steps', () => {
-    const steps = dealSteps(makeDeal('COMMISSION_PAID'));
-    expect(steps[0]!.at).toBe('2026-10-01T02:35:00.000Z');
-    expect(steps[3]!.at).toBeNull();
+    expect(dealStep('REVISION_REQUESTED')).toBe(6);
+    expect(dealStep('CANCELLED')).toBeNull();
   });
 });
 
@@ -143,15 +97,18 @@ describe('deal errors in plain words', () => {
     );
   });
 
-  it('never shows a technical payment message', () => {
-    const e = dealErrorText(
-      err('PAYMENT_AMOUNT_MISMATCH', 'order order_123 amount 88500 != payment pay_9 88400'),
-    );
-    expect(e.title).toBe('We could not confirm this payment');
-    expect(JSON.stringify(e)).not.toContain('order_123');
-    expect(
-      dealErrorText(err('WRONG_ROLE', 'This action requires the BRAND role')).title,
-    ).not.toContain('BRAND');
+  it('shows the plain API message for role, payment and wrong-step errors, and re-reads the deal', () => {
+    expect(dealErrorText(err('PAYMENT_AMOUNT_MISMATCH', PAYMENT_COULD_NOT_BE_CONFIRMED))).toEqual({
+      title: PAYMENT_COULD_NOT_BE_CONFIRMED,
+      reload: true,
+    });
+    expect(dealErrorText(err('WRONG_ROLE', ONLY_BRANDS_CAN)).title).toBe(ONLY_BRANDS_CAN);
+    expect(dealErrorText(err('WRONG_DEAL_STATUS', FEE_NOT_DUE))).toMatchObject({
+      title: FEE_NOT_DUE,
+      reload: true,
+    });
+    const changed = feeCapturedDealChangedMessage(88_500);
+    expect(dealErrorText(err('FEE_CAPTURED_DEAL_CHANGED', changed)).title).toBe(changed);
   });
 
   it('keeps the API wording for a record already made', () => {

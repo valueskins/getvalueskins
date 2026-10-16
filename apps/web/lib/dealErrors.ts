@@ -29,8 +29,14 @@ export function dealErrorText(
 ): DealErrorText {
   if (!(err instanceof ApiError)) return { title: errorText(err), reload: false };
   switch (err.code) {
-    case 'INVALID_TRANSITION':
     case 'WRONG_DEAL_STATUS':
+      // The API says, in plain words, when this action is possible (SPEC 16).
+      return {
+        title: err.message,
+        text: 'We reloaded the deal so you see the latest.',
+        reload: true,
+      };
+    case 'INVALID_TRANSITION':
     case 'APPLICATION_NOT_PENDING':
     case 'DEAL_NOT_DRAFT':
       return {
@@ -79,15 +85,18 @@ export function dealErrorText(
       };
     case 'INVALID_SIGNATURE':
     case 'PAYMENT_ORDER_MISMATCH':
-    case 'PAYMENT_NOT_CAPTURED':
-    case 'PAYMENT_AMOUNT_MISMATCH':
       return {
         title: 'We could not confirm this payment',
         text: 'If money left your account, do not pay again. Write to us with the deal id.',
         reload: true,
       };
+    // These messages are plain words from the API (SPEC 16), so they are shown as they are.
+    case 'PAYMENT_NOT_CAPTURED':
+    case 'PAYMENT_AMOUNT_MISMATCH':
+    case 'FEE_CAPTURED_DEAL_CHANGED':
+      return { title: err.message, reload: true };
     case 'WRONG_ROLE':
-      return { title: 'This action is not available on your account.', reload: false };
+      return { title: err.message, reload: false };
     case 'NOT_FOUND':
       return { title: 'This deal is no longer available to you.', reload: true };
     default:

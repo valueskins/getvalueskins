@@ -1,14 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ADMIN_CANCEL_WINDOW,
-  canTransition,
-  formatInr,
-  REFUND_REFERENCE_MAX,
-  type DealDetail,
-  type DealStatus,
-} from '@valueskins/shared';
+import { formatInr, REFUND_REFERENCE_MAX, type DealDetail } from '@valueskins/shared';
 import { useAdminCancel } from '@/lib/api/admin';
 import { dealErrorText } from '@/lib/dealErrors';
 import { at } from '@/lib/dealView';
@@ -19,15 +12,6 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
 const NOTE_MAX = 5000;
-
-/**
- * Why an admin cannot cancel the deal now, or null when they can. Admins get no
- * allowedActions (WEB_API_GAPS, W3), so this reads the shared transition table.
- */
-export function cancelBlockedReason(status: DealStatus): string | null {
-  if (status === 'CANCELLED') return 'This deal is already cancelled';
-  return canTransition(status, 'CANCELLED', 'ADMIN') ? null : ADMIN_CANCEL_WINDOW;
-}
 
 /** AdDealCancel: the admin cancel, with the note both sides read and an optional refund id. */
 export function AdminCancelModal({

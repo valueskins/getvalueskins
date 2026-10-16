@@ -1,4 +1,5 @@
 import {
+  feeCapturedDealChangedMessage,
   paymentTypeParamSchema,
   paymentVerifySchema,
   type PaymentVerifyResponse,
@@ -9,6 +10,7 @@ import { requireOnboarded, requireRole } from '../auth/guards.js';
 import { db } from '../db/client.js';
 import { deals, payments } from '../db/schema/index.js';
 import { notFound } from '../deals/access.js';
+import { feeCapturedOnChangedDeal } from '../deals/dealEvents.js';
 import { buildDealDetail } from '../deals/dealDetail.js';
 import { AppError } from '../errors/AppError.js';
 import { alertAdmin } from './alerts.js';
@@ -58,9 +60,19 @@ export function paymentRoutes(deps: PaymentsDeps): Router {
         await markPaymentCaptured(deps, input.razorpay_order_id, input.razorpay_payment_id);
       } catch (error) {
         if (error instanceof AppError && error.code === 'PAYMENT_AMOUNT_MISMATCH') {
-          await alertAdmin(deps.env, 'Payment amount mismatch', error.message);
+          await alertAdmin(deps.env, 'Payment amount mismatch', error.internal ?? error.message);
         }
         throw error;
+      }
+
+      // The money went through but the deal had changed (SPEC 7.3). Whichever of verify and the
+      // webhook recorded it, verify says so, every time it is asked.
+      if (await feeCapturedOnChangedDeal(found.deal.id, found.payment.id)) {
+        throw new AppError(
+          'FEE_CAPTURED_DEAL_CHANGED',
+          409,
+          feeCapturedDealChangedMessage(found.payment.amountPaise),
+        );
       }
 
       const [payment] = await db

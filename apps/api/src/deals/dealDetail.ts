@@ -15,6 +15,7 @@ import {
   applications,
   brandBilling,
   contentUploads,
+  dealEvents,
   disputes,
   invoices,
 } from '../db/schema/index.js';
@@ -95,6 +96,25 @@ async function listDealDisputes(deal: Deal): Promise<DealDetail['disputes']> {
   }));
 }
 
+/**
+ * Every round of changes the brand asked for, oldest first: each move from CONTENT_UPLOADED to
+ * REVISION_REQUESTED carries the feedback in its note (review.service.ts).
+ */
+async function listFeedbackHistory(dealId: string): Promise<DealDetail['feedbackHistory']> {
+  const rows = await db
+    .select({ note: dealEvents.note, createdAt: dealEvents.createdAt })
+    .from(dealEvents)
+    .where(
+      and(
+        eq(dealEvents.dealId, dealId),
+        eq(dealEvents.fromStatus, 'CONTENT_UPLOADED'),
+        eq(dealEvents.toStatus, 'REVISION_REQUESTED'),
+      ),
+    )
+    .orderBy(asc(dealEvents.createdAt), asc(dealEvents.id));
+  return rows.flatMap((r) => (r.note ? [{ feedback: r.note, at: r.createdAt.toISOString() }] : []));
+}
+
 /** The GET /deals/:id body for a viewer who is allowed to see the deal (SPEC 16). */
 export async function buildDealDetail(
   deal: Deal,
@@ -152,17 +172,21 @@ export async function buildDealDetail(
         .orderBy(asc(contentUploads.uploadedAt), asc(contentUploads.id))
     : [];
 
-  let hasApplied = false;
-  let payoutSet = false;
-  if (viewerKind === 'CREATOR' && deal.status === 'OPEN') {
+  // `applied` is for a creator looking at the deal; brands and admins get null.
+  let applied: boolean | null = null;
+  if (viewer.role === 'CREATOR') {
     const [existing] = await db
       .select({ id: applications.id })
       .from(applications)
       .where(and(eq(applications.dealId, deal.id), eq(applications.creatorId, viewer.id)))
       .limit(1);
-    hasApplied = existing !== undefined;
-    payoutSet = await hasPayoutDetails(viewer.id);
+    // The confirmed creator was picked from the applicants, so they have applied.
+    applied = existing !== undefined || isConfirmedCreator;
   }
+  const hasApplied = applied === true;
+  const payoutSet =
+    viewerKind === 'CREATOR' && deal.status === 'OPEN' ? await hasPayoutDetails(viewer.id) : false;
+  const feedbackHistory = seesDelivery ? await listFeedbackHistory(deal.id) : [];
 
   // The direct UPI payment records (REPLACEMENT_PLAN 2.1), masked. A record that awaits the
   // creator's confirmation for the stage that is due drives PAY_* and CONFIRM_PAYMENT_RECEIVED.
@@ -200,6 +224,7 @@ export async function buildDealDetail(
     uploadCount: deal.uploadCount,
     revisionCount: deal.revisionCount,
     feedback: seesDelivery ? deal.feedback : null,
+    feedbackHistory,
     contentUploads: uploads.map((u) => ({ link: u.link, uploadedAt: u.uploadedAt.toISOString() })),
     revisionNotice: deal.revisionCount >= 5 ? FIVE_REVISIONS_WARNING : null,
     creator,
@@ -210,6 +235,7 @@ export async function buildDealDetail(
     applicationCount,
     applicationsOpen: open,
     contentOverdue: overdue,
+    applied,
     allowedActions: computeDealActions({
       status: deal.status,
       viewer: viewerKind,

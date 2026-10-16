@@ -76,15 +76,15 @@ describe('deal page: open', () => {
     expect(api.called(`GET /deals/${DEAL_ID}/events`)).toHaveLength(0);
   });
 
-  it('shows each Apply state from the API’s reason', async () => {
-    const cases: Array<[string, string]> = [
-      ['You have already applied', 'Applied'],
-      ['Applications closed', 'Apply'],
-      ['Add your UPI ID to apply', 'Apply'],
+  it('shows each Apply state from `applied` and the API’s reason', async () => {
+    const cases: Array<[string, string, boolean]> = [
+      ['You have already applied', 'Applied', true],
+      ['Applications closed', 'Apply', false],
+      ['Add your UPI ID to apply', 'Apply', false],
     ];
-    for (const [reason, label] of cases) {
+    for (const [reason, label, applied] of cases) {
       const view = renderDeal(
-        makeDeal('OPEN', { allowedActions: [act('APPLY', reason)] }),
+        makeDeal('OPEN', { applied, allowedActions: [act('APPLY', reason)] }),
         'other',
       );
       const button = await screen.findByRole('button', { name: label });
@@ -199,6 +199,25 @@ describe('deal page: the creator confirms a UPI payment', () => {
 });
 
 describe('deal page: content and review', () => {
+  it('lists every round of feedback from the deal, oldest first', async () => {
+    renderDeal(
+      makeDeal('REVISION_REQUESTED', {
+        feedback: 'Brighter light, please.',
+        feedbackHistory: [
+          { feedback: 'Reshoot the intro.', at: '2026-10-06T05:00:00.000Z' },
+          { feedback: 'Brighter light, please.', at: '2026-10-08T05:00:00.000Z' },
+        ],
+        allowedActions: [act('UPLOAD_CONTENT')],
+      }),
+      'brand',
+    );
+    const section = await screen.findByRole('region', { name: 'Feedback' });
+    expect(within(section).getByText('2 rounds')).toBeInTheDocument();
+    expect(within(section).getByText(/Round 1, from @test\.brand/)).toBeInTheDocument();
+    expect(within(section).getByText('Reshoot the intro.')).toBeInTheDocument();
+    expect(within(section).getByText('Brighter light, please.')).toBeInTheDocument();
+  });
+
   it('checks the Drive link before sharing, and shares it', async () => {
     const { api } = renderDeal(
       makeDeal('REVISION_REQUESTED', {

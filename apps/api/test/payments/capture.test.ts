@@ -1,11 +1,11 @@
-import { paymentVerifyResponseSchema } from '@valueskins/shared';
+import { PAYMENT_COULD_NOT_BE_CONFIRMED, paymentVerifyResponseSchema } from '@valueskins/shared';
 import { eq } from 'drizzle-orm';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { emailLog, payments, webhookEvents } from '../../src/db/schema/index.js';
+import { emailLog, invoices, payments, webhookEvents } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { NOW, brandWithBilling, http as api } from '../helpers/deals.js';
 import {
@@ -273,12 +273,18 @@ describe('what Razorpay says is what counts', () => {
 
     const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
     expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('PAYMENT_AMOUNT_MISMATCH');
+    expect(res.body.error).toEqual({
+      code: 'PAYMENT_AMOUNT_MISMATCH',
+      message: PAYMENT_COULD_NOT_BE_CONFIRMED,
+    });
     await untouched(f);
     const alerts = await emails('ADMIN_ALERT');
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ toEmail: env.DISPUTE_EMAIL });
     expect(alerts[0]?.bodyText).toContain('Payment amount mismatch');
+    // The admin gets the technical detail; the brand never does.
+    expect(alerts[0]?.bodyText).toContain('Razorpay captured');
+    expect(JSON.stringify(res.body)).not.toMatch(/order_|paise|INR/);
   });
 
   it('amount mismatch through the webhook: recorded on the event and alerted, deal unchanged', async () => {
@@ -319,6 +325,8 @@ describe('what Razorpay says is what counts', () => {
     const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe(code);
+    // Plain words: never Razorpay's own status, an order id or an amount.
+    expect(res.body.error.message).not.toMatch(/authorized|captured|order_|USD|INR/);
     await untouched(f);
   });
 
@@ -350,39 +358,103 @@ describe('what Razorpay says is what counts', () => {
   });
 });
 
-describe('a payment on a deal in the wrong status', () => {
-  it('records the real payment, leaves the deal alone and tells the admin to refund', async () => {
+describe('the fee captured on a deal that had changed (SPEC 7.3)', () => {
+  const MESSAGE =
+    'Your payment of ₹750.00 went through, but the deal had already changed. We will refund it.';
+
+  /** A fee order whose deal the brand cancels while Checkout is open. */
+  async function cancelledDuringCheckout() {
     const f = await dealWithOrder(call, 'commission');
     const paymentId = razorpayCaptured(razorpay, f, 'commission');
-    // The brand cancels while Checkout is open.
     const cancelled = await call.send('post', `/api/deals/${f.deal.id}/cancel`, f.brand.cookie, {
       reason: 'changed',
     });
     expect(cancelled.status).toBe(200);
+    return { f, paymentId };
+  }
 
-    const res = await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
-    expect(res.status).toBe(200);
-    expect(res.body.payment.status).toBe('CAPTURED');
-    expect(res.body.deal.status).toBe('CANCELLED');
-
+  async function expectKeptOnce(f: Awaited<ReturnType<typeof dealWithOrder>>, paymentId: string) {
     const state = await dealState(f.deal.id);
     expect(state.deal.status).toBe('CANCELLED');
-    expect(state.events).toHaveLength(1); // only the cancel
+    expect(state.deal.commissionPaidAt).toBeNull();
+    const changed = state.events.filter(
+      (e) => (e.metadata as { kind?: string } | null)?.kind === 'FEE_CAPTURED_DEAL_CHANGED',
+    );
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({
+      fromStatus: 'CANCELLED',
+      toStatus: 'CANCELLED',
+      actorType: 'SYSTEM',
+    });
     expect(await paymentRow(f.orderId)).toMatchObject({
       status: 'CAPTURED',
       razorpayPaymentId: paymentId,
     });
+    // No invoice for a fee that is refunded, and no "fee paid" email.
+    expect(await db.select().from(invoices).where(eq(invoices.dealId, f.deal.id))).toEqual([]);
     expect(await emails('COMMISSION_PAID_BRAND')).toHaveLength(0);
     const alerts = await emails('ADMIN_ALERT');
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]?.bodyText).toContain('Refund it manually');
+    expect(alerts[0]?.subject).toContain('Fee received on a deal that had changed, refund by hand');
+    const toBrand = await emails('FEE_CAPTURED_DEAL_CHANGED');
+    expect(toBrand).toHaveLength(1);
+    expect(toBrand[0]).toMatchObject({ toEmail: f.brand.user.email, dealId: f.deal.id });
+    expect(toBrand[0]?.bodyText).toContain(MESSAGE);
+  }
 
-    // Replaying it is a no-op.
-    await deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount));
-    expect(await emails('ADMIN_ALERT')).toHaveLength(1);
+  const expectChangedAnswer = (res: {
+    status: number;
+    body: { error: { code: string; message: string } };
+  }) => {
+    expect(res.status).toBe(409);
+    expect(res.body.error).toEqual({ code: 'FEE_CAPTURED_DEAL_CHANGED', message: MESSAGE });
+  };
+
+  it('verify first, then the webhook, then verify again', async () => {
+    const { f, paymentId } = await cancelledDuringCheckout();
+    expectChangedAnswer(await verify(f.brand.cookie, verifyBody(f.orderId, paymentId)));
+    const { response } = await deliverWebhook(
+      app,
+      paymentCapturedEvent(f.orderId, paymentId, f.amount),
+    );
+    expect(response.status).toBe(200);
+    expectChangedAnswer(await verify(f.brand.cookie, verifyBody(f.orderId, paymentId)));
+    await expectKeptOnce(f, paymentId);
   });
 
-  it('a second captured payment for the same deal and type is marked FAILED and flagged for refund', async () => {
+  it('the webhook first (twice), then verify', async () => {
+    const { f, paymentId } = await cancelledDuringCheckout();
+    await deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount));
+    await deliverWebhook(app, orderPaidEvent(f.orderId, paymentId, f.amount));
+    const stored = await db.select().from(webhookEvents);
+    expect(stored.map((e) => e.error)).toEqual([null, null]);
+    expectChangedAnswer(await verify(f.brand.cookie, verifyBody(f.orderId, paymentId)));
+    await expectKeptOnce(f, paymentId);
+  });
+
+  it('verify and the webhook at the same time record it once', async () => {
+    const { f, paymentId } = await cancelledDuringCheckout();
+    const [res] = await Promise.all([
+      verify(f.brand.cookie, verifyBody(f.orderId, paymentId)),
+      deliverWebhook(app, paymentCapturedEvent(f.orderId, paymentId, f.amount)),
+    ]);
+    expectChangedAnswer(res);
+    await expectKeptOnce(f, paymentId);
+  });
+
+  it('shows the brand and the creator nothing new beyond the event and the email, and a stranger nothing', async () => {
+    const { f, paymentId } = await cancelledDuringCheckout();
+    await verify(f.brand.cookie, verifyBody(f.orderId, paymentId));
+    const events = await call.get(`/api/deals/${f.deal.id}/events`, f.brand.cookie);
+    expect(events.status).toBe(200);
+    expect(events.body.items.map((e: { kind: string }) => e.kind)).toContain(
+      'FEE_CAPTURED_DEAL_CHANGED',
+    );
+    const stranger = await brandWithBilling();
+    expect((await call.get(`/api/deals/${f.deal.id}/events`, stranger.cookie)).status).toBe(404);
+  });
+
+  it('a second captured fee for the same deal is marked FAILED, refunded, and told to the brand once', async () => {
     const f = await dealWithOrder(call, 'commission');
     const first = razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_first' });
     await verify(f.brand.cookie, verifyBody(f.orderId, first));
@@ -403,12 +475,17 @@ describe('a payment on a deal in the wrong status', () => {
       app,
       paymentCapturedEvent('order_second', 'pay_second', f.amount),
     );
+    await deliverWebhook(app, orderPaidEvent('order_second', 'pay_second', f.amount));
     const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, eventId));
     expect(event?.error).toBeNull();
     expect(await paymentRow('order_second')).toMatchObject({ status: 'FAILED' });
     expect((await paymentRow('order_second'))?.failureReason).toContain('Duplicate capture');
     expect((await dealState(f.deal.id)).deal.status).toBe('COMMISSION_PAID');
     expect(await emails('ADMIN_ALERT')).toHaveLength(1);
+    expect(await emails('FEE_CAPTURED_DEAL_CHANGED')).toHaveLength(1);
+
+    expectChangedAnswer(await verify(f.brand.cookie, verifyBody('order_second', 'pay_second')));
+    expect(await emails('FEE_CAPTURED_DEAL_CHANGED')).toHaveLength(1);
   });
 });
 

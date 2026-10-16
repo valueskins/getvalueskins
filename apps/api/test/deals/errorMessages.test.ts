@@ -1,4 +1,18 @@
-import { ADMIN_CANCEL_WINDOW, DEAL_STATUSES, type DealStatus } from '@valueskins/shared';
+import {
+  ADMIN_CANCEL_WINDOW,
+  APPROVAL_NOT_POSSIBLE_NOW,
+  CONTENT_CANNOT_BE_SHARED_NOW,
+  DEAL_STATUSES,
+  FEE_NOT_DUE,
+  FEEDBACK_NOT_POSSIBLE_NOW,
+  NOT_WAITING_FOR_THIS_PAYMENT,
+  ONLY_BRANDS_CAN,
+  ONLY_CREATORS_CAN,
+  PAYMENT_COULD_NOT_BE_CONFIRMED,
+  PAYMENT_NOT_CONFIRMED_YET,
+  paymentNotDueYet,
+  type DealStatus,
+} from '@valueskins/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { adminUser } from '../admin/helpers.js';
@@ -132,6 +146,52 @@ describe('error messages never name a raw status', () => {
     expect(rawStatusIn(message), message).toBe(false);
     // Plain English: no em dash, and "ValueSkins fee" rather than "commission".
     expect(message).not.toMatch(/—|commission/i);
+  });
+
+  it('names no raw role when the other role tries an action', async () => {
+    const { creator, brand, deal } = await dealAt('CONFIRMED');
+    const asCreator = await call.send(
+      'post',
+      `/api/deals/${deal.id}/payments/commission/order`,
+      creator.cookie,
+      {},
+    );
+    expect(asCreator.status).toBe(403);
+    expect(asCreator.body.error).toEqual({
+      code: 'WRONG_ROLE',
+      message: 'Only a brand account can do this.',
+    });
+    const asBrand = await call.send('post', `/api/deals/${deal.id}/content`, brand.cookie, {
+      link: 'https://drive.google.com/file/d/abc/view',
+    });
+    expect(asBrand.status).toBe(403);
+    expect(asBrand.body.error).toEqual({
+      code: 'WRONG_ROLE',
+      message: 'Only a creator account can do this.',
+    });
+    for (const message of [asCreator.body.error.message, asBrand.body.error.message]) {
+      expect(message).not.toMatch(/BRAND|CREATOR|role/);
+    }
+  });
+
+  it('every wrong-step and payment message in the shared copy is plain', () => {
+    for (const message of [
+      FEE_NOT_DUE,
+      NOT_WAITING_FOR_THIS_PAYMENT,
+      paymentNotDueYet('ADVANCE'),
+      paymentNotDueYet('FINAL'),
+      CONTENT_CANNOT_BE_SHARED_NOW,
+      FEEDBACK_NOT_POSSIBLE_NOW,
+      APPROVAL_NOT_POSSIBLE_NOW,
+      PAYMENT_NOT_CONFIRMED_YET,
+      PAYMENT_COULD_NOT_BE_CONFIRMED,
+      ONLY_BRANDS_CAN,
+      ONLY_CREATORS_CAN,
+    ]) {
+      expect(rawStatusIn(message), message).toBe(false);
+      expect(message).not.toMatch(/—|commission|\bstep\b|captured/i);
+      expect(message).not.toMatch(/BRAND|CREATOR/);
+    }
   });
 
   it('the admin cancel message explains the window in words', async () => {

@@ -83,7 +83,7 @@ Which secret signs Meta's callbacks is not stated in Meta's docs. The API accept
 
 1. In the Razorpay dashboard, switch to **Test Mode**.
 2. Open **Accounts & Settings** and look for **API keys** (under Website and app settings). Generate a **test** key. Copy:
-   - Key id (starts with `rzp_test_`) is `RAZORPAY_KEY_ID`. The web app opens Checkout with the key the fee order returns, so it always matches the server; `NEXT_PUBLIC_RAZORPAY_KEY_ID` on Vercel is no longer read.
+   - Key id (starts with `rzp_test_`) is `RAZORPAY_KEY_ID`. The web app opens Checkout with the key the fee order returns, so it always matches the server, and the web needs no Razorpay variable.
    - Key secret (shown once) is `RAZORPAY_KEY_SECRET`.
 3. Make up a webhook secret: run `openssl rand -hex 32` and keep the result. It is `RAZORPAY_WEBHOOK_SECRET`.
 4. The webhook: the API now has `POST /api/webhooks/razorpay`, so register it once the API is deployed (section 8):
@@ -146,7 +146,6 @@ If the deploy fails, open the **Logs** tab. A line starting `Invalid environment
    | Variable                       | Value                                |
    | ------------------------------ | ------------------------------------ |
    | `NEXT_PUBLIC_API_URL`          | `https://api-staging.valueskins.com` |
-   | `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | the `rzp_test_...` key id            |
    | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | `true`                               |
 
 6. Click **Deploy**. Then in **Settings > General**, set **Node.js Version** to `22.x`. In **Settings > Git**, check that **Production Branch** is `main`.
@@ -154,15 +153,15 @@ If the deploy fails, open the **Logs** tab. A line starting `Invalid environment
 
 Variables starting `NEXT_PUBLIC_` are baked in at build time. After changing one, redeploy (**Deployments > ... > Redeploy**).
 
-Pull request preview deployments on their own `*.vercel.app` address are build checks only: that address is not `WEB_ORIGIN`, the session cookie is set for `.valueskins.com`, and the Instagram callback sends you back to `WEB_ORIGIN`, so sign-in cannot work there. To try a web branch with sign-in, serve it on `staging.valueskins.com` for a while (section 9a).
+Pull request preview deployments on their own `*.vercel.app` address are build checks only: that address is not `WEB_ORIGIN`, the session cookie is set for `.valueskins.com`, and the Instagram callback sends you back to `WEB_ORIGIN`, so sign-in cannot work there. This is decided, not a gap: sign-in is tested on `staging.valueskins.com` only. To try a web branch with sign-in, serve it there for a while (section 9a).
 
-"Sign in with email" on the home page follows the API's `GET /api/config` (`authEmailEnabled`, from Render's `AUTH_EMAIL_ENABLED`). There is no web variable for it any more: the web app no longer reads `NEXT_PUBLIC_AUTH_EMAIL_ENABLED`. If the project still has it, delete it in **Settings > Environment Variables** (it does nothing, but it suggests a switch that is not there).
+"Sign in with email" on the home page follows the API's `GET /api/config` (`authEmailEnabled`, from Render's `AUTH_EMAIL_ENABLED`). There is no web variable for it. The project needs only the two variables above: delete any other `NEXT_PUBLIC_` variable it still has in **Settings > Environment Variables**.
 
 ## 9a. Checking a web branch on staging
 
-Use this to check a web branch, for example a W1 to W3 branch, with real sign-in before it is merged. While it runs, `staging.valueskins.com` serves the branch instead of `main`. Nothing changes on Render or Meta.
+Use this to check a web branch with real sign-in before it is merged. It is the only way to test sign-in on a branch: `*.vercel.app` previews cannot sign in (section 9). While it runs, `staging.valueskins.com` serves the branch instead of `main`. Nothing changes on Render or Meta.
 
-1. In Vercel, project `valueskins-staging-web`, **Settings > Environment Variables**: make sure the three variables in step 5 above also exist for the **Preview** environment, with the same values. You can limit them to the branch (Vercel lets you scope a Preview variable to one Git branch). Then redeploy the branch's latest preview, because `NEXT_PUBLIC_` values are baked in at build time.
+1. In Vercel, project `valueskins-staging-web`, **Settings > Environment Variables**: make sure the two variables in step 5 above also exist for the **Preview** environment, with the same values. You can limit them to the branch (Vercel lets you scope a Preview variable to one Git branch). Then redeploy the branch's latest preview, because `NEXT_PUBLIC_` values are baked in at build time.
 2. **Settings > Domains > `staging.valueskins.com` > Edit**: connect the domain to the **Preview** environment and enter the branch name in **Git Branch** (for example `feat/web-shell`). Save. Each new push to the branch now updates `staging.valueskins.com`. To pin one deployment instead, `vercel alias set <deployment-url> staging.valueskins.com` works too.
 3. Check sign-in on `https://staging.valueskins.com`: section 13 steps 2 to 10.
 4. When you are done, edit the domain again and connect it back to **Production** (branch `main`). Check that `staging.valueskins.com` shows `main` again.
@@ -453,7 +452,9 @@ Admin: after your first Instagram sign-in, find your Instagram user id in the sa
 pnpm --filter @valueskins/api exec node -e "const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query('select username, instagram_user_id from users where instagram_user_id is not null order by created_at desc limit 5').then(r=>{console.table(r.rows);return p.end()})"
 ```
 
-Copy your `instagram_user_id`, then Render > service > **Environment**, set `ADMIN_INSTAGRAM_USER_IDS` to it (comma-separated for several), and save. The service redeploys. Sign in again to pick up `is_admin`: you land on `/admin/deals`, with the "Admin" tag. You can still open your own brand or creator pages by their address, and their user menu links back to Admin.
+Copy your `instagram_user_id`, then Render > service > **Environment**, set `ADMIN_INSTAGRAM_USER_IDS` to it (comma-separated for several), and save. The service redeploys. Sign in again to pick up `is_admin`: you land on `/admin/deals`, with the "Admin" tag.
+
+To check the admin screens without your Instagram account (locally, or on staging where dev login is on), tick **Admin** on `/dev/login` with a new username. It works only when the user is created and never in production (section 6.2 of the SPEC). You can still open your own brand or creator pages by their address, and their user menu links back to Admin.
 
 ## 15. Meta app review screencast checklist
 
@@ -547,7 +548,6 @@ Only one free Postgres can be active per Render workspace.
 | Variable                       | Staging value                        | Where it comes from                                                                  |
 | ------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | `NEXT_PUBLIC_API_URL`          | `https://api-staging.valueskins.com` | fixed                                                                                |
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID`  | `rzp_test_...`                       | no longer read: Checkout uses the key the fee order returns. Safe to delete          |
 | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | `true`                               | fixed on staging; a build with this true and the production API URL fails on purpose |
 
 ### Local development
@@ -562,7 +562,6 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Migration 0007 is destructive on staging.** It drops the `creator_payout_accounts` table, so test creators' old Route linked-account rows are gone and every creator must save a UPI ID (section 13 step 9) before applying. Linked accounts in Razorpay's dashboard are not touched.
 - **Settlement events** (`settlement.processed`) are stored and ignored.
 - **Webhook processing runs after the response.** If the API stops between storing an event and processing it, that event stays unprocessed (`processed_at` empty in `webhook_events`) and is not retried. Re-trigger the delivery from Razorpay's dashboard to catch up.
-- **Deleting an account** does not yet remove brand billing rows (the creator's UPI details are cleared).
 - **Jobs run inside the API process.** Render keeps one instance, so they run once; a second instance is safe (the lock) but does nothing extra. A job that fails is logged, not emailed (SPEC 14). Reminder emails carry no link to the deal, because the temporary pages are replaced soon.
 - **Live updates run in the API process.** Socket.io is attached to the API's HTTP server (SPEC 10), so there is one instance and nothing extra to configure; the web app must connect with credentials to the API origin, and its CSP allows the API origin over `https` and `wss` (see the CSP note below). A second Render instance would need the Redis adapter and sticky sessions first. The web app connects once signed in and onboarded, and re-reads over REST on every event, on reconnect and on window focus.
 - **Resume shows deal amounts.** `GET /api/users/:id/resume` returns the budget of each completed deal, as SPEC 11 says. Whether showing amounts publicly is intended is still SPEC open decision 5.

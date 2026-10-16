@@ -19,6 +19,7 @@ import {
   type DealDetail,
   type DealStatusPayload,
 } from '@valueskins/shared';
+import { adminKeys } from '@/lib/api/admin';
 import { dealKeys } from '@/lib/api/deals';
 import { STATUS_LABEL } from '@/lib/dealStatus';
 import { apiBaseUrl } from '@/lib/env';
@@ -84,6 +85,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       const before = client.getQueryData<DealDetail>(dealKeys.deal(payload.id));
       void client.invalidateQueries({ queryKey: dealKeys.deal(payload.id) });
       void client.invalidateQueries({ queryKey: dealKeys.mineAll });
+      // An admin watching the deal (admins may join any deal room) re-reads the admin views.
+      void client.invalidateQueries({ queryKey: adminKeys.all });
       const own = ownActions.current.get(payload.id);
       if (own && Date.now() - own < OWN_ACTION_MS) return;
       if (!before) return;
@@ -97,6 +100,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
               text: 'We reloaded it so you see the latest.',
             },
       );
+    });
+
+    // A deal in this person's lists changed (SPEC 10): Campaigns, My deals and Applications re-read,
+    // without joining every listed deal's room.
+    socket.on(REALTIME_EVENTS.DEAL_SUMMARY, () => {
+      void client.invalidateQueries({ queryKey: dealKeys.mineAll });
+      void client.invalidateQueries({ queryKey: dealKeys.myApplications });
     });
 
     socket.on(REALTIME_EVENTS.APPLICATION_NEW, (payload: ApplicationNewPayload) => {

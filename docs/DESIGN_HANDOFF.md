@@ -137,7 +137,7 @@ Board names are the canvas file names. Routes are suggestions.
   - At 390, `DealPageM` is the master and `Dm*` are the states. On phones the sections fold.
 - **Route:** `/deals/[id]`.
 - **API:**
-  - The page: `GET /deals/:id`. Everything shown and enabled comes from `allowedActions` and `reason`.
+  - The page: `GET /deals/:id`. Everything shown and enabled comes from `allowedActions` and `reason` (admins: `adminActions` on `GET /admin/deals/:id`).
   - **Fee:** `POST /deals/:id/payments/commission/order`, Razorpay Checkout, then `POST /payments/verify`.
   - **UPI:** `GET` and `POST /deals/:id/direct-payment`, `POST /direct-payments/:id/confirm` and `/not-received`.
   - **Content and review:** `POST /deals/:id/content`, `/feedback`, `/approve`, `/cancel`, `/disputes`.
@@ -192,7 +192,7 @@ The 9 steps are Posted, Creator confirmed, Fee paid, Advance confirmed, Content 
   - Publish checks the fields and either shows the errors or opens the confirm.
 - **Applying:** a confirm step comes first, because an application cannot be withdrawn.
 - **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri` with the `qrcode` package, loaded only on that step.
-- **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. Only the admin deals list has a total count (`total`); the disputes list has none, so its tabs show no counts.
+- **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. The admin deals and disputes lists have a total count (`total`), which the disputes tabs show.
 - **Sample data:** one consistent story runs through every board (Festive kurta try-on reel, `8K2M4QXZ`, @urbanthreads.in and @riya.eats, ₹10,000.00, 1 to 11 Oct 2026). It is sample data only. Every amount comes from `computeBreakdown`.
 
 ## 6. Checked before handoff

@@ -133,13 +133,23 @@ export async function loadAdpData(dealId: string): Promise<AdpData> {
     .orderBy(asc(payments.createdAt));
   const directPaymentRows = await listDirectPaymentRows(dealId);
 
+  // The brand's billing as the fee's tax invoice froze it, so the deal record re-renders the same
+  // after the brand deletes their account (DELETE /me removes brand_billing). Only a deal paid before
+  // invoicing shipped has no invoice; it falls back to the live row.
+  const commission = snapshotOf('COMMISSION_TAX_INVOICE');
+  const frozenBilling = commission
+    ? { billingName: commission.buyer.billingName, gstin: commission.buyer.gstin }
+    : null;
+
   return {
     deal,
     brand,
-    brandBilling: billing ? { billingName: billing.billingName, gstin: billing.gstin } : null,
+    brandBilling:
+      frozenBilling ??
+      (billing ? { billingName: billing.billingName, gstin: billing.gstin } : null),
     creator,
     invoices: {
-      commission: snapshotOf('COMMISSION_TAX_INVOICE'),
+      commission,
       advance: snapshotOf('ADVANCE_PAYMENT_RECORD'),
       final: snapshotOf('FINAL_PAYMENT_RECORD'),
     },

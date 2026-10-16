@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { meResponseSchema } from '@valueskins/shared';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
 import { emailLog, emailVerificationTokens, users } from '../../src/db/schema/index.js';
@@ -260,5 +261,65 @@ describe('POST /api/me/email/resend', () => {
     for (let i = 0; i < 5; i++) statuses.push((await post('/api/me/email/resend', cookie)).status);
 
     expect(statuses).toEqual([200, 200, 200, 200, 429]);
+  });
+});
+
+describe('GET /api/me pendingEmail (SPEC 6.4)', () => {
+  const me = async (cookie: string) =>
+    meResponseSchema.parse((await request(app).get('/api/me').set('Cookie', cookie)).body);
+
+  it('is the address the link went to until it is verified', async () => {
+    const { cookie } = await instagramUser();
+    expect((await me(cookie)).user.pendingEmail).toBeNull();
+
+    await post('/api/me/email', cookie, { email: 'Pending@Example.com' });
+    expect((await me(cookie)).user.pendingEmail).toBe('pending@example.com');
+
+    await post('/api/me/email/verify', cookie, { token: await latestEmailedToken() });
+    const after = await me(cookie);
+    expect(after.user.pendingEmail).toBeNull();
+    expect(after.user.email).toBe('pending@example.com');
+  });
+
+  it('shows a change of address next to the verified one, and only the newest', async () => {
+    const { cookie } = await instagramUser({
+      email: 'old@example.com',
+      emailVerifiedAt: new Date(),
+    });
+    await post('/api/me/email', cookie, { email: 'first@example.com' });
+    await post('/api/me/email', cookie, { email: 'second@example.com' });
+    const body = await me(cookie);
+    expect(body.user.email).toBe('old@example.com');
+    expect(body.user.pendingEmail).toBe('second@example.com');
+  });
+
+  it('is null once the link has expired', async () => {
+    const { cookie } = await instagramUser();
+    await post('/api/me/email', cookie, { email: 'late@example.com' });
+    await db.update(emailVerificationTokens).set({ expiresAt: new Date(Date.now() - 1000) });
+    expect((await me(cookie)).user.pendingEmail).toBeNull();
+  });
+
+  it('is null when the waiting address is already the verified one', async () => {
+    const { user, cookie } = await instagramUser({
+      email: 'same@example.com',
+      emailVerifiedAt: new Date(),
+    });
+    await db.insert(emailVerificationTokens).values({
+      userId: user.id,
+      email: 'same@example.com',
+      tokenHash: sha256('same-address-token'),
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    expect((await me(cookie)).user.pendingEmail).toBeNull();
+  });
+
+  it("never shows another user's pending address", async () => {
+    const owner = await instagramUser();
+    const other = await instagramUser();
+    await post('/api/me/email', owner.cookie, { email: 'owner-only@example.com' });
+    const body = await me(other.cookie);
+    expect(body.user.pendingEmail).toBeNull();
+    expect(JSON.stringify(body)).not.toContain('owner-only@example.com');
   });
 });

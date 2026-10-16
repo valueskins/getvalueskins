@@ -17,6 +17,12 @@ export const REALTIME_EVENTS = {
   DEAL_UPDATED: 'deal:updated',
   /** A creator applied. To `user:<brandId>`. */
   APPLICATION_NEW: 'application:new',
+  /**
+   * A deal in someone's lists changed: any transition, or a direct payment recorded or marked not
+   * received. To `user:<brandId>` and `user:<creatorId>`, so Campaigns and My deals re-read without
+   * joining every deal's room. Same payload as `deal:updated`.
+   */
+  DEAL_SUMMARY: 'deal:summary',
 } as const;
 
 /** Client to server. Both are answered through the acknowledgement callback. */
@@ -49,7 +55,7 @@ export const dealNewPayloadSchema = z
   })
   .strict();
 
-/** `deal:closed` and `deal:updated`. */
+/** `deal:closed`, `deal:updated` and `deal:summary`. */
 export const dealStatusPayloadSchema = z
   .object({ id: z.string(), status: dealStatusSchema })
   .strict();

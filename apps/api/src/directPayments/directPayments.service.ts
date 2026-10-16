@@ -4,7 +4,9 @@ import {
   CREATOR_NOT_AGREED_TO_SHARE_UPI,
   DIRECT_PAYMENT_ALREADY_RECORDED,
   DIRECT_PAYMENT_NOT_PENDING,
+  NOT_WAITING_FOR_THIS_PAYMENT,
   buildUpiPay,
+  paymentNotDueYet,
   dueStageFor,
   upiPayUri,
   type DealStatus,
@@ -17,7 +19,7 @@ import {
 import { and, eq, isNull } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
-import { emitDealUpdated } from '../realtime/events.js';
+import { emitDealChanged } from '../realtime/events.js';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
 import { deals, directPayments } from '../db/schema/index.js';
@@ -126,11 +128,7 @@ export async function recordDirectPayment(
   const loaded = await loadOwnedDeal(rawDealId, user.id);
   const due = dueOf(loaded.status);
   if (!due || due.stage !== input.stage) {
-    throw new AppError(
-      'WRONG_DEAL_STATUS',
-      409,
-      `The ${input.stage.toLowerCase()} payment is not due yet`,
-    );
+    throw new AppError('WRONG_DEAL_STATUS', 409, paymentNotDueYet(input.stage));
   }
   if (!loaded.creatorId) throw new AppError('CREATOR_PAYOUT_NOT_SET', 409, APPLICANT_HAS_NO_UPI);
 
@@ -145,11 +143,7 @@ export async function recordDirectPayment(
         .for('share')
         .limit(1);
       if (!locked || locked.status !== due.from) {
-        throw new AppError(
-          'WRONG_DEAL_STATUS',
-          409,
-          'The deal is no longer waiting for this payment',
-        );
+        throw new AppError('WRONG_DEAL_STATUS', 409, NOT_WAITING_FOR_THIS_PAYMENT);
       }
       const payout = await readPayoutForPayment(locked.creatorId as string, tx);
       const payoutStatus = payoutStatusOfSaved(payout);
@@ -196,7 +190,7 @@ export async function recordDirectPayment(
 
   // After the commit, and never failing the request (SPEC 8). The deal's status did not change, but
   // the record is new, so both sides' open pages refetch (SPEC 10).
-  emitDealUpdated(loaded);
+  emitDealChanged(loaded);
   try {
     await recordedEmailTask(ctx.env, row)(loaded);
   } catch {
@@ -326,7 +320,7 @@ export async function markNotReceived(
   });
 
   // The status is unchanged, but the record is now marked not received: refetch (SPEC 10).
-  emitDealUpdated(deal);
+  emitDealChanged(deal);
   for (const task of notReceivedEmailTasks(ctx.env, updated, input.reason)) {
     try {
       await task(deal);

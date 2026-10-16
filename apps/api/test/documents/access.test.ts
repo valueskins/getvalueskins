@@ -154,7 +154,9 @@ describe('GET /api/deals/:id/documents/:kind', () => {
       f.brand.cookie,
       verifyBody(f.orderId, paymentId),
     );
-    expect(res.body.payment.status).toBe('CAPTURED');
+    // The fee is kept and refunded by hand; verify says so (SPEC 7.3).
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('FEE_CAPTURED_DEAL_CHANGED');
 
     expect(await db.select().from(invoices)).toHaveLength(0);
     expect((await doc(f.brand.cookie, f.deal.id, 'commission-invoice')).status).toBe(409);

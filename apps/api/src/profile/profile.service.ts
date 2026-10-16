@@ -28,6 +28,7 @@ export function toProfileDetails(row: UserRow, now: Date): ProfileDetails | null
     website: row.website,
     pitch: row.pitch,
     lockedAt: row.profileLockedAt.toISOString(),
+    adultConfirmedAt: row.adultConfirmedAt?.toISOString() ?? null,
   };
 }
 

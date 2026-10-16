@@ -17,7 +17,11 @@ export interface EventRow {
   userRole: UserRole | null;
 }
 
-const PAYMENT_KINDS: readonly DealEventKind[] = ['PAYMENT_RECORDED', 'PAYMENT_NOT_RECEIVED'];
+const PAYMENT_KINDS: readonly DealEventKind[] = [
+  'PAYMENT_RECORDED',
+  'PAYMENT_NOT_RECEIVED',
+  'FEE_CAPTURED_DEAL_CHANGED',
+];
 
 function metadataOf(event: EventRow['event']): Record<string, unknown> {
   const raw = event.metadata;

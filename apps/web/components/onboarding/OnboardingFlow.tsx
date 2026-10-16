@@ -104,7 +104,7 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
   const userId = me.user.id;
   const [confirmed, setConfirmed] = useState(false);
   const [ready, setReady] = useState(false);
-  const email = useEmailFlow(userId);
+  const email = useEmailFlow(me);
 
   // sessionStorage is read after mount, so the server and first render agree.
   useEffect(() => {

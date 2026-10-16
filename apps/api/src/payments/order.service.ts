@@ -1,4 +1,5 @@
 import {
+  FEE_NOT_DUE,
   paymentTypeFromParam,
   type PaymentOrderResponse,
   type PaymentTypeParam,
@@ -40,7 +41,7 @@ export async function createOrReuseOrder(
   const deal = await loadOwnedDeal(rawDealId, user.id);
 
   if (deal.status !== rules.from) {
-    throw new AppError('WRONG_DEAL_STATUS', 409, 'The ValueSkins fee is not due on this deal');
+    throw new AppError('WRONG_DEAL_STATUS', 409, FEE_NOT_DUE);
   }
   const amount = amountFor(deal, type);
 

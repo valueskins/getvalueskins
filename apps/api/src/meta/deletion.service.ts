@@ -1,10 +1,18 @@
 import { eq } from 'drizzle-orm';
 import { withTransaction } from '../db/client.js';
-import { emailLoginCodes, emailVerificationTokens, sessions, users } from '../db/schema/index.js';
+import {
+  brandBilling,
+  emailLoginCodes,
+  emailVerificationTokens,
+  sessions,
+  users,
+} from '../db/schema/index.js';
 
 /**
  * SPEC 15: soft delete and anonymize; deals, payments and invoices are kept
- * (legal record) and simply keep pointing at this now-anonymized row.
+ * (legal record) and simply keep pointing at this now-anonymized row. A brand's billing
+ * details are deleted: every invoice and payment record keeps the billing it was issued with
+ * in its snapshot, and the deal record reads it from there (documents/adpData.ts).
  */
 export async function softDeleteAndAnonymizeUser(userId: string): Promise<void> {
   await withTransaction(async (tx) => {
@@ -44,6 +52,7 @@ export async function softDeleteAndAnonymizeUser(userId: string): Promise<void> 
       })
       .where(eq(users.id, userId));
 
+    await tx.delete(brandBilling).where(eq(brandBilling.userId, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
     await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, userId));
     if (existing?.email) {

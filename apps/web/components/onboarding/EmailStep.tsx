@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { meEmailSchema } from '@valueskins/shared';
-import { useResendEmail, useStartEmail } from '@/lib/api/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { meEmailSchema, type MeResponse } from '@valueskins/shared';
+import { queryKeys, useResendEmail, useStartEmail } from '@/lib/api/queries';
 import { errorText, isApiError } from '@/lib/api/errors';
-import { pendingEmail } from '@/lib/sessionMemory';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { describedBy, Field, Input } from '@/components/ui/Field';
@@ -17,16 +17,20 @@ interface EmailFlowState {
   setSentTo: (email: string | null) => void;
 }
 
-/** Remembers the address a link was sent to for this tab (see sessionMemory). */
-export function useEmailFlow(userId: string): EmailFlowState {
-  const [sentTo, setSentToState] = useState<string | null>(() =>
-    typeof window === 'undefined' ? null : pendingEmail.get(userId),
-  );
+/**
+ * The address a link was sent to: `pendingEmail` from GET /me (SPEC 6.4), so it survives a
+ * reload and shows in every tab. A local value covers the moment right after sending (until /me
+ * is read again) and "Use a different address", which hides the pending one to show the form.
+ */
+export function useEmailFlow(me: MeResponse): EmailFlowState {
+  const client = useQueryClient();
+  const [local, setLocal] = useState<string | null | undefined>(undefined);
   return {
-    sentTo,
+    sentTo: local !== undefined ? local : me.user.pendingEmail,
     setSentTo: (email) => {
-      pendingEmail.set(userId, email);
-      setSentToState(email);
+      setLocal(email);
+      // A new link was sent: read /me again so pendingEmail follows it in other tabs too.
+      if (email !== null) void client.invalidateQueries({ queryKey: queryKeys.me });
     },
   };
 }

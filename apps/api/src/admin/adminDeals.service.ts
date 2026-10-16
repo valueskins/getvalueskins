@@ -1,11 +1,28 @@
 import {
   ADMIN_CANCEL_WINDOW,
+  computeAdminDealActions,
   contentOverdue,
   type AdminCancelInput,
+  type AdminDealDetailResponse,
   type AdminDealListQuery,
+  type AdminDealListResponse,
+  type DealDetail,
   type DealStatus,
 } from '@valueskins/shared';
-import { and, asc, count, desc, eq, exists, like, lt, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  like,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth/types.js';
 import type { ApiContext } from '../context.js';
 import { db } from '../db/client.js';
@@ -53,7 +70,10 @@ function escapeLike(value: string): string {
  * payment waiting for the creator. `total` counts every deal that matches the filters, not just
  * this page.
  */
-export async function listAdminDeals(ctx: ApiContext, query: AdminDealListQuery) {
+export async function listAdminDeals(
+  ctx: ApiContext,
+  query: AdminDealListQuery,
+): Promise<AdminDealListResponse> {
   const filters: SQL[] = [];
   if (query.status) filters.push(eq(deals.status, query.status));
   if (query.q) filters.push(like(deals.shortId, `${escapeLike(query.q.toUpperCase())}%`));
@@ -112,8 +132,8 @@ export async function listAdminDeals(ctx: ApiContext, query: AdminDealListQuery)
       return {
         ...toSummary(deal, brand),
         creator: deal.creatorId ? (parties.get(deal.creatorId) ?? null) : null,
-        hasOpenDispute,
-        awaitingConfirmation,
+        hasOpenDispute: Boolean(hasOpenDispute),
+        awaitingConfirmation: Boolean(awaitingConfirmation),
         contentOverdue: contentOverdue(
           {
             status: deal.status,
@@ -134,7 +154,7 @@ export async function getAdminDealDetail(
   ctx: ApiContext,
   admin: AuthenticatedUser,
   rawId: unknown,
-) {
+): Promise<AdminDealDetailResponse> {
   const deal = await findDeal(parseId(rawId));
   if (!deal) throw notFound();
 
@@ -163,8 +183,28 @@ export async function getAdminDealDetail(
       listDealDisputeViews(deal.id),
     ]);
 
+  // Each party's address, for admins only (SPEC 12). A deleted account has none.
+  const partyIds = deal.creatorId ? [deal.brandId, deal.creatorId] : [deal.brandId];
+  const emailRowsById = new Map(
+    (
+      await db
+        .select({ id: users.id, email: users.email, deletedAt: users.deletedAt })
+        .from(users)
+        .where(inArray(users.id, partyIds))
+    ).map((u) => [u.id, u.deletedAt ? null : u.email]),
+  );
+  const withEmail = (party: DealDetail['brand']) => ({
+    ...party,
+    email: emailRowsById.get(party.id) ?? null,
+  });
+
   return {
     deal: detail,
+    adminActions: computeAdminDealActions({ status: deal.status, emailCount: emailRows.length }),
+    parties: {
+      brand: withEmail(detail.brand),
+      creator: detail.creator ? withEmail(detail.creator) : null,
+    },
     events: events.map((r) => toEventView(r, deal)),
     payments: paymentRows.map(({ payment: p, invoiceNumber }) => ({
       id: p.id,

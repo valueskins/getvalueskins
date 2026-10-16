@@ -76,6 +76,7 @@ describe('PUT /api/me/profile', () => {
       website: null,
       pitch: null,
       lockedAt: NOW.toISOString(),
+      adultConfirmedAt: NOW.toISOString(),
     });
     expect(await row(user.id)).toMatchObject({
       name: 'Asha Rao',
@@ -107,6 +108,18 @@ describe('PUT /api/me/profile', () => {
     delete body.pitch;
     expect((await put(noPitch.cookie, body)).status).toBe(200);
     expect((await row(noPitch.user.id)).pitch).toBeNull();
+  });
+
+  it('takes a brand name with digits, and refuses one for a creator', async () => {
+    const studio = await brand();
+    expect((await put(studio.cookie, { ...BRAND_BODY, name: 'Studio 9' })).status).toBe(200);
+    expect((await row(studio.user.id)).name).toBe('Studio 9');
+    const street = await brand();
+    expect((await put(street.cookie, { ...BRAND_BODY, name: '21st Street' })).status).toBe(200);
+
+    const { cookie } = await creator();
+    const refused = await put(cookie, { ...CREATOR_BODY, name: 'Studio 9' });
+    expect(refused.status).toBe(400);
   });
 
   it('answers 409 PROFILE_LOCKED with the support address on a second save, and changes nothing', async () => {
@@ -230,7 +243,11 @@ describe('PUT /api/me/profile', () => {
     expect((await getMe(cookie)).profileDetails).toBeNull();
 
     await put(cookie, CREATOR_BODY);
-    expect((await getMe(cookie)).profileDetails).toMatchObject({ name: 'Asha Rao', age: 24 });
+    expect((await getMe(cookie)).profileDetails).toMatchObject({
+      name: 'Asha Rao',
+      age: 24,
+      adultConfirmedAt: NOW.toISOString(),
+    });
 
     clock = new Date(NOW.getTime() + 366 * 24 * 60 * 60 * 1000);
     expect((await getMe(cookie)).profileDetails.age).toBe(25);

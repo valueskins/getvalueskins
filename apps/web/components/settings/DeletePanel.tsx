@@ -15,7 +15,7 @@ import { Panel } from './Rows';
 function removedText(me: MeResponse): string {
   return me.user.role === 'CREATOR'
     ? 'your profile, email, UPI ID and Instagram connection'
-    : 'your profile, email and Instagram connection';
+    : 'your profile, email, billing details and Instagram connection';
 }
 
 function InProgress({ open }: { open: boolean }) {

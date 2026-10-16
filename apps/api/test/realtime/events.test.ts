@@ -43,6 +43,8 @@ const msw = setupServer();
 let razorpay: OrdersMockState;
 let h: Harness;
 let emitted: Array<{ room: string; event: string; payload: unknown }>;
+/** `deal:summary` is kept apart, so the room events above stay exact; its own tests read this. */
+let summaries: Array<{ room: string; payload: unknown }>;
 
 beforeAll(async () => {
   msw.listen({ onUnhandledRequest: 'bypass' });
@@ -69,7 +71,13 @@ afterAll(async () => {
 /** Replaces the Socket.io emitter with one that records, so counts are exact and need no waiting. */
 function record() {
   emitted = [];
-  setRealtime({ emit: (room, event, payload) => void emitted.push({ room, event, payload }) });
+  summaries = [];
+  setRealtime({
+    emit: (room, event, payload) => {
+      if (event === 'deal:summary') summaries.push({ room, payload });
+      else emitted.push({ room, event, payload });
+    },
+  });
   return emitted;
 }
 const named = (event: string) => emitted.filter((e) => e.event === event);
@@ -602,5 +610,61 @@ describe('disputes', () => {
     expect(strangerClient.of('deal:updated')).toEqual([]);
     const refetched = await h.call.get(`/api/deals/${deal.id}`, brand.cookie);
     expect(refetched.body.deal.disputes).toHaveLength(1);
+  });
+});
+
+describe('deal:summary to the two parties (SPEC 10)', () => {
+  const summaryRooms = (dealId: string) =>
+    summaries
+      .filter((e) => (e.payload as { id: string }).id === dealId)
+      .map((e) => e.room)
+      .sort();
+
+  it('reaches the brand and the confirmed creator on every transition, and no one else', async () => {
+    const { brand, creator, deal } = await runDeal(h.call, razorpay, 'ADVANCE_PAID');
+    record();
+    const res = await h.call.send('post', `/api/deals/${deal.id}/content`, creator.cookie, {
+      link: DRIVE_LINK,
+    });
+    expect(res.status).toBe(200);
+    expect(summaryRooms(deal.id)).toEqual(
+      [userRoom(brand.user.id), userRoom(creator.user.id)].sort(),
+    );
+    expect(summaries.every((e) => dealStatusPayloadSchema.safeParse(e.payload).success)).toBe(true);
+    expect((summaries[0]!.payload as { status: string }).status).toBe('CONTENT_UPLOADED');
+  });
+
+  it('reaches only the brand while no creator is confirmed', async () => {
+    const brand = await brandWithBilling();
+    const applicant = await creatorWithPayout();
+    const deal = await insertDeal(brand.user.id, 'OPEN');
+    await insertApplication(deal.id, applicant.user.id);
+    record();
+    const res = await h.call.send('post', `/api/deals/${deal.id}/cancel`, brand.cookie, {
+      reason: 'Plans changed',
+    });
+    expect(res.status).toBe(200);
+    expect(summaryRooms(deal.id)).toEqual([userRoom(brand.user.id)]);
+  });
+
+  it('is sent when a direct payment is recorded and when it is marked not received', async () => {
+    const first = await dealWithOrder(h.call, 'commission');
+    const paymentId = razorpayCaptured(razorpay, first, 'commission', { paymentId: 'pay_sum1' });
+    await h.call.send(
+      'post',
+      '/api/payments/verify',
+      first.brand.cookie,
+      verifyBody(first.orderId, paymentId),
+    );
+    const parties = [userRoom(first.brand.user.id), userRoom(first.creator.user.id)].sort();
+
+    record();
+    const recorded = await recordPayment(h.call, first.brand, first.deal.id, 'ADVANCE');
+    expect(recorded.status).toBe(201);
+    expect(summaryRooms(first.deal.id)).toEqual(parties);
+
+    record();
+    await notReceived(h.call, first.creator, recorded.body.directPayment.id);
+    expect(summaryRooms(first.deal.id)).toEqual(parties);
   });
 });

@@ -9,11 +9,11 @@ import { EmailForm, EmailSent, useEmailFlow } from '@/components/onboarding/Emai
 import { Panel, Row } from './Rows';
 
 export function EmailPanel({ me }: { me: MeResponse }) {
-  const flow = useEmailFlow(me.user.id);
+  const flow = useEmailFlow(me);
   const [editing, setEditing] = useState(false);
   const current = me.user.email;
   const verified = Boolean(me.user.emailVerifiedAt);
-  // A pending address equal to the current one was confirmed in another tab.
+  // The API never sends a pending address equal to the verified one; this guards the local one.
   const pending = flow.sentTo && flow.sentTo !== current ? flow.sentTo : null;
 
   return (

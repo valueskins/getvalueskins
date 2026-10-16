@@ -55,6 +55,9 @@ export function ProfilePanel({ me }: { me: MeResponse }) {
                 {d.gender ? <Row k="Gender">{GENDER_LABELS[d.gender]}</Row> : null}
               </>
             )}
+            {d.adultConfirmedAt ? (
+              <Row k="18 or older">Confirmed on {formatDate(d.adultConfirmedAt)}</Row>
+            ) : null}
           </div>
           <div className="callout callout-info">
             <Icon name="info" />

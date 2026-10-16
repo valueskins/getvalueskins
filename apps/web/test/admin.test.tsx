@@ -6,7 +6,6 @@ import { AdminDealPage } from '@/components/admin/AdminDealPage';
 import { AdminDealsPage, cleanShortId } from '@/components/admin/AdminDealsPage';
 import { AdminDisputePage } from '@/components/admin/AdminDisputePage';
 import { AdminDisputesPage } from '@/components/admin/AdminDisputesPage';
-import { cancelBlockedReason } from '@/components/admin/AdminCancelModal';
 import type {
   AdminDealDetail,
   AdminDealItem,
@@ -107,12 +106,48 @@ function detail(over: Partial<AdminDealDetail> = {}): AdminDealDetail {
     deal: makeDeal('ADVANCE_PAID', {
       directPayments: [record({ status: 'CONFIRMED', confirmedAt: '2026-10-03T08:45:00.000Z' })],
     }),
+    adminActions: [
+      { action: 'CANCEL', enabled: true, reason: null },
+      { action: 'RESEND_EMAIL', enabled: true, reason: null },
+    ],
+    parties: {
+      brand: { ...BRAND, email: 'brand-party@example.test' },
+      creator: { ...CREATOR, email: 'creator-party@example.test' },
+    },
     events: [],
     payments: [PAYMENT],
     directPayments: [record({ status: 'CONFIRMED', confirmedAt: '2026-10-03T08:45:00.000Z' })],
     emails: [email()],
     disputes: [dispute()],
     ...over,
+  };
+}
+
+/** GET /admin/disputes/:id: the dispute, its deal and the deal's other disputes. */
+function disputeDetail(
+  d: AdminDispute,
+  others: Array<{ id: string; subject: string; status: 'OPEN' | 'RESOLVED' }> = [],
+) {
+  const deal = makeDeal('ADVANCE_PAID');
+  return {
+    dispute: d,
+    deal: {
+      id: deal.id,
+      shortId: deal.shortId,
+      title: deal.title,
+      status: deal.status,
+      brand: BRAND,
+      creator: CREATOR,
+      budgetPaise: deal.budgetPaise,
+      commissionTotalPaise: deal.commissionTotalPaise,
+      advancePaise: deal.advancePaise,
+      finalPaise: deal.finalPaise,
+      commissionPaidAt: deal.commissionPaidAt,
+      advancePaidAt: deal.advancePaidAt,
+      completedAt: deal.completedAt,
+      contentUploadDeadline: deal.contentUploadDeadline,
+    },
+    otherDisputes: others,
   };
 }
 
@@ -279,6 +314,8 @@ describe('admin deal page', () => {
     expect(screen.getAllByText('te•••@okfakebank').length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/test@okfakebank/);
     expect(screen.getByText('brand@example.test')).toBeInTheDocument();
+    expect(screen.getByText('brand-party@example.test')).toBeInTheDocument();
+    expect(screen.getByText('creator-party@example.test')).toBeInTheDocument();
     expect(screen.getByText('What the brand pays in total')).toBeInTheDocument();
     expect(screen.getByText(/Admin view\./)).toBeInTheDocument();
   });
@@ -348,23 +385,21 @@ describe('admin deal page', () => {
     expect(await screen.findByText('This deal just changed')).toBeInTheDocument();
   });
 
-  it('disables Cancel outside the admin window, with the reason', async () => {
+  it('disables Cancel with the reason the API gives', async () => {
     mockApi({
-      [`GET /admin/deals/${DEAL_ID}`]: detail({ deal: makeDeal('CANCELLED'), disputes: [] }),
+      [`GET /admin/deals/${DEAL_ID}`]: detail({
+        deal: makeDeal('CANCELLED'),
+        disputes: [],
+        adminActions: [
+          { action: 'CANCEL', enabled: false, reason: 'This deal is already cancelled' },
+          { action: 'RESEND_EMAIL', enabled: true, reason: null },
+        ],
+      }),
     });
     renderWithProviders(<AdminDealPage id={DEAL_ID} />);
     const button = await screen.findByRole('button', { name: 'Cancel deal' });
     expect(button).toBeDisabled();
     expect(screen.getByText('This deal is already cancelled')).toBeInTheDocument();
-  });
-
-  it('knows the admin cancel window from the shared transition table', () => {
-    for (const s of ['COMMISSION_PAID', 'ADVANCE_PAID', 'CONTENT_UPLOADED', 'APPROVED'] as const) {
-      expect(cancelBlockedReason(s)).toBeNull();
-    }
-    expect(cancelBlockedReason('OPEN')).toBe(ADMIN_CANCEL_WINDOW);
-    expect(cancelBlockedReason('COMPLETED')).toBe(ADMIN_CANCEL_WINDOW);
-    expect(cancelBlockedReason('CANCELLED')).toBe('This deal is already cancelled');
   });
 
   it('shows the 404 page for an unknown deal', async () => {
@@ -377,7 +412,7 @@ describe('admin deal page', () => {
 describe('admin disputes', () => {
   it('lists open disputes, and switches to resolved', async () => {
     const api = mockApi({
-      'GET /admin/disputes': { items: [dispute()], nextCursor: null },
+      'GET /admin/disputes': { items: [dispute()], nextCursor: null, total: 1 },
     });
     renderWithProviders(<AdminDisputesPage />);
     expect(
@@ -385,13 +420,19 @@ describe('admin disputes', () => {
     ).toHaveAttribute('href', `/admin/disputes/${DISPUTE_ID}`);
     expect(screen.getByText('@test.creator')).toBeInTheDocument();
     expect(urlsOf(api.fetchMock, '/admin/disputes')[0]!.searchParams.get('status')).toBe('OPEN');
-    fireEvent.click(screen.getByRole('tab', { name: 'Resolved' }));
+    // Each tab shows its total: the open list's, and the resolved list's first page.
+    expect(await screen.findByRole('tab', { name: 'Open 1' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Resolved 1' })).toBeInTheDocument();
+    expect(
+      urlsOf(api.fetchMock, '/admin/disputes').map((u) => u.searchParams.get('status')),
+    ).toEqual(expect.arrayContaining(['OPEN', 'RESOLVED']));
+    fireEvent.click(screen.getByRole('tab', { name: /^Resolved/ }));
     expect(nav.replace).toHaveBeenLastCalledWith('/admin/disputes?status=RESOLVED');
   });
 
   it('says when a tab is empty', async () => {
     setSearch('status=RESOLVED');
-    const api = mockApi({ 'GET /admin/disputes': { items: [], nextCursor: null } });
+    const api = mockApi({ 'GET /admin/disputes': { items: [], nextCursor: null, total: 0 } });
     renderWithProviders(<AdminDisputesPage />);
     expect(await screen.findByText('No resolved disputes yet')).toBeInTheDocument();
     expect(urlsOf(api.fetchMock, '/admin/disputes')[0]!.searchParams.get('status')).toBe(
@@ -401,8 +442,9 @@ describe('admin disputes', () => {
 
   it('marks a dispute resolved with a required resolution', async () => {
     const api = mockApi({
-      [`GET /admin/disputes/${DISPUTE_ID}`]: { dispute: dispute() },
-      [`GET /admin/deals/${DEAL_ID}`]: detail(),
+      [`GET /admin/disputes/${DISPUTE_ID}`]: disputeDetail(dispute(), [
+        { id: 'other-1', subject: 'Earlier question', status: 'RESOLVED' },
+      ]),
       [`POST /admin/disputes/${DISPUTE_ID}/resolve`]: {
         dispute: dispute({ status: 'RESOLVED', resolution: 'Both agreed.' }),
       },
@@ -415,6 +457,12 @@ describe('admin disputes', () => {
       'href',
       `/admin/deals/${DEAL_ID}`,
     );
+    expect(screen.getByRole('link', { name: 'Earlier question' })).toHaveAttribute(
+      'href',
+      '/admin/disputes/other-1',
+    );
+    // One request: the deal comes with the dispute.
+    expect(api.called(`GET /admin/deals/${DEAL_ID}`)).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Mark resolved' }));
     expect(
       await screen.findByText('Write the resolution. Both sides will read it.'),
@@ -437,8 +485,9 @@ describe('admin disputes', () => {
           resolvedBy: { id: 'a', username: 'test.admin' },
           resolvedAt: '2026-10-06T10:35:00.000Z',
         }),
+        deal: disputeDetail(dispute()).deal,
+        otherDisputes: [],
       },
-      [`GET /admin/deals/${DEAL_ID}`]: detail(),
     });
     renderWithProviders(<AdminDisputePage id={DISPUTE_ID} />);
     expect(
@@ -455,14 +504,15 @@ describe('admin disputes', () => {
     mockApi({
       [`GET /admin/disputes/${DISPUTE_ID}`]: () => {
         reads += 1;
-        return json(200, {
-          dispute:
+        return json(
+          200,
+          disputeDetail(
             reads === 1
               ? dispute()
               : dispute({ status: 'RESOLVED', resolution: 'Settled by another admin.' }),
-        });
+          ),
+        );
       },
-      [`GET /admin/deals/${DEAL_ID}`]: detail(),
       [`POST /admin/disputes/${DISPUTE_ID}/resolve`]: apiError(
         409,
         'DISPUTE_ALREADY_RESOLVED',

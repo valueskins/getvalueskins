@@ -4,17 +4,24 @@ import {
   SIGN_IN_WITH_EMAIL,
   payAdvanceLabel,
   DEAL_DESCRIPTION_TEMPLATE,
-  payCommissionLabel,
   payFeeLabel,
   payFinalLabel,
+  feeCapturedDealChangedMessage,
 } from './copy.js';
 
 describe('payment CTA labels', () => {
   it('matches SPEC 5.5 exactly for the ₹10,000 worked example', () => {
-    expect(payCommissionLabel(88_500)).toBe('Pay commission: ₹885.00');
     expect(payFeeLabel(88_500)).toBe('Pay ValueSkins fee: ₹885.00');
     expect(payAdvanceLabel(273_450)).toBe('Pay advance: ₹2,734.50');
     expect(payFinalLabel(638_050)).toBe('Pay final: ₹6,380.50');
+  });
+});
+
+describe('the fee captured after the deal changed', () => {
+  it('says the payment went through and will be refunded, with the amount', () => {
+    expect(feeCapturedDealChangedMessage(88_500)).toBe(
+      'Your payment of ₹885.00 went through, but the deal had already changed. We will refund it.',
+    );
   });
 });
 

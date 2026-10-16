@@ -42,7 +42,13 @@ export const dealEmailListResponseSchema = z.object({
 });
 
 /** What a deal event is: a status change, or a payment record that left the status as it was. */
-export const DEAL_EVENT_KINDS = ['TRANSITION', 'PAYMENT_RECORDED', 'PAYMENT_NOT_RECEIVED'] as const;
+export const DEAL_EVENT_KINDS = [
+  'TRANSITION',
+  'PAYMENT_RECORDED',
+  'PAYMENT_NOT_RECEIVED',
+  /** The fee was captured after the deal had changed: kept, not applied, refunded by hand (SPEC 7.3). */
+  'FEE_CAPTURED_DEAL_CHANGED',
+] as const;
 export type DealEventKind = (typeof DEAL_EVENT_KINDS)[number];
 
 /** Who did it: a brand or a creator on the deal, an admin, or the system (a webhook). */

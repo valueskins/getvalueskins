@@ -53,6 +53,34 @@ export async function findPendingEmail(userId: string): Promise<string | null> {
   return row?.email ?? null;
 }
 
+/**
+ * GET /api/me `pendingEmail` (SPEC 6.4): the address the last link went to while that link can still
+ * be used (unused and unexpired) and the address is not already the verified one. Resend keeps
+ * `findPendingEmail`, which also offers a fresh link for an expired one.
+ */
+export async function findOpenPendingEmail(
+  userId: string,
+  verifiedEmail: string | null,
+  now: Date,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ email: emailVerificationTokens.email })
+    .from(emailVerificationTokens)
+    .where(
+      and(
+        eq(emailVerificationTokens.userId, userId),
+        isNull(emailVerificationTokens.usedAt),
+        gt(emailVerificationTokens.expiresAt, now),
+      ),
+    )
+    .orderBy(desc(emailVerificationTokens.createdAt))
+    .limit(1);
+  if (!row) return null;
+  return verifiedEmail !== null && row.email.toLowerCase() === verifiedEmail.toLowerCase()
+    ? null
+    : row.email;
+}
+
 function isUniqueViolation(error: unknown): boolean {
   const cause = (error as { cause?: { code?: string } } | null)?.cause;
   return (error as { code?: string } | null)?.code === '23505' || cause?.code === '23505';

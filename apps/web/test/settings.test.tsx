@@ -112,6 +112,28 @@ describe('settings', () => {
     expect(api.called('POST /me/email')[0]!.body).toEqual({ email: 'new@example.test' });
   });
 
+  it('shows the pending address from GET /me after a reload, in any tab', async () => {
+    mockApi({
+      'GET /me': makeMe({
+        role: 'BRAND',
+        done: ['email', 'profile', 'billing'],
+        pendingEmail: 'later@example.test',
+      }),
+      'GET /config': CONFIG,
+      'GET /me/billing': { billing },
+    });
+    renderWithProviders(<SettingsPage />);
+    expect(await screen.findByText('Confirm later@example.test')).toBeInTheDocument();
+  });
+
+  it('shows when the person confirmed they are 18 or older', async () => {
+    mockApi({ 'GET /me': brand, 'GET /config': CONFIG, 'GET /me/billing': { billing } });
+    renderWithProviders(<SettingsPage />);
+    const profile = await screen.findByRole('region', { name: 'Profile' });
+    expect(within(profile).getByText('18 or older')).toBeInTheDocument();
+    expect(within(profile).getByText('Confirmed on 9 Oct 2026')).toBeInTheDocument();
+  });
+
   it('deletes the account after the confirm, naming a deal in progress', async () => {
     const api = mockApi({
       'GET /me': brand,
@@ -122,7 +144,7 @@ describe('settings', () => {
     });
     renderWithProviders(<SettingsPage />);
     const panel = await screen.findByRole('region', { name: 'Delete account' });
-    expect(panel).not.toHaveTextContent('billing details');
+    expect(panel).toHaveTextContent('billing details');
     fireEvent.click(within(panel).getByRole('button', { name: 'Delete account' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete your account?' });
     expect(

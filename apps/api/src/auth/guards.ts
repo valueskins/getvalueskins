@@ -1,5 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
-import { CONNECT_INSTAGRAM_TO_CONTINUE, type UserRole } from '@valueskins/shared';
+import {
+  CONNECT_INSTAGRAM_TO_CONTINUE,
+  ONLY_BRANDS_CAN,
+  ONLY_CREATORS_CAN,
+  type UserRole,
+} from '@valueskins/shared';
 import { AppError } from '../errors/AppError.js';
 
 export function requireUser(req: Request, _res: Response, next: NextFunction): void {
@@ -21,7 +26,7 @@ export function requireRole(role: UserRole) {
       return;
     }
     if (req.user.role !== role) {
-      next(new AppError('WRONG_ROLE', 403, `This action requires the ${role} role`));
+      next(new AppError('WRONG_ROLE', 403, role === 'BRAND' ? ONLY_BRANDS_CAN : ONLY_CREATORS_CAN));
       return;
     }
     next();
