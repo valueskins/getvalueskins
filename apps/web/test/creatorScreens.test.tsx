@@ -153,6 +153,10 @@ describe('applications', () => {
       label: 'Deal cancelled',
       link: null,
     });
+    // The confirmed creator keeps the link: a cancelled deal still opens for them.
+    expect(
+      applicationView(app({ status: 'CONFIRMED' }, { status: 'CANCELLED' }), now),
+    ).toMatchObject({ label: 'Deal cancelled', link: { text: 'Go to deal' } });
   });
 
   it('lists the applications', async () => {
