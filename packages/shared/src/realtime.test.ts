@@ -20,11 +20,12 @@ describe('rooms and event names', () => {
     expect(dealRoom(ID)).toBe(`deal:${ID}`);
   });
 
-  it('has the four SPEC 10 events', () => {
+  it('has the five SPEC 10 events', () => {
     expect(Object.values(REALTIME_EVENTS).sort()).toEqual([
       'application:new',
       'deal:closed',
       'deal:new',
+      'deal:summary',
       'deal:updated',
     ]);
   });

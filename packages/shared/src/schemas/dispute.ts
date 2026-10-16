@@ -50,3 +50,30 @@ export const dealDisputeSchema = z.object({
 });
 
 export type DealDispute = z.infer<typeof dealDisputeSchema>;
+
+/**
+ * A dispute in full, as admins see it and as `POST /deals/:id/disputes` and the resolve answer it
+ * (SPEC 12). A deleted raiser or resolver is "Deleted user"; `resolvedBy.id` is null for one whose
+ * account no longer exists.
+ */
+export const disputeViewSchema = z.object({
+  id: z.string(),
+  dealId: z.string(),
+  dealShortId: z.string(),
+  dealTitle: z.string().nullable(),
+  subject: z.string(),
+  description: z.string(),
+  status: z.enum(DISPUTE_STATUSES),
+  raisedBy: z.object({ id: z.string(), username: z.string(), role: z.enum(DISPUTE_RAISER_ROLES) }),
+  resolution: z.string().nullable(),
+  refundReference: z.string().nullable(),
+  resolvedBy: z.object({ id: z.string().nullable(), username: z.string() }).nullable(),
+  resolvedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+/** `POST /deals/:id/disputes` and `POST /admin/disputes/:id/resolve`. */
+export const disputeResponseSchema = z.object({ dispute: disputeViewSchema });
+
+export type DisputeView = z.infer<typeof disputeViewSchema>;
+export type DisputeResponse = z.infer<typeof disputeResponseSchema>;

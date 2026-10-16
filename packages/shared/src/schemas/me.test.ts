@@ -19,6 +19,7 @@ const user = {
   onboardingCompletedAt: null,
   email: null,
   emailVerifiedAt: null,
+  pendingEmail: null,
 };
 
 describe('meResponseSchema', () => {
@@ -75,6 +76,7 @@ describe('meResponseSchema', () => {
         website: null,
         pitch: null,
         lockedAt: '2026-10-01T10:00:00.000Z',
+        adultConfirmedAt: '2026-10-01T10:00:00.000Z',
       },
       onboarding,
     });

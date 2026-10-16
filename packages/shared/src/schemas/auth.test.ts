@@ -14,6 +14,16 @@ describe('devLoginSchema', () => {
     );
   });
 
+  it('takes an optional admin flag, and nothing else', () => {
+    expect(devLoginSchema.parse({ username: 'a', role: 'BRAND', admin: true }).admin).toBe(true);
+    expect(devLoginSchema.safeParse({ username: 'a', role: 'BRAND', admin: 'yes' }).success).toBe(
+      false,
+    );
+    expect(devLoginSchema.safeParse({ username: 'a', role: 'BRAND', isAdmin: true }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects a missing username', () => {
     expect(devLoginSchema.safeParse({ role: 'CREATOR' }).success).toBe(false);
   });

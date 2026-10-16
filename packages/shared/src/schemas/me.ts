@@ -12,6 +12,11 @@ export const meUserSchema = z.object({
   onboardingCompletedAt: z.string().nullable(),
   email: z.string().nullable(),
   emailVerifiedAt: z.string().nullable(),
+  /**
+   * The address the last verification link went to, while that link is unused, unexpired and the
+   * address is not the verified one. Null otherwise. Only ever the signed-in user's own.
+   */
+  pendingEmail: z.string().nullable(),
 });
 
 /** The fetched Instagram profile (SPEC 6.1). Null on the response when no Instagram account is linked. */
@@ -42,6 +47,8 @@ export const profileDetailsSchema = z.object({
   website: z.string().nullable(),
   pitch: z.string().nullable(),
   lockedAt: z.string(),
+  /** When the user confirmed they are 18 or older (saved with the profile). */
+  adultConfirmedAt: z.string().nullable(),
 });
 
 /** Which onboarding steps apply, which are done, and which is next (SPEC 6.4). */

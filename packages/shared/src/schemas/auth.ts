@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { USER_ROLES } from '../enums.js';
 
-/** POST /api/dev/login (SPEC 6.2) — non-production only. */
+/**
+ * POST /api/dev/login (SPEC 6.2), non-production only. `admin` makes the new user an admin; like
+ * the role it applies only when the user is created.
+ */
 export const devLoginSchema = z
   .object({
     username: z.string().min(1).max(255),
     role: z.enum(USER_ROLES),
+    admin: z.boolean().optional(),
   })
   .strict();
 

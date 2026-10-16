@@ -118,6 +118,11 @@ export const dealDetailSchema = dealSummarySchema.extend({
   uploadCount: z.number().int(),
   revisionCount: z.number().int(),
   feedback: z.string().nullable(),
+  /**
+   * Every round of changes the brand asked for, oldest first, with when it was sent. Empty for
+   * anyone but the brand, the confirmed creator and admins.
+   */
+  feedbackHistory: z.array(z.object({ feedback: z.string(), at: z.string() })),
   /** Every link ever uploaded, oldest first. Empty for anyone but the brand, the creator and admins. */
   contentUploads: z.array(z.object({ link: z.string(), uploadedAt: z.string() })),
   /** FIVE_REVISIONS_WARNING once the deal has had 5 revisions, else null. */
@@ -136,6 +141,8 @@ export const dealDetailSchema = dealSummarySchema.extend({
   /** SPEC 5.1 derived flags. */
   applicationsOpen: z.boolean(),
   contentOverdue: z.boolean(),
+  /** For a creator: whether they have applied to this deal. Null for brands and admins. */
+  applied: z.boolean().nullable(),
   allowedActions: z.array(dealActionSchema),
 });
 

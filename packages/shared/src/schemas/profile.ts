@@ -12,6 +12,8 @@ export const PROFILE_AGE_MAX = 99;
 
 export const INVALID_PROFILE_NAME =
   'Enter your name using letters, spaces, dots, hyphens and apostrophes.';
+export const INVALID_BRAND_NAME =
+  'Enter the brand name using letters, digits, spaces, dots, hyphens and apostrophes.';
 export const INVALID_PROFILE_CITY = 'Enter your city.';
 export const INVALID_PROFILE_WEBSITE = 'Enter a website that starts with http:// or https://.';
 
@@ -24,6 +26,16 @@ const nameSchema = z
   .min(PROFILE_NAME_MIN, INVALID_PROFILE_NAME)
   .max(PROFILE_NAME_MAX, INVALID_PROFILE_NAME)
   .regex(NAME_REGEX, INVALID_PROFILE_NAME);
+
+/** A brand's name may also hold digits ("Studio 9", "21st Street"), and may start with one. */
+const BRAND_NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{M}\p{N} .'’-]*$/u;
+
+const brandNameSchema = z
+  .string()
+  .trim()
+  .min(PROFILE_NAME_MIN, INVALID_BRAND_NAME)
+  .max(PROFILE_NAME_MAX, INVALID_BRAND_NAME)
+  .regex(BRAND_NAME_REGEX, INVALID_BRAND_NAME);
 
 const citySchema = z
   .string()
@@ -61,7 +73,7 @@ export const creatorProfileSchema = z
 /** PUT /api/me/profile for a brand (REPLACEMENT_PLAN 2.4). The hiring pitch is optional. */
 export const brandProfileSchema = z
   .object({
-    name: nameSchema,
+    name: brandNameSchema,
     city: citySchema,
     website: websiteSchema,
     pitch: z
