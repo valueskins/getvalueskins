@@ -6,15 +6,20 @@ import type { MeResponse, UserRole } from '@valueskins/shared';
  * - `setup`: signed in, onboarding in any state (onboarding, verify email).
  * - `app`: signed in and onboarded, any role (settings).
  * - a role: signed in, onboarded, and that role. Anyone else gets a 404.
+ * - `admin`: an admin (SPEC 12), onboarded or not. Anyone else, signed out included,
+ *   gets a 404, so the admin pages never show that they exist.
  */
-export type Need = 'public' | 'home' | 'setup' | 'app' | UserRole;
+export type Need = 'public' | 'home' | 'setup' | 'app' | 'admin' | UserRole;
 
 export type Access = { kind: 'ok' } | { kind: 'redirect'; to: string } | { kind: 'notFound' };
 
 const OK: Access = { kind: 'ok' };
 
-/** Where a signed-in user starts. */
+export const ADMIN_HOME = '/admin/deals';
+
+/** Where a signed-in user starts. An admin starts on the admin deals list. */
 export function homePathFor(me: MeResponse): string {
+  if (me.user.isAdmin) return ADMIN_HOME;
   if (!isOnboarded(me)) return '/onboarding';
   return me.user.role === 'BRAND' ? '/campaigns' : '/deals';
 }
@@ -32,6 +37,7 @@ export function isOnboarded(me: MeResponse): boolean {
 export function decideAccess(me: MeResponse | null, need: Need): Access {
   if (need === 'public') return OK;
   if (need === 'home') return me ? { kind: 'redirect', to: homePathFor(me) } : OK;
+  if (need === 'admin') return me?.user.isAdmin ? OK : { kind: 'notFound' };
 
   if (!me) return { kind: 'redirect', to: '/' };
   if (need === 'setup') return OK;

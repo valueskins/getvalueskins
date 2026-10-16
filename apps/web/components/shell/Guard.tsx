@@ -5,9 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 import type { MeResponse } from '@valueskins/shared';
 import { decideAccess, type Need } from '@/lib/access';
 import { useMe } from '@/lib/api/queries';
-import { errorText } from '@/lib/api/errors';
-import { Button } from '@/components/ui/Button';
-import { Callout } from '@/components/ui/Callout';
+import { LoadError } from '@/components/ui/LoadError';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 
 /**
@@ -43,14 +41,12 @@ export function Guard({ need, children, fallback }: GuardProps) {
 
   if (me.isError) {
     return (
-      <div className="page">
-        <Callout tone="error" title="We could not load your account" role="alert">
-          <p>{errorText(me.error)}</p>
-        </Callout>
-        <Button variant="secondary" className="mt-4" onClick={() => void me.refetch()}>
-          Try again
-        </Button>
-      </div>
+      <LoadError
+        className="page"
+        title="We could not load your account"
+        error={me.error}
+        onRetry={() => void me.refetch()}
+      />
     );
   }
   if (!decision || decision.kind === 'redirect') return <>{fallback ?? <PageSkeleton />}</>;

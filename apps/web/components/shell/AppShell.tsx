@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
 import { useSignOut } from './useSignOut';
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
 }
@@ -26,21 +26,41 @@ const BRAND_NAV: NavItem[] = [
   { href: '/settings', label: 'Settings' },
 ];
 
+export const ADMIN_NAV: NavItem[] = [
+  { href: '/admin/deals', label: 'Deals' },
+  { href: '/admin/disputes', label: 'Disputes' },
+];
+
+const CONTACT: NavItem = { href: '/contact', label: 'Contact us' };
+
+/** The user menu links of the role shells. An admin also gets a way to the admin pages. */
+function roleMenuLinks(me: MeResponse): NavItem[] {
+  return me.user.isAdmin ? [{ href: '/admin/deals', label: 'Admin' }, CONTACT] : [CONTACT];
+}
+
 export function navFor(me: MeResponse): NavItem[] {
   return me.user.role === 'BRAND' ? BRAND_NAV : CREATOR_NAV;
 }
 
-function isActive(pathname: string, href: string): boolean {
+export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function roleLine(me: MeResponse): string {
+export function roleLine(me: MeResponse): string {
   const role = me.user.role === 'BRAND' ? 'Brand' : 'Creator';
   const city = me.profileDetails?.city;
   return city ? `${role}, ${city}` : role;
 }
 
-function UserMenu({ me }: { me: MeResponse }) {
+export function UserMenu({
+  me,
+  roleLabel,
+  links,
+}: {
+  me: MeResponse;
+  roleLabel: string;
+  links: NavItem[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -84,16 +104,19 @@ function UserMenu({ me }: { me: MeResponse }) {
         <div className="menu" role="menu" aria-label="Account">
           <div className="menu-head">
             <p className="chip-name">@{me.user.username}</p>
-            <p className="chip-sub">{roleLine(me)}</p>
+            <p className="chip-sub">{roleLabel}</p>
           </div>
-          <Link
-            href="/contact"
-            className="menu-item"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-          >
-            Contact us
-          </Link>
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="menu-item"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
           <button
             type="button"
             className="menu-item w-full text-left"
@@ -110,7 +133,24 @@ function UserMenu({ me }: { me: MeResponse }) {
   );
 }
 
-function MobileMenu({ me, nav, pathname }: { me: MeResponse; nav: NavItem[]; pathname: string }) {
+export function MobileMenu({
+  me,
+  nav,
+  pathname,
+  roleLabel,
+  links,
+  label = 'Main',
+  postDeal = false,
+}: {
+  me: MeResponse;
+  nav: NavItem[];
+  pathname: string;
+  roleLabel: string;
+  links: NavItem[];
+  label?: string;
+  /** The brand's "Post a deal" button at the top of the sheet. */
+  postDeal?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const { signOut, pending } = useSignOut();
 
@@ -142,8 +182,8 @@ function MobileMenu({ me, nav, pathname }: { me: MeResponse; nav: NavItem[]; pat
         <Icon name={open ? 'x' : 'list'} />
       </button>
       {open ? (
-        <nav id="app-sheet" className="sheet is-fixed" aria-label="Main">
-          {me.user.role === 'BRAND' ? (
+        <nav id="app-sheet" className="sheet is-fixed" aria-label={label}>
+          {postDeal ? (
             <Link href="/campaigns/new" className="btn btn-primary btn-block mb-2">
               <Icon name="plus" />
               Post a deal
@@ -164,12 +204,14 @@ function MobileMenu({ me, nav, pathname }: { me: MeResponse; nav: NavItem[]; pat
               <Avatar name={me.user.username} src={me.profile?.profilePictureUrl} size={32} />
               <div>
                 <p className="chip-name">@{me.user.username}</p>
-                <p className="chip-sub">{roleLine(me)}</p>
+                <p className="chip-sub">{roleLabel}</p>
               </div>
             </div>
-            <Link href="/contact" className="sheet-item">
-              Contact us
-            </Link>
+            {links.map((link) => (
+              <Link key={link.href} href={link.href} className="sheet-item">
+                {link.label}
+              </Link>
+            ))}
             <button
               type="button"
               className="sheet-item w-full border-0 bg-transparent text-left"
@@ -222,7 +264,7 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
                 Post a deal
               </Link>
             ) : null}
-            <UserMenu me={me} />
+            <UserMenu me={me} roleLabel={roleLine(me)} links={roleMenuLinks(me)} />
           </div>
         </div>
       </header>
@@ -230,7 +272,14 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
         <Link href={home} className="wordmark">
           ValueSkins
         </Link>
-        <MobileMenu me={me} nav={nav} pathname={pathname} />
+        <MobileMenu
+          me={me}
+          nav={nav}
+          pathname={pathname}
+          roleLabel={roleLine(me)}
+          links={roleMenuLinks(me)}
+          postDeal={me.user.role === 'BRAND'}
+        />
       </header>
       <main id="main">{children}</main>
     </>

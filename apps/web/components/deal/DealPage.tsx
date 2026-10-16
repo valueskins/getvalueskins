@@ -6,13 +6,11 @@ import { useEffect, useState } from 'react';
 import type { DealDetail, MeResponse } from '@valueskins/shared';
 import { ApiError } from '@/lib/api/client';
 import { useDeal, useDealEmails, useDealEvents } from '@/lib/api/deals';
-import { errorText } from '@/lib/api/errors';
 import { useMe } from '@/lib/api/queries';
 import { dealSteps } from '@/lib/dealStatus';
 import { formatFullDayTime } from '@/lib/dealFormat';
 import { viewerOf, type Viewer } from '@/lib/dealView';
-import { Button } from '@/components/ui/Button';
-import { Callout } from '@/components/ui/Callout';
+import { LoadError } from '@/components/ui/LoadError';
 import { Icon } from '@/components/ui/Icon';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { ResumeCard } from '@/components/resume/ResumeCard';
@@ -145,14 +143,12 @@ export function DealPage({ id }: { id: string }) {
   if (deal.error instanceof ApiError && deal.error.status === 404) notFound();
   if (deal.isError) {
     return (
-      <div className="page">
-        <Callout tone="error" title="We could not load this deal" role="alert">
-          <p>{errorText(deal.error)}</p>
-        </Callout>
-        <Button variant="secondary" className="mt-4" onClick={() => void deal.refetch()}>
-          Try again
-        </Button>
-      </div>
+      <LoadError
+        className="page"
+        title="We could not load this deal"
+        error={deal.error}
+        onRetry={() => void deal.refetch()}
+      />
     );
   }
   if (!deal.data || !me.data || isDraft) return <PageSkeleton />;
