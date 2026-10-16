@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sentry/nextjs": "^11.8.0",
     "@tanstack/react-query": "^5.104.2",
     "@valueskins/shared": "workspace:*",
     "next": "^15.1.3",

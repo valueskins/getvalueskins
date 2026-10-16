@@ -18,6 +18,7 @@
     "job:deploy": "node dist/jobs/run.js"
   },
   "dependencies": {
+    "@sentry/node": "^11.8.0",
     "@valueskins/shared": "workspace:*",
     "cors": "^2.8.6",
     "dejavu-fonts-ttf": "^2.37.3",

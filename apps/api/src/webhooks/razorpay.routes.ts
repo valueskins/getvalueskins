@@ -5,6 +5,7 @@ import { webhookEvents } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { RAZORPAY_WEBHOOK_PATH } from '../security/index.js';
 import { createWebhookHandlers } from './handlers/index.js';
 import { processWebhookEvent } from './processEvent.js';
@@ -76,6 +77,7 @@ export function razorpayWebhookRoutes(
       setImmediate(() => {
         processWebhookEvent(env, handlers, eventId).catch((error: unknown) => {
           logger.error({ err: error, eventId }, 'webhook processing could not be recorded');
+          captureError(error, 'razorpay webhook processing');
         });
       });
     } catch (error) {

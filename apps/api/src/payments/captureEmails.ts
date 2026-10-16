@@ -4,6 +4,7 @@ import { payments } from '../db/schema/index.js';
 import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import type { PaymentsDeps } from './types.js';
 
 type PaymentRow = typeof payments.$inferSelect;
@@ -21,6 +22,7 @@ export async function attachmentOrNone(
       { what, error: error instanceof Error ? error.message : 'unknown' },
       'could not render an email attachment',
     );
+    captureError(error, 'email attachment');
     return [];
   }
 }

@@ -1,8 +1,10 @@
+import './instrument.js';
 import { createApp } from './app.js';
 import { closeDb } from './db/client.js';
 import { getEnv } from './env/index.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { logger } from './logging/logger.js';
+import { captureError, flushSentry } from './observability/sentry.js';
 import { razorpayModeFromKeyId } from './razorpay/mode.js';
 import { attachRealtime } from './realtime/server.js';
 
@@ -24,6 +26,18 @@ const realtime = attachRealtime(server, ctx);
 // SPEC 14: the jobs run in this process, each under a Postgres advisory lock.
 const scheduler = startScheduler(ctx);
 
+// An error nobody caught is reported, logged and ends the process (Render restarts it). A rejected
+// promise is reported and logged only: the request that caused it has already been answered.
+process.on('unhandledRejection', (reason: unknown) => {
+  logger.error({ err: reason }, 'unhandled rejection');
+  captureError(reason, 'unhandledRejection');
+});
+process.on('uncaughtException', (error: Error) => {
+  logger.error({ err: error }, 'uncaught exception');
+  captureError(error, 'uncaughtException');
+  flushSentry().finally(() => process.exit(1));
+});
+
 process.on('SIGTERM', () => {
   // Close the sockets first (an open socket would keep the server waiting), then stop the
   // schedules and let a running job finish before the connections close.
@@ -35,6 +49,7 @@ process.on('SIGTERM', () => {
     .finally(() => {
       server.close(() => {
         closeDb()
+          .then(() => flushSentry())
           .then(() => process.exit(0))
           .catch((err: unknown) => {
             console.error(err);

@@ -13,6 +13,7 @@ import { feeCapturedOnChangedDeal, recordFeeCapturedOnChangedDeal } from '../dea
 import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { emitDealChanged } from '../realtime/events.js';
 import { transitionDeal, type AfterCommitTask, type Deal, type Tx } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
@@ -298,6 +299,7 @@ async function afterChangedDealCapture(
     );
   } catch (error) {
     logger.error({ dealId: row.dealId, error: errorName(error) }, 'fee alert failed');
+    captureError(error, 'fee alert');
   }
   if (!deal) return;
   try {
@@ -313,6 +315,7 @@ async function afterChangedDealCapture(
     }
   } catch (error) {
     logger.error({ dealId: deal.id, error: errorName(error) }, 'fee refund email failed');
+    captureError(error, 'fee refund email');
   }
   emitDealChanged(deal);
 }
