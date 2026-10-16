@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
+import { adminKeys } from '@/lib/api/admin';
 import { dealKeys } from '@/lib/api/deals';
 import { RealtimeProvider, useDealRoom, useRealtime } from '@/components/realtime/RealtimeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -53,6 +54,24 @@ describe('live updates', () => {
     );
     act(() => socket.serverEmit('application:new', { dealId: 'd-2', applicationId: 'a-1' }));
     expect(keys()).toContain(JSON.stringify(dealKeys.deal('d-2')));
+  });
+
+  it('refetches the lists, not the deal, on deal:summary', () => {
+    const { socket, keys } = setup();
+    act(() => socket.serverEmit('deal:summary', { id: DEAL_ID, status: 'ADVANCE_PAID' }));
+    expect(keys()).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(dealKeys.mineAll),
+        JSON.stringify(dealKeys.myApplications),
+      ]),
+    );
+    expect(keys()).not.toContain(JSON.stringify(dealKeys.deal(DEAL_ID)));
+  });
+
+  it('re-reads the admin views on deal:updated', () => {
+    const { socket, keys } = setup();
+    act(() => socket.serverEmit('deal:updated', { id: DEAL_ID, status: 'CANCELLED' }));
+    expect(keys()).toContain(JSON.stringify(adminKeys.all));
   });
 
   it('refetches the feed and applications when a deal closes, and counts new deals', () => {

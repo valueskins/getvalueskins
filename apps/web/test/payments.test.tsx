@@ -117,6 +117,20 @@ describe('the ValueSkins fee', () => {
     expect(screen.getByRole('button', { name: 'Check payment' })).toBeInTheDocument();
   });
 
+  it('says the payment will be refunded when the deal had already changed', async () => {
+    const message =
+      'Your payment of ₹885.00 went through, but the deal had already changed. We will refund it.';
+    const { api } = renderDeal(confirmed, 'brand', {
+      [`POST /deals/${DEAL_ID}/payments/commission/order`]: json(200, order),
+      'POST /payments/verify': apiError(409, 'FEE_CAPTURED_DEAL_CHANGED', message),
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Pay ValueSkins fee: ₹885.00' }));
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText('Paid, but not confirmed yet')).not.toBeInTheDocument();
+    // The deal is read again, so the page shows where it really is.
+    await waitFor(() => expect(api.called(`GET /deals/${DEAL_ID}`).length).toBeGreaterThan(1));
+  });
+
   it('says Razorpay is unreachable when the order cannot be made', async () => {
     renderDeal(confirmed, 'brand', {
       [`POST /deals/${DEAL_ID}/payments/commission/order`]: apiError(

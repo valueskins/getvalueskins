@@ -8,100 +8,33 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import type {
+  AdminDealDetailResponse,
+  AdminDealListItem,
+  AdminDealListResponse,
+  AdminDisputeDetailResponse,
+  AdminDisputeListResponse,
+  AdminEmail as SharedAdminEmail,
+  AdminPayment as SharedAdminPayment,
   DealDetail,
-  DealEvent,
-  DealParty,
   DealStatus,
-  DealSummary,
-  DirectPaymentView,
+  DisputeResponse,
   DisputeStatus,
-  PaymentStatus,
-  PaymentType,
+  DisputeView,
+  ResendEmailResponse,
 } from '@valueskins/shared';
 import { api } from './client';
 
-// The admin responses (SPEC 12) are not shared schemas yet (docs/WEB_API_GAPS.md, W3),
-// so their shapes are written out here from the API.
-
-export interface AdminDealItem extends DealSummary {
-  creator: DealParty | null;
-  hasOpenDispute: boolean;
-  awaitingConfirmation: boolean;
-  contentOverdue: boolean;
-  updatedAt: string;
-}
-
-export interface AdminDealList {
-  items: AdminDealItem[];
-  nextCursor: string | null;
-  /** Every deal that matches the filters, not only this page. */
-  total: number;
-}
-
-export interface AdminPayment {
-  id: string;
-  type: PaymentType;
-  status: PaymentStatus;
-  amountPaise: number;
-  razorpayOrderId: string | null;
-  razorpayPaymentId: string | null;
-  failureReason: string | null;
-  capturedAt: string | null;
-  razorpayFeePaise: number | null;
-  razorpayTaxPaise: number | null;
-  invoiceNumber: string | null;
-  createdAt: string;
-}
-
-export interface AdminEmail {
-  id: string;
-  template: string;
-  subject: string;
-  bodyText: string;
-  toEmail: string;
-  cc: string[];
-  status: 'QUEUED' | 'SENT' | 'FAILED';
-  error: string | null;
-  attachmentNames: string[];
-  createdAt: string;
-  sentAt: string | null;
-}
-
-export interface AdminDispute {
-  id: string;
-  dealId: string;
-  dealShortId: string;
-  dealTitle: string | null;
-  subject: string;
-  description: string;
-  status: DisputeStatus;
-  raisedBy: { id: string; username: string; role: 'BRAND' | 'CREATOR' };
-  resolution: string | null;
-  refundReference: string | null;
-  resolvedBy: { id: string | null; username: string } | null;
-  resolvedAt: string | null;
-  createdAt: string;
-}
-
-export interface AdminDealDetail {
-  deal: DealDetail;
-  events: DealEvent[];
-  payments: AdminPayment[];
-  directPayments: DirectPaymentView[];
-  emails: AdminEmail[];
-  disputes: AdminDispute[];
-}
-
-export interface AdminDisputeList {
-  items: AdminDispute[];
-  nextCursor: string | null;
-}
-
-export interface ResendResult {
-  emailLogId: string;
-  status: string;
-  missingAttachments: string[];
-}
+// The admin responses are shared schemas (packages/shared/src/schemas/admin.ts, SPEC 12); these
+// names are the web's short aliases for them.
+export type AdminDealItem = AdminDealListItem;
+export type AdminDealList = AdminDealListResponse;
+export type AdminPayment = SharedAdminPayment;
+export type AdminEmail = SharedAdminEmail;
+export type AdminDispute = DisputeView;
+export type AdminDealDetail = AdminDealDetailResponse;
+export type AdminDisputeList = AdminDisputeListResponse;
+export type AdminDisputeDetail = AdminDisputeDetailResponse;
+export type ResendResult = ResendEmailResponse;
 
 export interface AdminDealFilter {
   status: DealStatus | '';
@@ -169,8 +102,7 @@ export function useAdminDisputes(status: DisputeStatus, cursor: string | null) {
 export function useAdminDispute(id: string) {
   return useQuery({
     queryKey: adminKeys.dispute(id),
-    queryFn: async () =>
-      (await api<{ dispute: AdminDispute }>('GET', `/admin/disputes/${id}`)).dispute,
+    queryFn: () => api<AdminDisputeDetail>('GET', `/admin/disputes/${id}`),
   });
 }
 
@@ -202,7 +134,7 @@ export function useResolveDispute(disputeId: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { resolution: string; refundReference?: string }) =>
-      api<{ dispute: AdminDispute }>('POST', `/admin/disputes/${disputeId}/resolve`, input),
+      api<DisputeResponse>('POST', `/admin/disputes/${disputeId}/resolve`, input),
     onSettled: () => refreshAdmin(client),
   });
 }

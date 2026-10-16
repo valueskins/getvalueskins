@@ -7,14 +7,14 @@ import {
   DISPUTE_TEXT_MAX,
   REFUND_REFERENCE_MAX,
   formatInr,
-  type DealDetail,
+  type DisputeDeal,
 } from '@valueskins/shared';
 import { ApiError } from '@/lib/api/client';
 import {
-  useAdminDeal,
   useAdminDispute,
   useResolveDispute,
   type AdminDispute,
+  type AdminDisputeDetail,
 } from '@/lib/api/admin';
 import { errorText, isApiError } from '@/lib/api/errors';
 import { formatFullDayTime, formatShortDateTime } from '@/lib/dealFormat';
@@ -172,7 +172,7 @@ function moneyRow(paise: number | null, doneAt: string | null, word: string, pen
   };
 }
 
-function DealCard({ deal }: { deal: DealDetail }) {
+function DealCard({ deal }: { deal: DisputeDeal }) {
   const cancelled = deal.status === 'CANCELLED';
   const later = cancelled ? 'not paid' : 'not due';
   const rows = [
@@ -239,22 +239,11 @@ function DealCard({ deal }: { deal: DealDetail }) {
   );
 }
 
-function Side({ dispute }: { dispute: AdminDispute }) {
-  const deal = useAdminDeal(dispute.dealId);
-  if (deal.isError) {
-    return (
-      <LoadError
-        title="We could not load the deal"
-        error={deal.error}
-        onRetry={() => void deal.refetch()}
-      />
-    );
-  }
-  if (!deal.data) return <Skeleton className="h-64 w-full" />;
-  const others = deal.data.disputes.filter((d) => d.id !== dispute.id);
+function Side({ detail }: { detail: AdminDisputeDetail }) {
+  const others = detail.otherDisputes;
   return (
     <>
-      <DealCard deal={deal.data.deal} />
+      <DealCard deal={detail.deal} />
       <section className="card card-pad flex flex-col gap-1.5">
         <p className="t-small font-medium">Other disputes on this deal</p>
         {others.length ? (
@@ -291,7 +280,7 @@ export function AdminDisputePage({ id }: { id: string }) {
     );
   }
   if (!dispute.data) return <PageSkeleton />;
-  const d = dispute.data;
+  const d = dispute.data.dispute;
   return (
     <div className="page max-w-[1180px]">
       <nav aria-label="Breadcrumb" className="mb-3">
@@ -325,7 +314,7 @@ export function AdminDisputePage({ id }: { id: string }) {
           {d.status === 'OPEN' ? <ResolveForm dispute={d} /> : <Resolution dispute={d} />}
         </div>
         <aside className="flex flex-col gap-4" aria-label="The deal">
-          <Side dispute={d} />
+          <Side detail={dispute.data} />
         </aside>
       </div>
     </div>

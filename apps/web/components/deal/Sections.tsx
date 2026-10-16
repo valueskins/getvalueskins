@@ -93,19 +93,9 @@ export function LinksSection({ deal }: { deal: DealDetail }) {
   );
 }
 
-/** Feedback history comes from the events: each move to "Changes requested" carries the text. */
-export function FeedbackSection({
-  deal,
-  events,
-  failed,
-}: {
-  deal: DealDetail;
-  events: DealEvent[] | undefined;
-  failed?: Failed;
-}) {
-  const rounds = (events ?? []).filter(
-    (e) => e.kind === 'TRANSITION' && e.toStatus === 'REVISION_REQUESTED' && e.note,
-  );
+/** Every round of changes the brand asked for, oldest first (`feedbackHistory` on the deal). */
+export function FeedbackSection({ deal }: { deal: DealDetail }) {
+  const rounds = deal.feedbackHistory;
   return (
     <Section
       title="Feedback"
@@ -113,23 +103,16 @@ export function FeedbackSection({
         rounds.length ? `${rounds.length} ${rounds.length === 1 ? 'round' : 'rounds'}` : undefined
       }
     >
-      {failed ? (
-        <SectionError what="feedback" failed={failed} />
-      ) : events === undefined ? (
-        <div className="px-6 py-4">
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : rounds.length ? (
+      {rounds.length ? (
         rounds.map((r, i) => (
           <div
-            key={r.id}
+            key={`${r.at}-${i}`}
             className="flex flex-col gap-1.5 border-t border-rule px-6 py-3.5 first:border-t-0"
           >
             <p className="t-small c-ink-2">
-              Round {i + 1}, from {at(r.actor.username ?? deal.brand.username)},{' '}
-              {formatDayTime(r.createdAt)}
+              Round {i + 1}, from {at(deal.brand.username)}, {formatDayTime(r.at)}
             </p>
-            <div className="quote">{r.note}</div>
+            <div className="quote">{r.feedback}</div>
           </div>
         ))
       ) : (
@@ -300,6 +283,9 @@ export function EmailsSection({
 }
 
 function eventText(e: DealEvent, deal: DealDetail): string {
+  if (e.kind === 'FEE_CAPTURED_DEAL_CHANGED') {
+    return 'Fee received after the deal changed. ValueSkins will refund it.';
+  }
   switch (e.toStatus) {
     case 'OPEN':
       return 'Published';
@@ -338,7 +324,10 @@ export function ActivitySection({
   events: DealEvent[] | undefined;
   failed?: Failed;
 }) {
-  const list = (events ?? []).filter((e) => e.kind === 'TRANSITION');
+  // Status changes, and a fee kept on a deal that had changed. UPI records are under Payments.
+  const list = (events ?? []).filter(
+    (e) => e.kind === 'TRANSITION' || e.kind === 'FEE_CAPTURED_DEAL_CHANGED',
+  );
   return (
     <Section
       title="Activity"

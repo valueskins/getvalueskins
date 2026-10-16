@@ -90,6 +90,7 @@ export function makeDeal(status: DealStatus, over: Partial<DealDetail> = {}): De
     uploadCount: 0,
     revisionCount: 0,
     feedback: null,
+    feedbackHistory: [],
     contentUploads: [],
     revisionNotice: null,
     creator: confirmed ? CREATOR : null,
@@ -100,6 +101,7 @@ export function makeDeal(status: DealStatus, over: Partial<DealDetail> = {}): De
     applicationCount: 0,
     applicationsOpen: status === 'OPEN',
     contentOverdue: false,
+    applied: null,
     allowedActions: [],
     ...over,
   };

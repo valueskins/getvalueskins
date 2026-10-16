@@ -36,7 +36,8 @@ import {
 } from '@/components/deal/Sections';
 import { Amounts, Deadlines } from '@/components/deal/SidePanel';
 import { StatusBadge } from '@/components/deal/StatusBadge';
-import { AdminCancelModal, cancelBlockedReason } from './AdminCancelModal';
+import { useDealRoom } from '@/components/realtime/RealtimeProvider';
+import { AdminCancelModal } from './AdminCancelModal';
 
 const EMAILS_SHOWN = 8;
 
@@ -52,7 +53,21 @@ export function DisputeBadge({ dispute }: { dispute: Pick<AdminDispute, 'status'
   );
 }
 
-function Header({ deal, openDispute }: { deal: DealDetail; openDispute: boolean }) {
+function PartyEmail({ email }: { email: string | null }) {
+  return email ? (
+    <p className="t-mono text-[13px] c-ink-2 [overflow-wrap:anywhere]">{email}</p>
+  ) : null;
+}
+
+function Header({
+  deal,
+  parties,
+  openDispute,
+}: {
+  deal: DealDetail;
+  parties: AdminDealDetail['parties'];
+  openDispute: boolean;
+}) {
   return (
     <>
       <nav aria-label="Breadcrumb" className="mb-3">
@@ -85,6 +100,7 @@ function Header({ deal, openDispute }: { deal: DealDetail; openDispute: boolean 
               username={deal.brand.username}
               profilePictureUrl={deal.brand.profilePictureUrl}
             />
+            <PartyEmail email={parties.brand.email} />
           </div>
           <div className="flex flex-col gap-1">
             <p className="t-label c-ink-2">Creator</p>
@@ -97,6 +113,7 @@ function Header({ deal, openDispute }: { deal: DealDetail; openDispute: boolean 
             ) : (
               <p className="t-small c-ink-2 flex min-h-8 items-center">Not confirmed</p>
             )}
+            {parties.creator ? <PartyEmail email={parties.creator.email} /> : null}
           </div>
         </div>
       </div>
@@ -383,8 +400,16 @@ function EmailsSection({ emails }: { emails: AdminEmail[] }) {
   );
 }
 
-function CancelCard({ deal, onCancel }: { deal: DealDetail; onCancel: () => void }) {
-  const blocked = cancelBlockedReason(deal.status);
+function CancelCard({
+  actions,
+  onCancel,
+}: {
+  actions: AdminDealDetail['adminActions'];
+  onCancel: () => void;
+}) {
+  // The API says whether the admin can cancel now, and why not (SPEC 12).
+  const cancel = actions.find((a) => a.action === 'CANCEL');
+  const blocked = cancel && !cancel.enabled ? cancel.reason : null;
   return (
     <section className="card card-pad flex flex-col gap-2.5" aria-labelledby="cx-h">
       <h2 id="cx-h" className="t-h3">
@@ -407,9 +432,11 @@ function AdminDealView({ detail }: { detail: AdminDealDetail }) {
   const { deal } = detail;
   const [cancelOpen, setCancelOpen] = useState(false);
   const openDispute = detail.disputes.some((d) => d.status === 'OPEN');
+  // Admins may join any deal room, so this page updates live (SPEC 10).
+  useDealRoom(deal.id, true);
   return (
     <div className="page">
-      <Header deal={deal} openDispute={openDispute} />
+      <Header deal={deal} parties={detail.parties} openDispute={openDispute} />
       <section className="card card-pad mb-4" aria-label="Deal progress">
         <DealSteps steps={dealSteps(deal)} />
       </section>
@@ -428,14 +455,14 @@ function AdminDealView({ detail }: { detail: AdminDealDetail }) {
           <UpiSection detail={detail} />
           <EmailsSection emails={detail.emails} />
           <LinksSection deal={deal} />
-          <FeedbackSection deal={deal} events={detail.events} />
+          <FeedbackSection deal={deal} />
           <DocumentsSection deal={deal} />
           <ActivitySection deal={deal} events={detail.events} />
         </div>
         <aside className="flex flex-col gap-4" aria-label="Amounts, deadlines and cancel">
           <Amounts deal={deal} viewer="admin" />
           <Deadlines deal={deal} />
-          <CancelCard deal={deal} onCancel={() => setCancelOpen(true)} />
+          <CancelCard actions={detail.adminActions} onCancel={() => setCancelOpen(true)} />
         </aside>
       </div>
       <AdminCancelModal deal={deal} open={cancelOpen} onClose={() => setCancelOpen(false)} />

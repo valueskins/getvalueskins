@@ -12,6 +12,7 @@ export function makeMe(
     emailVerified?: boolean;
     profileDetails?: MeResponse['profileDetails'];
     isAdmin?: boolean;
+    pendingEmail?: string | null;
   } = {},
 ): MeResponse {
   const role = options.role === undefined ? 'CREATOR' : options.role;
@@ -45,6 +46,7 @@ export function makeMe(
       email,
       emailVerifiedAt:
         email && (options.emailVerified ?? done.has('email')) ? '2026-10-01T04:00:00.000Z' : null,
+      pendingEmail: options.pendingEmail ?? null,
     },
     profile: hasInstagram
       ? {
@@ -73,6 +75,7 @@ export function makeMe(
                 website: 'https://brand.example.test',
                 pitch: 'We make test things.',
                 lockedAt: '2026-10-09T06:00:00.000Z',
+                adultConfirmedAt: '2026-10-09T06:00:00.000Z',
               }
             : {
                 name: 'Test Creator',
@@ -82,6 +85,7 @@ export function makeMe(
                 website: null,
                 pitch: null,
                 lockedAt: '2026-10-14T06:00:00.000Z',
+                adultConfirmedAt: '2026-10-14T06:00:00.000Z',
               }
           : null,
     onboarding: { completed: next === null, nextStep: next, steps },

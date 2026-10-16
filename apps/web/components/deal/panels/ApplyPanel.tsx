@@ -14,13 +14,13 @@ import { useDealAction } from '../useDealAction';
 
 /**
  * Applying to an open deal (CrApplyStates). The state comes only from the
- * APPLY action: already applied, closed, or no UPI ID, with the API's reason.
+ * APPLY action (closed, or no UPI ID, with the API's reason) and `applied` on the deal.
  * A confirm comes first, because an application cannot be withdrawn.
  */
 export function ApplyPanel({ deal }: { deal: DealDetail }) {
   const apply = actionOf(deal, 'APPLY');
   const reason = reasonOf(apply);
-  const applied = apply && !apply.enabled && apply.reason === 'You have already applied';
+  const applied = deal.applied === true;
   const [open, setOpen] = useState(false);
   const mutation = useApply(deal.id);
   const run = useDealAction(deal.id);

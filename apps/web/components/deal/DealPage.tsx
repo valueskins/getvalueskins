@@ -114,7 +114,7 @@ function DealView({ deal, me }: { deal: DealDetail; me: MeResponse }) {
           {party ? (
             <>
               <LinksSection deal={deal} />
-              <FeedbackSection deal={deal} events={events.data} failed={eventsFailed} />
+              <FeedbackSection deal={deal} />
               <PaymentsSection deal={deal} viewer={viewer} />
               <DocumentsSection deal={deal} />
               <EmailsSection emails={emails.data} failed={emailsFailed} />

@@ -80,6 +80,12 @@ export function AdminDisputesPage() {
   const resolved = status === 'RESOLVED';
   const pages = useCursorPages();
   const list = useAdminDisputes(status, pages.cursor);
+  // The other tab's count: its first page carries the total for that status.
+  const other = useAdminDisputes(resolved ? 'OPEN' : 'RESOLVED', null);
+  const counts: Record<DisputeStatus, number | null> = {
+    OPEN: (resolved ? other.data?.total : list.data?.total) ?? null,
+    RESOLVED: (resolved ? list.data?.total : other.data?.total) ?? null,
+  };
   const items = list.data?.items ?? [];
 
   const setTab = (next: DisputeStatus) => {
@@ -104,8 +110,8 @@ export function AdminDisputesPage() {
         value={status}
         onChange={setTab}
         items={[
-          { id: 'OPEN', label: 'Open' },
-          { id: 'RESOLVED', label: 'Resolved' },
+          { id: 'OPEN', label: 'Open', count: counts.OPEN },
+          { id: 'RESOLVED', label: 'Resolved', count: counts.RESOLVED },
         ]}
       />
 
