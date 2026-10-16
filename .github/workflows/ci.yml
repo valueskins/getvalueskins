@@ -66,6 +66,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # SPEC 20: block on a critical advisory in what ships. The dev-only advisories (test runner,
+      # bundler) are reported but do not block; docs/RUNBOOK.md lists the accepted ones.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level critical
+
+      - name: Audit all dependencies (report only)
+        run: pnpm audit
+        continue-on-error: true
+
       - name: Typecheck
         run: pnpm typecheck
 

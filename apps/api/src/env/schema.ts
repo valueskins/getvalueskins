@@ -53,6 +53,15 @@ export const envSchema = z.object({
   COMPANY_GSTIN: z.string().default(''),
   COMMISSION_SAC_CODE: requiredString,
   AUTH_EMAIL_ENABLED: booleanFlag,
+  // Error reporting (SPEC 20). Blank or omitted means off. A DSN is a public ingest URL, not a secret key.
+  SENTRY_DSN: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z
+      .string()
+      .url()
+      .refine((value) => value.startsWith('https://'), 'must be an https URL')
+      .optional(),
+  ),
   // Blank counts as unset: z.coerce.number() would turn '' into 0 and silently drop the GST.
   GST_RATE_BPS: z.preprocess(
     (value) => (value === '' ? undefined : value),

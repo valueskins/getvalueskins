@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import { captureError } from '../observability/sentry.js';
 import { AppError } from './AppError.js';
 
 export function notFoundHandler(_req: Request, res: Response): void {
@@ -29,6 +30,7 @@ export function errorMiddleware(
   }
 
   if (err instanceof AppError) {
+    if (err.status >= 500) captureError(err, 'AppError 5xx');
     res.status(err.status).json({
       error: {
         code: err.code,
@@ -40,5 +42,6 @@ export function errorMiddleware(
   }
 
   req.log?.error({ err }, 'unhandled error');
+  captureError(err, 'unhandled error');
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } });
 }

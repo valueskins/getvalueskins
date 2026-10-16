@@ -134,7 +134,7 @@ Found while building W3.
 - **Dispute detail loads the whole admin deal.**
   - **Done.** `GET /admin/disputes/:id` answers `{ dispute, deal, otherDisputes }`, with the deal's status, parties, amounts and dates. The page makes one request.
 - **Sentry in the CSP:** the CSP allows Sentry's ingest hosts by pattern.
-  - **Not doing (until Prompt 17).** Sentry is added in Prompt 17, which narrows `SENTRY` in `apps/web/lib/csp.ts` to the DSN's host.
+  - **Done (Prompt 17).** Sentry is in, errors only. The CSP allows the exact host of `NEXT_PUBLIC_SENTRY_DSN` and nothing for Sentry while it is unset (`apps/web/lib/csp.ts`).
 - **Checking the admin screens locally:** dev login could not make an admin.
   - **Done.** `POST /api/dev/login` takes `admin: true` for a new user, outside production only, and the web form has an Admin box (SPEC 6.2). A test proves it is impossible in production.
 - **Copy rules in the email templates and shared copy.**

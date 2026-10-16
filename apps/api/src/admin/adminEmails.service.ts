@@ -7,6 +7,7 @@ import { renderAttachmentsByName } from '../documents/documents.service.js';
 import { resendStored } from '../email/send.js';
 import type { Env } from '../env/index.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 
 /**
  * POST /admin/emails/:id/resend (SPEC 12). Sends the stored subject and text again to the stored
@@ -38,6 +39,7 @@ export async function resendEmail(
         { emailId: original.id, error: error instanceof Error ? error.message : 'unknown' },
         'could not rebuild resend attachments',
       );
+      captureError(error, 'resend attachments');
     }
   }
 

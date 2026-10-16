@@ -74,10 +74,17 @@ export const deals = pgTable(
     ...timestamps,
   },
   (t) => [
-    index('deals_brand_id_idx').on(t.brandId),
-    index('deals_creator_id_idx').on(t.creatorId),
+    // Keyset pagination per owner and per status (SPEC 15): the filter column, then id descending.
+    index('deals_brand_id_id_idx').on(t.brandId, t.id.desc()),
+    index('deals_creator_id_id_idx').on(t.creatorId, t.id.desc()),
     index('deals_cancelled_by_id_idx').on(t.cancelledById),
-    index('deals_status_idx').on(t.status),
+    index('deals_status_id_idx').on(t.status, t.id.desc()),
+    // The creators feed: open deals, newest published first (published_at, then id).
+    index('deals_open_feed_idx')
+      .on(t.publishedAt.desc(), t.id.desc())
+      .where(sql`${t.status} = 'OPEN'`),
+    // The admin search by short id prefix (LIKE 'AB1%') cannot use the unique index.
+    index('deals_short_id_prefix_idx').on(t.shortId.op('varchar_pattern_ops')),
     index('deals_application_deadline_idx').on(t.applicationDeadline),
     index('deals_content_upload_deadline_idx').on(t.contentUploadDeadline),
     index('deals_deal_deadline_idx').on(t.dealDeadline),

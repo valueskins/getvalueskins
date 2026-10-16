@@ -1,9 +1,11 @@
 // The Content Security Policy for every page (SPEC 18, 20). The only third parties are
-// Razorpay Checkout and Sentry. Instagram profile pictures and the API are the app's own data.
+// Razorpay Checkout and Sentry, and Sentry only as the exact host of the DSN. Instagram profile pictures and the API are the app's own data.
 //
 // Razorpay does not publish a CSP list. The hosts below are the ones
 // https://checkout.razorpay.com/v1/checkout.js loads, calls or frames, checked by opening
 // Checkout with this policy in place and reading the browser's violation reports.
+
+import { sentryIngestOrigin } from './sentryDsn';
 
 export const RAZORPAY = {
   /** The Checkout loader (lib/razorpay.ts), and the risk check script it adds to the page. */
@@ -20,16 +22,6 @@ export const RAZORPAY = {
   /** Payment method logos. */
   img: ['https://cdn.razorpay.com'],
 };
-
-/**
- * Sentry's ingest hosts, in every region. Prompt 17 adds Sentry and narrows this to the host
- * of its DSN (docs/WEB_API_GAPS.md, W3).
- */
-export const SENTRY = [
-  'https://*.ingest.sentry.io',
-  'https://*.ingest.us.sentry.io',
-  'https://*.ingest.de.sentry.io',
-];
 
 /** Instagram profile pictures (the Avatar falls back to a letter if one is blocked). */
 export const INSTAGRAM_IMAGES = ['https://*.cdninstagram.com', 'https://*.fbcdn.net'];
@@ -52,11 +44,14 @@ export interface CspInput {
   apiUrl: string;
   /** `next dev`: React's dev tools need eval. */
   dev: boolean;
+  /** NEXT_PUBLIC_SENTRY_DSN. Only its own host is allowed; unset means no Sentry host at all. */
+  sentryDsn?: string;
 }
 
 /** The policy as one header value. */
-export function buildCsp({ nonce, apiUrl, dev }: CspInput): string {
+export function buildCsp({ nonce, apiUrl, dev, sentryDsn }: CspInput): string {
   const api = apiOrigins(apiUrl);
+  const sentry = sentryIngestOrigin(sentryDsn);
   const directives: Array<[string, ...string[]]> = [
     ['default-src', "'self'"],
     [
@@ -70,7 +65,7 @@ export function buildCsp({ nonce, apiUrl, dev }: CspInput): string {
     ['style-src', "'self'", "'unsafe-inline'"],
     ['img-src', "'self'", 'data:', 'blob:', ...INSTAGRAM_IMAGES, ...RAZORPAY.img],
     ['font-src', "'self'"],
-    ['connect-src', "'self'", ...api, ...RAZORPAY.connect, ...SENTRY],
+    ['connect-src', "'self'", ...api, ...RAZORPAY.connect, ...(sentry ? [sentry] : [])],
     ['frame-src', ...RAZORPAY.frame],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],

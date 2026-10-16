@@ -15,6 +15,7 @@ export * from './age.js';
 export * from './payoutUpi.js';
 export * from './upiPay.js';
 export * from './realtime.js';
+export * from './scrub.js';
 export * from './invoices.js';
 export * from './schemas/index.js';
 

@@ -7,6 +7,17 @@ import {
 } from '@valueskins/shared';
 import { AppError } from '../errors/AppError.js';
 
+/** Marks a middleware with a name the route audit test can read (an arrow function has none). */
+export function tagged<T extends (...args: never[]) => unknown>(fn: T, guard: string): T {
+  return Object.assign(fn, { guard });
+}
+
+/** The tag of a guard or limiter, or the function's own name. */
+export function guardName(fn: unknown): string {
+  const tag = (fn as { guard?: unknown }).guard;
+  return typeof tag === 'string' ? tag : ((fn as { name?: string }).name ?? '');
+}
+
 export function requireUser(req: Request, _res: Response, next: NextFunction): void {
   if (!req.user) {
     next(new AppError('UNAUTHENTICATED', 401, 'Sign in required'));
@@ -16,7 +27,7 @@ export function requireUser(req: Request, _res: Response, next: NextFunction): v
 }
 
 export function requireRole(role: UserRole) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return tagged((req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       next(new AppError('UNAUTHENTICATED', 401, 'Sign in required'));
       return;
@@ -30,7 +41,7 @@ export function requireRole(role: UserRole) {
       return;
     }
     next();
-  };
+  }, `role:${role}`);
 }
 
 export function requireOnboarded(req: Request, _res: Response, next: NextFunction): void {

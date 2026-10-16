@@ -94,6 +94,9 @@ services:
         value: 'true'
       - key: AUTH_EMAIL_ENABLED
         value: 'true'
+      # Error reporting (SPEC 20). Leave blank to turn it off; the DSN comes from the Sentry project.
+      - key: SENTRY_DSN
+        sync: false
       - key: COMPANY_LEGAL_NAME
         value: Valueskins Private Limited
       - key: COMPANY_ADDRESS

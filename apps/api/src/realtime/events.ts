@@ -11,6 +11,7 @@ import {
 import { loadParties } from '../deals/dealView.js';
 import type { Deal } from '../deals/stateMachine.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { getRealtime } from './emitter.js';
 
 /** What every emit does on failure: log the id and the kind of error, and carry on. An emit never fails a request. */
@@ -19,6 +20,7 @@ function failed(what: string, dealId: string | null, error: unknown): void {
     { dealId, error: error instanceof Error ? error.message : 'unknown' },
     `realtime ${what} failed`,
   );
+  captureError(error, `realtime ${what}`);
 }
 
 /** `deal:updated` to everyone in the deal's room (SPEC 10). Only the id and the status travel. */

@@ -100,3 +100,21 @@ describe('deepRedact: UPI IDs', () => {
     });
   });
 });
+
+describe('deepRedact: text inside a string and errors', () => {
+  it('removes an email or a UPI ID inside a sentence', () => {
+    expect(deepRedact({ msg: 'payout to raj@okaxis failed for a@example.com' })).toEqual({
+      msg: 'payout to [REDACTED_UPI] failed for [REDACTED_EMAIL]',
+    });
+  });
+
+  it('keeps an Error as name, message and stack, scrubbed', () => {
+    const out = deepRedact({ err: new Error('failed for raj@okaxis') }) as {
+      err: { type: string; message: string; stack: string };
+    };
+    expect(out.err.type).toBe('Error');
+    expect(out.err.message).toBe('failed for [REDACTED_UPI]');
+    expect(out.err.stack).toContain('failed for [REDACTED_UPI]');
+    expect(out.err.stack).not.toContain('raj@okaxis');
+  });
+});

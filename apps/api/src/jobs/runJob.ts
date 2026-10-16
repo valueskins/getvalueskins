@@ -1,4 +1,5 @@
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { withAdvisoryLock } from './lock.js';
 import type { JobContext, JobCounts, JobDefinition, JobRunResult } from './types.js';
 
@@ -26,6 +27,7 @@ export async function runJob(job: JobDefinition, ctx: JobContext): Promise<JobRu
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     logger.error({ job: job.name, status: 'failed', durationMs, err: error }, 'job failed');
+    captureError(error, `job ${job.name}`);
     return { job: job.name, status: 'failed', durationMs, counts };
   }
 }

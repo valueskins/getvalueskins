@@ -131,6 +131,8 @@ Until the domain is verified, sends fail and are recorded as FAILED in the `emai
 5. Wait for the first deploy. The build installs, builds `packages/shared` and the API; the pre-deploy command then runs the database migrations; the service starts only when `/api/health` answers.
 6. Open the service page and copy its default address, for example `https://valueskins-api-staging.onrender.com`. Check `<that address>/api/health`: it must show `{"ok":true}`.
 
+**Migration 0011 (indexes).** It creates five indexes on `deals` (composite and partial, SPEC 15) and then drops the three single-column ones they replace. It only builds indexes, so it is safe to run while the app serves; on a large table it takes seconds.
+
 **Migration 0010 (one open dispute per deal).** It adds a unique index so a deal has at most one open dispute. Before it does, it marks every extra open dispute on the same deal as resolved with the resolution "Closed automatically when one open dispute per deal became the rule.", keeping the newest one open. Staging may have such rows from testing. Nothing is emailed, and the closed disputes are still listed in the admin views.
 
 If the deploy fails, open the **Logs** tab. A line starting `Invalid environment configuration` names the missing or wrong variable. A line starting `Startup guard failed` means a safety rule stopped the API on purpose (for example a live Razorpay key on staging, or `EMAIL_TRANSPORT=console` in production).
@@ -151,7 +153,7 @@ If the deploy fails, open the **Logs** tab. A line starting `Invalid environment
 6. Click **Deploy**. Then in **Settings > General**, set **Node.js Version** to `22.x`. In **Settings > Git**, check that **Production Branch** is `main`.
 7. **Settings > Domains > Add Domain:** `staging.valueskins.com`. Vercel shows a CNAME value for this project. Copy it for section 10.
 
-Variables starting `NEXT_PUBLIC_` are baked in at build time. After changing one, redeploy (**Deployments > ... > Redeploy**).
+Variables starting `NEXT_PUBLIC_` are baked in at build time. The web project also takes an optional `NEXT_PUBLIC_SENTRY_DSN` (section 12a). After changing one, redeploy (**Deployments > ... > Redeploy**).
 
 Pull request preview deployments on their own `*.vercel.app` address are build checks only: that address is not `WEB_ORIGIN`, the session cookie is set for `.valueskins.com`, and the Instagram callback sends you back to `WEB_ORIGIN`, so sign-in cannot work there. This is decided, not a gap: sign-in is tested on `staging.valueskins.com` only. To try a web branch with sign-in, serve it there for a while (section 9a).
 
@@ -226,6 +228,26 @@ Expected: `{"ok":true}`. A bad signature gives `403 INVALID_SIGNED_REQUEST`.
 Register it in section 6 step 4. To check it end to end, pay a commission (section 13 step 12) and watch the payment become `CAPTURED` from the webhook.
 
 Razorpay's dashboard shows each delivery and its response code. A healthy delivery answers `200`. A `400` means the signature did not match: the `RAZORPAY_WEBHOOK_SECRET` on Render and the secret in the webhook form differ. A processing problem does not change the `200`: it is recorded on the event row and emailed to `DISPUTE_EMAIL` (which is `SUPPORT_EMAIL` unless you set it) as an "Admin alert".
+
+## 12a. Sentry (optional, errors only)
+
+Sentry is off until you give it a DSN. It receives errors only: no performance data, no replays, no sessions. Before an event leaves, the user and IP, request headers, cookies, bodies and query strings, breadcrumbs, stack variables, emails, UPI IDs, bank-account-shaped numbers, PAN, IFSC and tokens are removed (`packages/shared/src/scrub.ts`; the same scrubber cleans the logs).
+
+1. In Sentry, create two projects: **Node.js** (the API) and **Next.js** (the web app). A DSN is a public ingest URL, not a secret; copy each.
+2. Render > the API service > **Environment**: `SENTRY_DSN` = the Node project's DSN. Save (it redeploys).
+3. Vercel > the web project > **Settings > Environment Variables**: `NEXT_PUBLIC_SENTRY_DSN` = the Next.js project's DSN. Redeploy the project (the value is baked in at build time).
+4. Check the API. In the Render **Shell**:
+
+   ```bash
+   pnpm --filter @valueskins/api exec node -e "import('./dist/observability/sentry.js').then(async (m) => { m.initSentry(process.env.SENTRY_DSN, 'staging'); m.captureError(new Error('Sentry test from DEPLOYMENT 12a'), 'manual test'); await m.flushSentry(); console.log('sent'); })"
+   ```
+
+   It prints `sent`, and the error appears in the Node project within a minute.
+
+5. Check the web app. Open `https://staging.valueskins.com`, the browser's developer tools, **Console**, and run `setTimeout(() => { throw new Error('Sentry web test') })`. The error appears in the Next.js project, and the console shows no "Content Security Policy" error.
+6. Open one of the events. It must show no email address, UPI ID, cookie, user or IP. If it does, turn Sentry off (blank both variables) and tell engineering.
+
+To turn it off: blank `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` and redeploy. See `docs/RUNBOOK.md` for what to do with the errors.
 
 ## 13. Verification run-through
 
@@ -539,6 +561,7 @@ Only one free Postgres can be active per Render workspace.
 | `COMMISSION_SAC_CODE`      | prompted                                                         | your CA (SPEC 21)                                                                                                                      |
 | `AUTH_EMAIL_ENABLED`       | `true`                                                           | `render.yaml`; staging and tests only, the API refuses `true` when `NODE_ENV=production`                                               |
 | `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
+| `SENTRY_DSN`               | optional, blank turns it off                                     | Sentry project settings (RUNBOOK). Errors only; personal data is removed before sending                                                |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
 
 **`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging (set in `render.yaml`) and in production (set in the production service's environment when it is created; there is no production blueprint yet). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
@@ -569,9 +592,10 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 - **Free database** has no backups and expires (section 17).
 - **OAuth state cookie** `vs_ig_oauth_state` has the same name in every environment, and staging and production will share the cookie domain `.valueskins.com`. Complete one sign-in at a time when testing both.
 - **Meta review** can require Business Verification; check the App Review requirements in the Meta dashboard.
-- **Content Security Policy.** The web app sends a CSP with a fresh nonce on every page (`apps/web/lib/csp.ts`, SPEC 18). Nothing to set: it reads `NEXT_PUBLIC_API_URL` for the API's `https` and `wss` origins. Its only third parties are Razorpay Checkout and Sentry's ingest hosts (`*.ingest.sentry.io`, `*.ingest.us.sentry.io`, `*.ingest.de.sentry.io`), plus Instagram's image CDNs for profile pictures. Razorpay does not publish a CSP list; the Razorpay hosts were found by opening Checkout with the policy in place. Because of the nonce, every page renders on request instead of being cached as a static file.
+- **Dependency advisories.** CI blocks on `pnpm audit --prod --audit-level critical` and reports the rest. The remaining advisories are in test and build tooling that never runs in production (vitest, vite, esbuild, Tailwind 3's `braces`) and are listed in `docs/RUNBOOK.md`.
+- **Content Security Policy.** The web app sends a CSP with a fresh nonce on every page (`apps/web/lib/csp.ts`, SPEC 18). Nothing to set: it reads `NEXT_PUBLIC_API_URL` for the API's `https` and `wss` origins. Its only third parties are Razorpay Checkout and, when `NEXT_PUBLIC_SENTRY_DSN` is set, the one host in that DSN (nothing for Sentry while it is unset), plus Instagram's image CDNs for profile pictures. Razorpay does not publish a CSP list; the Razorpay hosts were found by opening Checkout with the policy in place. Because of the nonce, every page renders on request instead of being cached as a static file.
   - **Check it on staging** (with section 9a, or after a merge): open `https://staging.valueskins.com`, then the browser's developer tools, **Console**. Pages show no "Content Security Policy" errors. Then run the fee step of section 13 step 11 (Razorpay test card): Checkout opens, the payment goes through, and the console still shows no CSP error. If Checkout is blocked, the error names the host and directive: add that host to `RAZORPAY` in `apps/web/lib/csp.ts` in a web fix.
-  - **Sentry** is not added yet (Prompt 17). When it is, narrow the Sentry hosts to the DSN's host.
+  - **Sentry** is in (section 12a). The policy allows exactly the host of `NEXT_PUBLIC_SENTRY_DSN`. If you change the Sentry project or region, change the DSN and redeploy the web project; the policy follows. A browser console error naming a `sentry.io` host means the DSN and the deployed build disagree.
 
 ## 20. Troubleshooting
 

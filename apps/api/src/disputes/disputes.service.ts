@@ -25,6 +25,7 @@ import { emailOf } from '../email/recipients.js';
 import { send } from '../email/send.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { consumeDisputeLimit } from '../rateLimit/limiters.js';
 import { emitDealUpdated } from '../realtime/events.js';
 
@@ -241,6 +242,7 @@ export async function raiseDispute(
       { disputeId: dispute.id, error: error instanceof Error ? error.message : 'unknown' },
       'dispute email failed',
     );
+    captureError(error, 'dispute email');
   }
 
   return disputeView({
@@ -349,6 +351,7 @@ export async function resolveDispute(
         { disputeId: resolved.id, error: error instanceof Error ? error.message : 'unknown' },
         'dispute resolved email failed',
       );
+      captureError(error, 'dispute resolved email');
     }
   }
 

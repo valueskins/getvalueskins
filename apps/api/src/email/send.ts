@@ -4,6 +4,7 @@ import { db } from '../db/client.js';
 import { emailLog } from '../db/schema/index.js';
 import type { Env } from '../env/index.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { withSupportFooter } from './footer.js';
 import { templateRegistry } from './templates/index.js';
 import { sendConsole } from './transports/consoleTransport.js';
@@ -137,6 +138,7 @@ async function deliver(
         .where(eq(emailLog.id, row.id));
     } catch (updateErr) {
       logger.error({ err: updateErr }, 'send(): failed to record email_log failure');
+      captureError(updateErr, 'email_log update');
     }
     return { status: 'FAILED', emailLogId: row.id };
   }

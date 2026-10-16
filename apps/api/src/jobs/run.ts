@@ -6,6 +6,8 @@
 // A module (not a script), so `main` does not clash with the one in db/seed.ts.
 export {};
 
+import '../instrument.js';
+
 async function main(): Promise<number> {
   const { JOBS, findJob } = await import('./registry.js');
   const arg = process.argv.slice(2).find((a) => a !== '--');
@@ -40,4 +42,6 @@ main()
   .finally(async () => {
     const { closeDb } = await import('../db/client.js');
     await closeDb();
+    const { flushSentry } = await import('../observability/sentry.js');
+    await flushSentry();
   });

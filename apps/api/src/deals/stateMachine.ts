@@ -9,6 +9,7 @@ import { db } from '../db/client.js';
 import { dealEvents, deals } from '../db/schema/index.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logging/logger.js';
+import { captureError } from '../observability/sentry.js';
 import { emitDealTransition } from '../realtime/events.js';
 
 export type Deal = typeof deals.$inferSelect;
@@ -117,6 +118,7 @@ export async function transitionDeal(input: TransitionDealInput): Promise<Deal> 
         { dealId, error: error instanceof Error ? error.message : 'unknown' },
         'deal afterCommit task failed',
       );
+      captureError(error, 'deal afterCommit task');
     }
   }
 
