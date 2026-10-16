@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #3b: Application not selected (SPEC 8) — sent to other applicants when the
+/** #3b: Application not selected (SPEC 8) - sent to other applicants when the
  * brand confirms someone else. */
 export function applicationNotSelectedTemplate(
   data: EmailTemplateDataMap['APPLICATION_NOT_SELECTED'],

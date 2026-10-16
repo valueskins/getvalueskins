@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #3: You were selected (SPEC 8) — sent to the creator when the brand confirms them. */
+/** #3: You were selected (SPEC 8) - sent to the creator when the brand confirms them. */
 export function youWereSelectedTemplate(
   data: EmailTemplateDataMap['YOU_WERE_SELECTED'],
 ): EmailContent {

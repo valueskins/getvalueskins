@@ -72,7 +72,7 @@ export const DIRECT_PAYMENT_NOT_PENDING =
   'This payment was already confirmed or marked as not received';
 export const CHECK_YOUR_UPI_APP = 'Check your UPI app and confirm if the money arrived.';
 
-// Payment CTAs (SPEC 5.5) — the amount varies per deal, so these are functions, not fixed strings.
+// Payment CTAs (SPEC 5.5) - the amount varies per deal, so these are functions, not fixed strings.
 export function payCommissionLabel(commissionTotalPaise: number): string {
   return `Pay commission: ${formatInr(commissionTotalPaise)}`;
 }

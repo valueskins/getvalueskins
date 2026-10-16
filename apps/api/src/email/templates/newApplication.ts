@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #2: New application (SPEC 8) — sent to the brand when a creator applies. */
+/** #2: New application (SPEC 8) - sent to the brand when a creator applies. */
 export function newApplicationTemplate(
   data: EmailTemplateDataMap['NEW_APPLICATION'],
 ): EmailContent {

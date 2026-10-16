@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #6: Content uploaded (SPEC 8) — sent to the brand when the creator uploads. */
+/** #6: Content uploaded (SPEC 8) - sent to the brand when the creator uploads. */
 export function contentUploadedTemplate(
   data: EmailTemplateDataMap['CONTENT_UPLOADED'],
 ): EmailContent {

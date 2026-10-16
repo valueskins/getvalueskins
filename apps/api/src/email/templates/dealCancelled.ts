@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #11: Deal cancelled (SPEC 8) — sent to the brand, and to the creator if confirmed. */
+/** #11: Deal cancelled (SPEC 8) - sent to the brand, and to the creator if confirmed. */
 export function dealCancelledTemplate(data: EmailTemplateDataMap['DEAL_CANCELLED']): EmailContent {
   const feeLine = data.commissionKept ? 'The fee already paid was kept.' : 'No fee was charged.';
   const subject = `Deal cancelled: ${data.dealTitle}`;

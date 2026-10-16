@@ -1,7 +1,7 @@
 import type { EmailContent, EmailTemplateDataMap } from '../types.js';
 import { escapeHtml, renderHtml } from './layout.js';
 
-/** #14: Review reminder (SPEC 8) — sent to the brand daily after 3 days in CONTENT_UPLOADED. */
+/** #14: Review reminder (SPEC 8) - sent to the brand daily after 3 days in CONTENT_UPLOADED. */
 export function reviewReminderTemplate(
   data: EmailTemplateDataMap['REVIEW_REMINDER'],
 ): EmailContent {
