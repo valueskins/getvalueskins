@@ -31,6 +31,36 @@ export function emitDealUpdated(deal: { id: string; status: DealStatus }): void 
   }
 }
 
+/** The deal fields `deal:summary` needs: who its two parties are. */
+type DealParties = { id: string; status: DealStatus; brandId: string; creatorId: string | null };
+
+/**
+ * `deal:summary` to the brand's and the confirmed creator's own rooms (SPEC 10), so their lists
+ * (Campaigns, My deals, Applications) re-read without joining every deal's room. Only the id and the
+ * status travel, as in `deal:updated`.
+ */
+export function emitDealSummary(deal: DealParties): void {
+  try {
+    const payload = dealStatusPayloadSchema.parse({ id: deal.id, status: deal.status });
+    const rooms = deal.creatorId ? [deal.brandId, deal.creatorId] : [deal.brandId];
+    for (const userId of rooms) {
+      getRealtime().emit(userRoom(userId), REALTIME_EVENTS.DEAL_SUMMARY, payload);
+    }
+  } catch (error) {
+    failed('deal:summary', deal.id, error);
+  }
+}
+
+/**
+ * A change on the deal that is not a status change (a direct payment recorded or marked not
+ * received, a fee kept on a changed deal): `deal:updated` to its room and `deal:summary` to its two
+ * parties.
+ */
+export function emitDealChanged(deal: DealParties): void {
+  emitDealUpdated(deal);
+  emitDealSummary(deal);
+}
+
 /** `deal:new` to the creators' feed, built from an explicit allowlist and never from the whole row. */
 async function emitDealNew(deal: Deal): Promise<void> {
   const brand = (await loadParties([deal.brandId])).get(deal.brandId);
@@ -49,7 +79,7 @@ async function emitDealNew(deal: Deal): Promise<void> {
 
 /**
  * Called once per committed transition, from `transitionDeal` (SPEC 10): `deal:updated` to the
- * deal's room always, `deal:new` when a draft is published, and `deal:closed` when a deal leaves
+ * deal's room and `deal:summary` to its parties always, `deal:new` when a draft is published, and `deal:closed` when a deal leaves
  * OPEN (confirmed or cancelled), so it drops out of creators' feeds. Each emit is isolated, so one
  * failing does not stop the others.
  */
@@ -60,6 +90,7 @@ export async function emitDealTransition(input: {
 }): Promise<void> {
   const { from, to, deal } = input;
   emitDealUpdated(deal);
+  emitDealSummary(deal);
 
   if (from === 'DRAFT' && to === 'OPEN') {
     try {

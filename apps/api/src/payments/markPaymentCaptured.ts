@@ -1,8 +1,19 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { isUniqueViolation } from '../db/pgErrors.js';
-import { payments } from '../db/schema/index.js';
+import {
+  FEE_CAPTURED_DEAL_CHANGED_ALERT,
+  PAYMENT_COULD_NOT_BE_CONFIRMED,
+  PAYMENT_NOT_CONFIRMED_YET,
+  type DealStatus,
+} from '@valueskins/shared';
+import { deals, payments } from '../db/schema/index.js';
 import { findDeal } from '../deals/access.js';
+import { feeCapturedOnChangedDeal, recordFeeCapturedOnChangedDeal } from '../deals/dealEvents.js';
+import { emailOf } from '../email/recipients.js';
+import { send } from '../email/send.js';
+import { logger } from '../logging/logger.js';
+import { emitDealChanged } from '../realtime/events.js';
 import { transitionDeal, type AfterCommitTask, type Deal, type Tx } from '../deals/stateMachine.js';
 import { AppError } from '../errors/AppError.js';
 import { issueInvoice } from '../invoices/issueInvoice.js';
@@ -58,15 +69,19 @@ export async function markPaymentCaptured(
     throw new AppError(
       'PAYMENT_NOT_CAPTURED',
       409,
-      `The payment is ${remote.status}, not captured`,
+      PAYMENT_NOT_CONFIRMED_YET,
+      undefined,
+      `Payment ${paymentId} for order ${orderId} is ${remote.status} at Razorpay, not captured.`,
     );
   }
   if (remote.amount !== row.amountPaise || remote.currency !== 'INR') {
-    // Nothing is recorded. The webhook path records the error and alerts the admin (A1) through
-    // processWebhookEvent; the verify route sends the alert itself.
+    // Nothing is recorded. The webhook path records the detail on the event and alerts the admin
+    // (A1) through processWebhookEvent; the verify route sends the alert itself.
     throw new AppError(
       'PAYMENT_AMOUNT_MISMATCH',
       409,
+      PAYMENT_COULD_NOT_BE_CONFIRMED,
+      undefined,
       `Order ${orderId}, payment ${paymentId}: Razorpay captured ${remote.amount} ${remote.currency}, ` +
         `the order was for ${row.amountPaise} INR. Nothing was recorded.`,
     );
@@ -148,8 +163,10 @@ async function recordCapture(
 
 /**
  * The money was taken but the deal is not in the status this payment moves it from (for
- * example the brand cancelled while Checkout was open). The payment is recorded as it
- * happened, the deal is left alone, and the admin is told to refund it by hand (SPEC 12).
+ * example the brand cancelled while Checkout was open). The payment is recorded as CAPTURED, the
+ * deal is left alone, and a deal event marks it, in one transaction (SPEC 7.3). Only the caller
+ * that recorded it then tells the admin to refund it by hand (A1) and emails the brand (#21); the
+ * verify route answers FEE_CAPTURED_DEAL_CHANGED from the event.
  */
 async function recordWithoutTransition(
   deps: PaymentsDeps,
@@ -157,6 +174,7 @@ async function recordWithoutTransition(
   paymentId: string,
   fees: CaptureFees,
 ): Promise<CaptureResult> {
+  let status: DealStatus;
   try {
     const outcome = await db.transaction(async (tx) => {
       const [locked] = await tx
@@ -165,29 +183,44 @@ async function recordWithoutTransition(
         .where(eq(payments.id, row.id))
         .for('update')
         .limit(1);
-      if (!locked || locked.status === 'CAPTURED') return 'already' as const;
+      if (!locked || locked.status === 'CAPTURED') return null;
       await recordCapture(tx, row, paymentId, deps.now(), fees);
-      return 'recorded' as const;
+      const [deal] = await tx
+        .select({ status: deals.status })
+        .from(deals)
+        .where(eq(deals.id, row.dealId))
+        .limit(1);
+      if (!deal) throw new Error(`payment ${row.id} has no deal`);
+      await recordFeeCapturedOnChangedDeal(tx, {
+        dealId: row.dealId,
+        status: deal.status,
+        paymentId: row.id,
+      });
+      return deal.status;
     });
-    if (outcome === 'already') return { kind: 'already_captured' };
+    if (outcome === null) return { kind: 'already_captured' };
+    status = outcome;
   } catch (error) {
     if (error instanceof AlreadyCaptured) return { kind: 'already_captured' };
     if (isUniqueViolation(error)) return recordDuplicate(deps, row, paymentId);
     throw error;
   }
 
-  const current = await findDeal(row.dealId);
-  await alertAdmin(
-    deps.env,
-    'Payment captured on a deal that cannot take it',
-    `Payment ${paymentId} (${row.type}, ${row.amountPaise} paise) for deal ${current?.shortId ?? row.dealId} ` +
-      `was captured while the deal was ${current?.status ?? 'missing'}. The deal was not changed. ` +
-      'Refund it manually in Razorpay.',
+  await afterChangedDealCapture(
+    deps,
+    row,
+    `Payment ${paymentId} (${row.type}, ${row.amountPaise} paise) was captured while the deal was ` +
+      `${status}. The payment is kept as CAPTURED and the deal was not changed. Refund it by hand in Razorpay.`,
   );
   return { kind: 'captured', dealMoved: false };
 }
 
-/** A second captured payment for the same deal and type. It cannot be stored as CAPTURED. */
+/**
+ * A second captured payment for the same deal and type. It cannot be stored as CAPTURED (one
+ * captured fee per deal), so it is marked FAILED for a refund. To the brand it is the same case as
+ * a changed deal: the money went through and will be refunded, so it gets the same event, email
+ * and verify answer, once.
+ */
 async function recordDuplicate(
   deps: PaymentsDeps,
   row: PaymentRow,
@@ -207,18 +240,81 @@ async function recordDuplicate(
     .limit(1);
   if (!other) throw new Error(`payment ${row.id} hit a capture conflict with no other payment`);
 
-  await db
-    .update(payments)
-    .set({
-      status: 'FAILED',
-      failureReason: 'Duplicate capture of the same payment type. Refund it.',
-    })
-    .where(eq(payments.id, row.id));
-  await alertAdmin(
-    deps.env,
-    'Duplicate payment captured',
+  const first = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: payments.id })
+      .from(payments)
+      .where(eq(payments.id, row.id))
+      .for('update')
+      .limit(1);
+    if (!locked) return false;
+    await tx
+      .update(payments)
+      .set({
+        status: 'FAILED',
+        razorpayPaymentId: paymentId,
+        failureReason: 'Duplicate capture of the same payment type. Refund it.',
+      })
+      .where(eq(payments.id, row.id));
+    if (await feeCapturedOnChangedDeal(row.dealId, row.id, tx)) return false;
+    const [deal] = await tx
+      .select({ status: deals.status })
+      .from(deals)
+      .where(eq(deals.id, row.dealId))
+      .limit(1);
+    await recordFeeCapturedOnChangedDeal(tx, {
+      dealId: row.dealId,
+      status: deal?.status ?? 'CANCELLED',
+      paymentId: row.id,
+    });
+    return true;
+  });
+  if (!first) return { kind: 'already_captured' };
+
+  await afterChangedDealCapture(
+    deps,
+    row,
     `Payment ${paymentId} (${row.type}, ${row.amountPaise} paise) was captured for deal ${row.dealId}, ` +
-      'which already has a captured payment of that type. Refund it manually in Razorpay.',
+      'which already has a captured payment of that type. It is marked FAILED. Refund it by hand in Razorpay.',
   );
   return { kind: 'already_captured' };
 }
+
+/**
+ * After a fee was kept on a deal that had changed: alert A1 to refund it by hand, email #21 to the
+ * brand, and tell both parties' open pages (SPEC 7.3, 8, 10). A failed send never undoes the record.
+ */
+async function afterChangedDealCapture(
+  deps: PaymentsDeps,
+  row: PaymentRow,
+  details: string,
+): Promise<void> {
+  const deal = await findDeal(row.dealId);
+  try {
+    await alertAdmin(
+      deps.env,
+      FEE_CAPTURED_DEAL_CHANGED_ALERT,
+      `Deal ${deal?.shortId ?? row.dealId}: ${details}`,
+    );
+  } catch (error) {
+    logger.error({ dealId: row.dealId, error: errorName(error) }, 'fee alert failed');
+  }
+  if (!deal) return;
+  try {
+    const to = await emailOf(deal.brandId);
+    if (to) {
+      await send(
+        'FEE_CAPTURED_DEAL_CHANGED',
+        to,
+        { dealShortId: deal.shortId, dealTitle: deal.title ?? '', amountPaise: row.amountPaise },
+        deps.env,
+        { dealId: deal.id, userId: deal.brandId },
+      );
+    }
+  } catch (error) {
+    logger.error({ dealId: deal.id, error: errorName(error) }, 'fee refund email failed');
+  }
+  emitDealChanged(deal);
+}
+
+const errorName = (error: unknown) => (error instanceof Error ? error.message : 'unknown');

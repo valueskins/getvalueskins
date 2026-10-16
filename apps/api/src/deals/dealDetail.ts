@@ -112,9 +112,7 @@ async function listFeedbackHistory(dealId: string): Promise<DealDetail['feedback
       ),
     )
     .orderBy(asc(dealEvents.createdAt), asc(dealEvents.id));
-  return rows.flatMap((r) =>
-    r.note ? [{ feedback: r.note, at: r.createdAt.toISOString() }] : [],
-  );
+  return rows.flatMap((r) => (r.note ? [{ feedback: r.note, at: r.createdAt.toISOString() }] : []));
 }
 
 /** The GET /deals/:id body for a viewer who is allowed to see the deal (SPEC 16). */

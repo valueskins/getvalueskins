@@ -14,6 +14,7 @@ export interface EmailTemplateDataMap {
   APPLICATION_NOT_SELECTED: { dealShortId: string; dealTitle: string };
   COMMISSION_PAID_BRAND: { dealShortId: string; dealTitle: string; commissionTotalPaise: number };
   COMMISSION_PAID_CREATOR: { dealShortId: string; dealTitle: string };
+  FEE_CAPTURED_DEAL_CHANGED: { dealShortId: string; dealTitle: string; amountPaise: number };
   ADVANCE_PAID: { dealShortId: string; dealTitle: string; advancePaise: number };
   DIRECT_PAYMENT_RECORDED: {
     dealShortId: string;

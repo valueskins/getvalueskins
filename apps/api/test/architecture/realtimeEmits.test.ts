@@ -32,10 +32,15 @@ describe('who may send realtime events', () => {
     expect(using(/setRealtime\(/)).toEqual(['realtime/emitter.ts', 'realtime/server.ts']);
   });
 
-  it('only the three service points send deal:updated and application:new outside a transition', () => {
+  it('only the named service points send deal:updated, deal:summary and application:new outside a transition', () => {
     expect(using(/emitDealUpdated\(/)).toEqual([
-      'directPayments/directPayments.service.ts',
       'disputes/disputes.service.ts',
+      'realtime/events.ts',
+    ]);
+    expect(using(/emitDealSummary\(/)).toEqual(['realtime/events.ts']);
+    expect(using(/emitDealChanged\(/)).toEqual([
+      'directPayments/directPayments.service.ts',
+      'payments/markPaymentCaptured.ts',
       'realtime/events.ts',
     ]);
     expect(using(/emitApplicationNew\(/)).toEqual([
