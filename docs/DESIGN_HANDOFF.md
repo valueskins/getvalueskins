@@ -152,7 +152,7 @@ Board names are the canvas file names. Routes are suggestions.
 | Deals          | AdDeals, AdDealsEmpty        | `/admin/deals`         | `GET /admin/deals?status=&q=&cursor=`                                                                                     |
 | Deal detail    | AdDeal, AdDealCancel         | `/admin/deals/[id]`    | `GET /admin/deals/:id`, `POST /admin/emails/:id/resend`, `POST /admin/deals/:id/cancel`, `GET /deals/:id/documents/:kind` |
 | Disputes       | AdDisputes                   | `/admin/disputes`      | `GET /admin/disputes?status=`                                                                                             |
-| Dispute detail | AdDispute, AdDisputeResolved | `/admin/disputes/[id]` | from the list item or `GET /admin/deals/:id` (there is no single-dispute endpoint), `POST /admin/disputes/:id/resolve`    |
+| Dispute detail | AdDispute, AdDisputeResolved | `/admin/disputes/[id]` | `GET /admin/disputes/:id`, `GET /admin/deals/:id` for the deal at the side, `POST /admin/disputes/:id/resolve`            |
 
 ### Status labels
 
@@ -192,7 +192,7 @@ The 9 steps are Posted, Creator confirmed, Fee paid, Advance confirmed, Content 
   - Publish checks the fields and either shows the errors or opens the confirm.
 - **Applying:** a confirm step comes first, because an application cannot be withdrawn.
 - **UPI payment:** "Pay with UPI app" uses `upiUri`. The QR code is drawn from the same `upiUri` with the `qrcode` package, loaded only on that step.
-- **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. There is no total count.
+- **Pagination:** cursor based. Use "Show more" on feeds and lists, and Previous and Next on admin tables. Only the admin deals list has a total count (`total`); the disputes list has none, so its tabs show no counts.
 - **Sample data:** one consistent story runs through every board (Festive kurta try-on reel, `8K2M4QXZ`, @urbanthreads.in and @riya.eats, ₹10,000.00, 1 to 11 Oct 2026). It is sample data only. Every amount comes from `computeBreakdown`.
 
 ## 6. Checked before handoff
