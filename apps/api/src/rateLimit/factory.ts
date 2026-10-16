@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { RateLimiterPostgres, type RateLimiterRes } from 'rate-limiter-flexible';
 import { pool } from '../db/client.js';
+import { tagged } from '../auth/guards.js';
 import { AppError } from '../errors/AppError.js';
 
 export interface RateLimiterOptions {
@@ -49,14 +50,14 @@ function toLimitError(
 export function createRateLimiter(opts: RateLimiterOptions) {
   const limiter = buildLimiter(opts);
 
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return tagged(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await limiter.consume(opts.keyFn(req));
       next();
     } catch (rejOrErr) {
       next(toLimitError(rejOrErr, res, opts.error));
     }
-  };
+  }, `rateLimit:${opts.keyPrefix}`);
 }
 
 /**
