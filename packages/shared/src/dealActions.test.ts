@@ -65,7 +65,12 @@ describe('computeDealActions: brand owner', () => {
 
   it('DRAFT: publish is disabled while posting is closed, before any other reason, and drafts still work', () => {
     expect(
-      summary({ status: 'DRAFT', postingOpen: false, hasBilling: false, publishIssues: ['Add a title'] }),
+      summary({
+        status: 'DRAFT',
+        postingOpen: false,
+        hasBilling: false,
+        publishIssues: ['Add a title'],
+      }),
     ).toEqual([
       ['EDIT_DRAFT', true, null],
       ['DELETE_DRAFT', true, null],

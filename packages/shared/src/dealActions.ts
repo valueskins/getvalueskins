@@ -140,7 +140,9 @@ function brandActions(input: DealActionsInput): DealActionState[] {
 
   const actions: DealActionState[] = [];
   if (status === 'CONFIRMED') {
-    actions.push(input.paymentsOpen ? on('PAY_COMMISSION') : off('PAY_COMMISSION', PAYMENTS_NOT_OPEN));
+    actions.push(
+      input.paymentsOpen ? on('PAY_COMMISSION') : off('PAY_COMMISSION', PAYMENTS_NOT_OPEN),
+    );
   }
   if (status === 'COMMISSION_PAID') actions.push(payAction('PAY_ADVANCE', input));
   if (status === 'APPROVED') actions.push(payAction('PAY_FINAL', input));

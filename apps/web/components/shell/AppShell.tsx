@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
 import { focusables, trapTab } from '@/components/ui/focus';
+import { LaunchBanner } from './LaunchBanner';
 import { SkipLink } from './SkipLink';
 import { useSignOut } from './useSignOut';
 
@@ -292,7 +293,10 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
           postDeal={me.user.role === 'BRAND'}
         />
       </header>
-      <main id="main">{children}</main>
+      <main id="main">
+        <LaunchBanner role={me.user.role} />
+        {children}
+      </main>
     </>
   );
 }

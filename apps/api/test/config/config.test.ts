@@ -104,7 +104,9 @@ describe('GET /api/config', () => {
         RAZORPAY_WEBHOOK_SECRET: '',
       });
       const administrator = await createUserWithSession({ isAdmin: true });
-      const res = await request(createApp(env)).get('/api/config').set('Cookie', administrator.cookie);
+      const res = await request(createApp(env))
+        .get('/api/config')
+        .set('Cookie', administrator.cookie);
       expect(res.body).toMatchObject({ paymentsOpen: false, postingOpen: false });
     });
   });

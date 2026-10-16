@@ -1,4 +1,8 @@
-import { GST_RATE_BPS as DEFAULT_GST_RATE_BPS, LAUNCH_MODES, type LaunchMode } from '@valueskins/shared';
+import {
+  GST_RATE_BPS as DEFAULT_GST_RATE_BPS,
+  LAUNCH_MODES,
+  type LaunchMode,
+} from '@valueskins/shared';
 import { z } from 'zod';
 
 const requiredString = z.string().min(1);

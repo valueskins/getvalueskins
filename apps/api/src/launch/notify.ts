@@ -11,7 +11,10 @@ export type LaunchAudience = (typeof LAUNCH_AUDIENCES)[number];
 
 const AUDIENCES: Record<
   LaunchAudience,
-  { role: 'BRAND' | 'CREATOR'; template: Extract<EmailTemplate, 'LAUNCH_BRANDS' | 'LAUNCH_CREATORS'> }
+  {
+    role: 'BRAND' | 'CREATOR';
+    template: Extract<EmailTemplate, 'LAUNCH_BRANDS' | 'LAUNCH_CREATORS'>;
+  }
 > = {
   brands: { role: 'BRAND', template: 'LAUNCH_BRANDS' },
   creators: { role: 'CREATOR', template: 'LAUNCH_CREATORS' },
