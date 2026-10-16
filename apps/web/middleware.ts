@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildCsp, makeNonce } from './lib/csp';
+import { sentryDsn } from './lib/sentryDsn';
 
 /**
  * Sets the Content Security Policy with a fresh nonce on every page (lib/csp.ts). Next.js
@@ -11,6 +12,7 @@ export function middleware(request: NextRequest) {
     nonce: makeNonce(),
     apiUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
     dev: process.env.NODE_ENV === 'development',
+    sentryDsn: sentryDsn(),
   });
   const headers = new Headers(request.headers);
   headers.set('Content-Security-Policy', csp);
