@@ -119,7 +119,8 @@ export function scrubSentryEvent<T extends EventLike>(event: T): T {
           stacktrace: {
             ...stacktrace,
             frames: stacktrace.frames.map((frame) => {
-              const { vars: _vars, ...rest } = asRecord(frame) ?? {};
+              const rest = { ...(asRecord(frame) ?? {}) };
+              delete rest.vars;
               return rest;
             }),
           },

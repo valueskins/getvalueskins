@@ -78,6 +78,13 @@
       "when": 1791973981559,
       "tag": "0010_one_open_dispute",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792143811466,
+      "tag": "0011_hot_query_indexes",
+      "breakpoints": true
     }
   ]
 }

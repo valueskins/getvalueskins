@@ -24,7 +24,7 @@ import {
  */
 
 const ctx = e2eApp();
-const { env, app, call } = ctx;
+const { env, call } = ctx;
 const msw = setupServer(...instagramHandlers());
 const razorpay = newOrdersState();
 let actors: Actors;
