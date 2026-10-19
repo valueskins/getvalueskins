@@ -1,12 +1,14 @@
-# Render Blueprint for STAGING (api-staging.valueskins.com). See docs/DEPLOYMENT.md.
+# Render Blueprint for STAGING (api-staging.valueskins.com) and PRODUCTION
+# (api.valueskins.com). See docs/DEPLOYMENT.md (staging: sections 1 to 20,
+# production: section 21) and docs/CUTOVER.md.
 #
-# Production gets its own Blueprint or services later: a paid Postgres plan with
-# backups (SPEC 2), NODE_ENV=production, live Razorpay keys, ENABLE_DEV_LOGIN=false
-# (or removed), EMAIL_TRANSPORT=resend, COOKIE_DOMAIN=.valueskins.com and
-# SESSION_COOKIE_NAME=vs_session. Do not copy this file over for production unchanged.
+# Applying this Blueprint creates every resource below, staging and production.
 #
 # Variables marked `sync: false` are prompted for in the dashboard when the
-# Blueprint is first applied. Secrets never live in this file.
+# Blueprint is first applied (or when a service is added to it), and are then owned
+# by the dashboard: a later Blueprint sync leaves them alone. A variable with a
+# `value:` is reset to that value by every sync, so never change one of those by hand.
+# Secrets never live in this file.
 
 databases:
   - name: valueskins-staging-db
@@ -16,6 +18,17 @@ databases:
     region: singapore
     postgresMajorVersion: '16'
     # Internal connections only. Seed through Render Shell on the API service.
+    ipAllowList: []
+
+  - name: valueskins-db
+    # PRODUCTION. A paid plan, so Render backs it up continuously (point-in-time recovery
+    # plus daily logical backups, nothing to switch on). How far back you can recover
+    # depends on the Render workspace plan: 3 days on Hobby, 7 days on Pro and above.
+    # See docs/DEPLOYMENT.md section 21 and docs/RUNBOOK.md section 7.
+    plan: 0.5c-1g
+    region: singapore
+    postgresMajorVersion: '16'
+    # Internal connections only. The production database is never seeded.
     ipAllowList: []
 
 services:
@@ -115,4 +128,111 @@ services:
         value: 'on'
       - key: DEAL_POSTING_MODE
         value: 'on'
+      # TEST_DATABASE_URL is omitted on purpose: Vitest-only, defaults to empty.
+
+  # PRODUCTION. Starts closed: PAYMENTS_MODE and DEAL_POSTING_MODE are entered as `off`,
+  # and no Razorpay variable is set (there are no live keys until the bank account is
+  # ready). To open them later, change the two modes in the dashboard and restart
+  # (docs/DEPLOYMENT.md section 16a). Do not give them a `value:` here: a Blueprint sync
+  # would reset it.
+  - type: web
+    name: valueskins-api
+    runtime: node
+    # Paid and always-on, like staging.
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    # Deployed by hand (Render: Manual Deploy), after staging has shown the change works.
+    # The pre-deploy step below migrates the production database, so this also decides
+    # when that happens.
+    autoDeployTrigger: 'off'
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/shared/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.base.json
+        - render.yaml
+    # --prod=false: installs devDependencies (typescript) even if NODE_ENV=production.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter "./packages/*" run build && pnpm --filter @valueskins/api run build
+    preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy
+    startCommand: pnpm --filter @valueskins/api run start
+    healthCheckPath: /api/health
+    domains:
+      - api.valueskins.com
+    envVars:
+      # PORT is injected by Render (default 10000) and is intentionally not listed.
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: valueskins-db
+          property: connectionString
+      # Enter https://next.valueskins.com while production is being checked, then
+      # https://valueskins.com at the switch (docs/CUTOVER.md step C2). No trailing slash.
+      - key: WEB_ORIGIN
+        sync: false
+      - key: COOKIE_DOMAIN
+        value: .valueskins.com
+      - key: SESSION_COOKIE_NAME
+        value: vs_session
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      # The same Meta app as the live app (docs/REPLACEMENT_PLAN.md section 1).
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: INSTAGRAM_APP_SECRET
+        sync: false
+      - key: INSTAGRAM_REDIRECT_URI
+        value: https://api.valueskins.com/api/auth/instagram/callback
+      - key: META_APP_SECRET
+        sync: false
+      # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET are left out on
+      # purpose while PAYMENTS_MODE is off. When payments open, add all three with the live
+      # keys (docs/DEPLOYMENT.md section 16a); the API refuses to start without them.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: 'ValueSkins <notifications@valueskins.com>'
+      - key: EMAIL_TRANSPORT
+        value: resend
+      # Enter `none` at first, then the admins' Instagram user ids, comma-separated.
+      - key: ADMIN_INSTAGRAM_USER_IDS
+        sync: false
+      # The address users write to. DISPUTE_EMAIL is omitted on purpose: it defaults to this.
+      - key: SUPPORT_EMAIL
+        value: founder@valueskins.com
+      # The variable must exist, and a startup guard refuses `true` in production.
+      - key: ENABLE_DEV_LOGIN
+        value: 'false'
+      - key: AUTH_EMAIL_ENABLED
+        value: 'false'
+      # Error reporting (SPEC 20). The Node.js project's DSN from Sentry. Leave blank to turn it off.
+      - key: SENTRY_DSN
+        sync: false
+      - key: COMPANY_LEGAL_NAME
+        value: Valueskins Private Limited
+      - key: COMPANY_ADDRESS
+        sync: false
+      - key: COMPANY_STATE
+        sync: false
+      # GST is charged (REPLACEMENT_PLAN 2.2), so a startup guard requires the GSTIN even
+      # while payments are off.
+      - key: COMPANY_GSTIN
+        sync: false
+      - key: COMMISSION_SAC_CODE
+        sync: false
+      - key: GST_RATE_BPS
+        value: '1800'
+      # Launch gates (SPEC 19): enter `off` for both. Change them in the dashboard to open.
+      - key: PAYMENTS_MODE
+        sync: false
+      - key: DEAL_POSTING_MODE
+        sync: false
       # TEST_DATABASE_URL is omitted on purpose: Vitest-only, defaults to empty.

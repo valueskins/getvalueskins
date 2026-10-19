@@ -1,6 +1,6 @@
 # Staging deployment
 
-Every manual step to put staging on the internet, in order. Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
+Every manual step to put staging on the internet, in order. **Production is section 21**, and the order of the switch from the live app is in `docs/CUTOVER.md`. Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
 
 Dashboard menu names change often. Where a name below could not be checked against the current dashboard, it says "look for". The values and URLs are exact.
 
@@ -585,7 +585,7 @@ Only one free Postgres can be active per Render workspace.
 | `ADMIN_INSTAGRAM_USER_IDS` | prompted (`none`, then your id)                                  | section 14                                                                                                                             |
 | `SUPPORT_EMAIL`            | `founder@valueskins.com`                                         | `render.yaml`. Required, with no default anywhere. The one address users write to: every email footer, the reply-to and error messages |
 | `DISPUTE_EMAIL`            | omitted (defaults to `SUPPORT_EMAIL`)                            | optional: where disputes and admin alerts go, if not the support address                                                               |
-| `ENABLE_DEV_LOGIN`         | `true`                                                           | `render.yaml`; must be false or absent in production                                                                                   |
+| `ENABLE_DEV_LOGIN`         | `true`                                                           | `render.yaml`; the variable is required, and must be `false` in production (section 21)                                                |
 | `COMPANY_LEGAL_NAME`       | `Valueskins Private Limited`                                     | `render.yaml`                                                                                                                          |
 | `COMPANY_ADDRESS`          | prompted                                                         | you                                                                                                                                    |
 | `COMPANY_STATE`            | prompted                                                         | you                                                                                                                                    |
@@ -600,7 +600,7 @@ Only one free Postgres can be active per Render workspace.
 
 **Razorpay keys.** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` may be left out while `PAYMENTS_MODE=off`. When a key id is set it must match the environment (`rzp_test_` outside production, `rzp_live_` in production).
 
-**`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging (set in `render.yaml`) and in production (set in the production service's environment when it is created; there is no production blueprint yet). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
+**`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging and in production (set in `render.yaml` for both). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
 
 ### Vercel, project `valueskins-staging-web`
 
@@ -658,3 +658,145 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 | `/dev/login` is a 404                                                                      | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` is not `true` for that build. Set it and redeploy.                                                                                                                                             |
 | The console shows "Refused to ... because it violates the Content Security Policy"         | A host the page needs is not in `apps/web/lib/csp.ts`. The message names the host and the directive. For Razorpay, add it to `RAZORPAY`; for the API, check `NEXT_PUBLIC_API_URL` on Vercel.                                  |
 | `/admin/deals` is a 404 for your admin account                                             | Your Instagram user id is not in `ADMIN_INSTAGRAM_USER_IDS`, or you have not signed in again since it was set (section 14).                                                                                                   |
+
+## 21. Production
+
+Production is `valueskins.com` (web) and `api.valueskins.com` (API). It goes live **closed**: `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`, with no Razorpay variable set, because the company bank account and the live Razorpay account are not ready. Brands can set up a profile and billing and save drafts; Publish and the fee show a reason. No data is imported from the live app. This section holds every setting and who provides it. The order of the switch, the checks and the rollback are in `docs/CUTOVER.md`. Nothing here is done by code: `render.yaml` describes the Render side, and you click through the dashboards.
+
+### 21.1 What you are building
+
+| Piece           | URL                                  | Where it runs                                                    | Deploys from                                     |
+| --------------- | ------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
+| Web (Next.js)   | `https://valueskins.com`             | Vercel, a new project (for example `valueskins-web`)             | `main`, root directory `apps/web`, on each merge |
+| API (Express)   | `https://api.valueskins.com`         | Render web service `valueskins-api` (paid, always-on, Singapore) | `main`, **by hand** (Manual Deploy)              |
+| Database        | internal only                        | Render Postgres `valueskins-db` (paid plan `0.5c-1g`, Singapore) | created by the Blueprint                         |
+| Email           | from `notifications@valueskins.com`  | Resend                                                           | -                                                |
+| Payments        | not connected                        | no Razorpay variable is set until payments open (section 16a)    | -                                                |
+| Instagram login | everyone with a Professional account | the same Meta app the live app uses, in Live mode                | -                                                |
+| Errors          | -                                    | Sentry, two production projects (Node.js and Next.js)            | -                                                |
+
+Cookies: the web app and the API are both under `valueskins.com`, so the session cookie (`vs_session`, domain `.valueskins.com`, Secure, SameSite=Lax) is sent between them.
+
+**Who is who.** The names are the roles used in `docs/CUTOVER.md`: **Engineer** (maintains this repo and runs Render), **Saketh** (maintains the live app and, if it is his, the Meta app), **Founders** (decide, and hold the company records and the support mailbox), **DNS owner** (the Cloudflare account for `valueskins.com`), and **the CA** (the company's chartered accountant, for tax details).
+
+### 21.2 Every value, where it comes from, and who provides it
+
+**Render, API service `valueskins-api`.** A value marked "file" is written in `render.yaml` and is reset to that value by every Blueprint sync, so never change it by hand. A value marked "prompted" is `sync: false`: Render asks for it once, when the Blueprint is applied, and the dashboard owns it afterwards.
+
+| Variable                   | Value                                                            | Where it comes from                                                                                                                                                                          | Who provides it                                    |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `NODE_VERSION`             | `22` (file)                                                      | `render.yaml`                                                                                                                                                                                | Engineer                                           |
+| `NODE_ENV`                 | `production` (file)                                              | `render.yaml`. Turns on the production startup guards                                                                                                                                        | Engineer                                           |
+| `DATABASE_URL`             | the internal connection string of `valueskins-db` (file)         | Render fills it in from the database                                                                                                                                                         | Render, automatic                                  |
+| `WEB_ORIGIN`               | prompted: `https://next.valueskins.com`                          | The address people use for the web app, no trailing slash. It is the temporary check address until `docs/CUTOVER.md` step C2, then `https://valueskins.com`                                  | Engineer                                           |
+| `COOKIE_DOMAIN`            | `.valueskins.com` (file)                                         | SPEC 19                                                                                                                                                                                      | Engineer                                           |
+| `SESSION_COOKIE_NAME`      | `vs_session` (file)                                              | SPEC 19                                                                                                                                                                                      | Engineer                                           |
+| `SESSION_SECRET`           | generated                                                        | Render generates it on the first apply                                                                                                                                                       | Render, automatic                                  |
+| `TOKEN_ENCRYPTION_KEY`     | generated                                                        | Render generates it. Changing it later makes stored Instagram tokens unreadable, so everyone signs in again                                                                                  | Render, automatic                                  |
+| `INSTAGRAM_APP_ID`         | prompted                                                         | Meta app: **Instagram > API setup with Instagram login > Business login settings** (section 5 step 3). This is not the Meta app id                                                           | Meta app owner (Saketh if it is his)               |
+| `INSTAGRAM_APP_SECRET`     | prompted                                                         | The same page, **Show**                                                                                                                                                                      | Meta app owner                                     |
+| `INSTAGRAM_REDIRECT_URI`   | `https://api.valueskins.com/api/auth/instagram/callback` (file)  | `render.yaml`. It must match the redirect URI added in Meta exactly (21.5)                                                                                                                   | Engineer writes it, Meta app owner adds it in Meta |
+| `META_APP_SECRET`          | prompted                                                         | Meta app: **App settings > Basic > App secret**. The API accepts a signed request made with this or the Instagram app secret, so set both                                                    | Meta app owner                                     |
+| `RESEND_API_KEY`           | prompted                                                         | Resend: **API Keys > Create API Key**, "Sending access", domain `valueskins.com` (section 7). Shown once                                                                                     | Engineer (the Resend account holder)               |
+| `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>` (file)               | The Resend sending domain                                                                                                                                                                    | Engineer                                           |
+| `EMAIL_TRANSPORT`          | `resend` (file)                                                  | The API refuses `console` in production                                                                                                                                                      | Engineer                                           |
+| `ADMIN_INSTAGRAM_USER_IDS` | prompted: `none` at first, then the admins' ids, comma-separated | Each admin's `instagram_user_id`, read from the database after they sign in once (section 14). An admin signs in again to pick it up                                                         | Engineer reads it, the admin signs in              |
+| `SUPPORT_EMAIL`            | `founder@valueskins.com` (file)                                  | The mailbox users write to. It is the reply-to and the footer of every email. `DISPUTE_EMAIL` follows it                                                                                     | Founders (the mailbox must exist and receive mail) |
+| `ENABLE_DEV_LOGIN`         | `false` (file)                                                   | The variable is required; the API refuses `true` in production                                                                                                                               | Engineer                                           |
+| `AUTH_EMAIL_ENABLED`       | `false` (file)                                                   | The API refuses `true` in production. Sign-in is Instagram only                                                                                                                              | Engineer                                           |
+| `SENTRY_DSN`               | prompted                                                         | Sentry: the Node.js project's DSN (section 12a). Blank turns Sentry off                                                                                                                      | Engineer                                           |
+| `COMPANY_LEGAL_NAME`       | `Valueskins Private Limited` (file)                              | Printed on the fee invoice                                                                                                                                                                   | Founders                                           |
+| `COMPANY_ADDRESS`          | prompted                                                         | The registered address, as it must appear on the invoice                                                                                                                                     | Saketh or the Founders, from the company records   |
+| `COMPANY_STATE`            | prompted                                                         | The state of registration, for example `Karnataka`. It decides CGST and SGST or IGST on the invoice (SPEC 7.4)                                                                               | Saketh or the Founders                             |
+| `COMPANY_GSTIN`            | prompted                                                         | The GST registration certificate. It is also on the live site's legal pages. **Needed now:** `GST_RATE_BPS` is above 0, and the API refuses to start without it, even while payments are off | Saketh or the Founders                             |
+| `COMMISSION_SAC_CODE`      | prompted                                                         | The code the CA confirms for the fee (SPEC 21)                                                                                                                                               | The CA, through a Founder                          |
+| `GST_RATE_BPS`             | `1800` (file)                                                    | REPLACEMENT_PLAN 2.2: a flat ₹750.00 plus 18% GST                                                                                                                                            | Engineer                                           |
+| `PAYMENTS_MODE`            | prompted: `off`                                                  | SPEC 19. Closes the ValueSkins fee. Changing it needs a restart, not a deploy (section 16a)                                                                                                  | Founders decide, Engineer sets it                  |
+| `DEAL_POSTING_MODE`        | prompted: `off`                                                  | SPEC 19. Closes publishing. Same                                                                                                                                                             | Founders decide, Engineer sets it                  |
+
+**Left out on purpose.**
+
+- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. They are optional while `PAYMENTS_MODE=off`, and there are no live keys yet. When payments open you add all three in the dashboard (section 16a); the API refuses to start with payments on and any of them missing, or with a test key.
+- `DISPUTE_EMAIL`: it follows `SUPPORT_EMAIL`. `TEST_DATABASE_URL`: tests only. `PORT`: Render sets it.
+
+**Vercel, the production web project.**
+
+| Variable                       | Value                        | Where it comes from                                                                                                                                              | Who provides it |
+| ------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `NEXT_PUBLIC_API_URL`          | `https://api.valueskins.com` | The API address. It must be exactly this host: a build with this host is a production build (it hides the "Not in this version" notes) and refuses the dev login | Engineer        |
+| `NEXT_PUBLIC_SENTRY_DSN`       | the Next.js project's DSN    | Sentry (section 12a). Blank turns Sentry off. Baked in at build time, so redeploy after changing it                                                              | Engineer        |
+| `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | **not set**                  | Never on production. A build with it `true` and the production API address fails on purpose                                                                      | -               |
+
+`apps/web/vercel.json` is shared by the staging and the production projects and holds only the framework and the install and build commands, so it has nothing specific to production. Everything else is project settings (21.4).
+
+### 21.3 Creating the Render resources
+
+Prerequisites: this `render.yaml` is on `main` (section 3), Resend and Sentry are set up (21.5), and you have the values above ready.
+
+1. In Render, **New > Blueprint**, connect GitHub, pick `valueskins/getvalueskins`, branch `main`, and leave the Blueprint path as `render.yaml`. If you already have a Blueprint for this repo (staging), open it and **Sync** (look for a button with that name) instead.
+2. **Applying a Blueprint creates every resource in the file: staging and production.** If staging does not exist yet, this also creates the staging database (free) and the staging API (paid). Say so before you apply if you do not want that.
+3. Render lists the variables marked `sync: false` and asks for them. For production (`valueskins-api`) enter:
+
+   | Prompt                                     | Enter                                        |
+   | ------------------------------------------ | -------------------------------------------- |
+   | `WEB_ORIGIN`                               | `https://next.valueskins.com`                |
+   | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | from the Meta app (21.2)                     |
+   | `META_APP_SECRET`                          | from the Meta app                            |
+   | `RESEND_API_KEY`                           | from Resend                                  |
+   | `ADMIN_INSTAGRAM_USER_IDS`                 | `none`                                       |
+   | `SENTRY_DSN`                               | the Node.js project's DSN, or leave it blank |
+   | `COMPANY_ADDRESS`, `COMPANY_STATE`         | the company's address and state              |
+   | `COMPANY_GSTIN`                            | the company GSTIN                            |
+   | `COMMISSION_SAC_CODE`                      | the code the CA confirmed                    |
+   | `PAYMENTS_MODE`                            | `off`                                        |
+   | `DEAL_POSTING_MODE`                        | `off`                                        |
+
+4. Apply. The production API has **manual deploys**, so Render creates it and may build it once; if it does not deploy, open the service and use **Manual Deploy > Deploy latest commit** (look for a menu with that name). The build installs, builds `packages/shared` and the API; the pre-deploy command then runs the database migrations on the new, empty production database; the service starts only when `/api/health` answers.
+5. Open the service page and copy its default address, for example `https://valueskins-api.onrender.com`. `<that address>/api/health` must show `{"ok":true}`.
+6. In the service's **Logs**, one line reads `"razorpayMode":"none","paymentsMode":"off","dealPostingMode":"off"`. A line starting `Invalid environment configuration` names a missing or wrong variable, and `Startup guard failed` is a safety rule stopping the API on purpose (section 8).
+7. **Settings > Custom Domains** should list `api.valueskins.com`. Click **Verify** once the DNS record exists (section 10 and `docs/CUTOVER.md` step A7).
+
+**Never** run `db:seed` on production: it refuses to run there.
+
+### 21.4 The Vercel project
+
+In Vercel, **Add New > Project**, import `valueskins/getvalueskins`, and follow section 9 with these differences:
+
+- **Name:** for example `valueskins-web`. This is a new project: do not reuse the staging project or the live app's project.
+- **Root Directory:** `apps/web`. Leave "Include source files outside of the Root Directory" enabled. Framework Preset Next.js. Leave the build and install commands alone (`apps/web/vercel.json` sets them). **Node.js Version** `22.x`. **Production Branch** `main`.
+- **Environment Variables** (Production): `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SENTRY_DSN` from 21.2. Do not add `NEXT_PUBLIC_ENABLE_DEV_LOGIN`.
+- **Domains:** first `next.valueskins.com`, for the checks. `valueskins.com` (primary) and `www.valueskins.com` (a permanent redirect to the apex) are added only at the switch (`docs/CUTOVER.md` step C3).
+
+Unlike the API, the web project deploys on every merge to `main`. A web change that needs a new API endpoint must therefore not be merged before the API has been deployed to production by hand. If a merge breaks the web app, use **Deployments > Instant Rollback** (section 16).
+
+### 21.5 Resend, Meta and Sentry
+
+**Resend** (section 7). Add the domain `valueskins.com` and the records Resend shows, as **DNS only**. They are on their own names (`resend._domainkey` and `send`), so the apex mail (Zoho) is not touched. Create a "Sending access" key for the domain.
+
+**Meta**: the same app the live app uses (`docs/REPLACEMENT_PLAN.md` section 1). The app must be in **Live** mode, or both founders must hold a role on it. These are the production values; the section 5 steps say where each field is.
+
+| Field (Business login settings, or App settings > Basic) | Production value                                                              | When it changes (`docs/CUTOVER.md`)                        |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| OAuth redirect URIs                                      | add `https://api.valueskins.com/api/auth/instagram/callback`, keep the others | A8, before the checks. The old URI is removed after a week |
+| Deauthorize callback URL                                 | `https://api.valueskins.com/api/meta/deauthorize`                             | C1, at the switch. It holds one URL, so note the old one   |
+| Data deletion request URL                                | `https://api.valueskins.com/api/meta/data-deletion`                           | C1, at the switch. One URL, note the old one               |
+| Privacy policy URL                                       | `https://valueskins.com/privacy`                                              | C4, after the web domain has moved                         |
+| Terms of Service URL (if one is set)                     | `https://valueskins.com/terms`                                                | C4                                                         |
+
+The live app's legal pages are at `/legal/privacy`, `/legal/terms` and `/legal/refund`. The new app uses `/privacy`, `/terms` and `/refunds` and has no redirect from the old paths.
+
+**Sentry** (section 12a). Two production projects: Node.js for `SENTRY_DSN` and Next.js for `NEXT_PUBLIC_SENTRY_DSN`. In the test command of step 4, use `'production'` where it says `'staging'`.
+
+**Razorpay**: nothing is created or changed for production now. The old app's webhook is left until the week after the switch (`docs/CUTOVER.md` section E).
+
+### 21.6 Deploying, rollback and backups
+
+- **Deploying the API.** Merge to `main` as usual. Staging deploys by itself. When staging shows the change works, open Render > `valueskins-api` > **Manual Deploy > Deploy latest commit**. The pre-deploy step migrates the production database, and the health check gates the release. Read the **Logs** until the service is live.
+- **Rolling back the API.** Render > service > **Events** > the last good deploy > **Rollback** (section 16). Migrations are not undone, which is why they are written so the previous code still works.
+- **Rolling back the web.** Vercel > the project > **Deployments** > **Instant Rollback**.
+- **Backups.** Render backs up a paid Postgres automatically: continuous point-in-time recovery and daily logical backups, with nothing to switch on. How far back you can recover depends on the Render **workspace** plan: 3 days on Hobby, 7 days on Pro and above. Check which plan you are on. Restoring creates a new database and is described in `docs/RUNBOOK.md` section 7, which SPEC 22 asks you to practise once before launch.
+- **Changing a value.** A `value:` entry in `render.yaml` changes by editing the file and merging. A prompted value changes in the dashboard under **Environment**, and the service restarts.
+
+### 21.7 Opening payments and posting later
+
+Section 16a. In short: add the three live Razorpay values in the dashboard, set `PAYMENTS_MODE` to `admins` and later `on`, and set `DEAL_POSTING_MODE` the same way, restarting each time. These two are prompted variables on purpose, so no merge and no deploy is needed.
