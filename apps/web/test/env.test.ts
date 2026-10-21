@@ -32,6 +32,19 @@ describe('assertSafeWebEnv', () => {
     ).not.toThrow();
   });
 
+  // docs/DEPLOYMENT.md 21.6: the production web build runs `next build` inside `netlify deploy`
+  // (next.config.ts calls this guard), with exactly these two variables from GitHub Actions.
+  it('lets the Netlify production build through, and still stops it with dev login on', () => {
+    const production = {
+      NEXT_PUBLIC_API_URL: 'https://api.valueskins.com',
+      NEXT_PUBLIC_SENTRY_DSN: 'https://k@o9.ingest.sentry.io/1',
+    };
+    expect(() => assertSafeWebEnv(production)).not.toThrow();
+    expect(() => assertSafeWebEnv({ ...production, NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true' })).toThrow(
+      /NEXT_PUBLIC_ENABLE_DEV_LOGIN/,
+    );
+  });
+
   it('allows dev login with an unset API URL (local development)', () => {
     expect(() => assertSafeWebEnv({ NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true' })).not.toThrow();
   });
