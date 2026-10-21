@@ -6,6 +6,7 @@ import {
   compareMigrations,
   describeConnectionError,
   migrationProblems,
+  migrationWarnings,
   readAppliedMigrations,
   readKnownMigrations,
   verifyDatabase,
@@ -14,6 +15,9 @@ import { closeDb, pool, resetDb } from './testDb.js';
 import { buildRawTestEnv } from '../testEnv.js';
 
 const API_ROOT = path.resolve(import.meta.dirname, '../..');
+
+// The pool is shared by the describes below that use the real database, so it closes once, last.
+afterAll(closeDb);
 
 const known = [
   { tag: '0000_a', hash: 'hash-a' },
@@ -74,15 +78,35 @@ describe('migrationProblems', () => {
     expect(message).toContain('Run them by hand');
   });
 
-  it('names the unknown migrations with their hash and time', () => {
-    const [message] = migrationProblems({
+  it('is not a problem when the database has migrations the code does not know', () => {
+    expect(
+      migrationProblems({
+        unapplied: [],
+        unknown: [{ hash: 'abcdef0123456789', createdAt: Date.UTC(2026, 9, 21, 6, 30) }],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('migrationWarnings', () => {
+  it('is empty when the database has nothing the code does not know', () => {
+    expect(migrationWarnings({ unapplied: known.slice(1), unknown: [] })).toEqual([]);
+  });
+
+  it('names the unknown migrations with their hash and time, and says the database is ahead', () => {
+    const [message, ...rest] = migrationWarnings({
       unapplied: [],
-      unknown: [{ hash: 'abcdef0123456789', createdAt: Date.UTC(2026, 9, 21, 6, 30) }],
+      unknown: [
+        { hash: 'abcdef0123456789', createdAt: Date.UTC(2026, 9, 21, 6, 30) },
+        { hash: '0123456789abcdef', createdAt: Date.UTC(2026, 9, 22, 7, 45) },
+      ],
     });
-    expect(message).toContain('1 migration(s) this code does not know');
-    expect(message).toContain('abcdef0123');
-    expect(message).toContain('2026-10-21T06:30:00.000Z');
-    expect(message).toContain('older than the database');
+    expect(rest).toEqual([]);
+    expect(message).toContain('2 migration(s) this code does not know');
+    expect(message).toContain('abcdef0123, 0123456789');
+    expect(message).toContain('2026-10-21T06:30:00.000Z, 2026-10-22T07:45:00.000Z');
+    expect(message).toContain('The database is ahead of this code.');
+    expect(message).not.toContain('Starting anyway');
   });
 });
 
@@ -135,7 +159,6 @@ describe('readKnownMigrations', () => {
 
 describe('against a real database', () => {
   beforeAll(resetDb);
-  afterAll(closeDb);
 
   /** Runs `change` in a transaction, checks the database, and rolls the change back. */
   async function checkAfter(change: string[]) {
@@ -157,35 +180,51 @@ describe('against a real database', () => {
   });
 
   it('names a migration the database has not applied', async () => {
-    const { problems } = await checkAfter([
+    const { problems, warnings } = await checkAfter([
       'delete from drizzle.__drizzle_migrations where id = (select max(id) from drizzle.__drizzle_migrations)',
     ]);
+    expect(warnings).toEqual([]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain(
       '1 migration(s) the database has not applied: 0011_hot_query_indexes',
     );
   });
 
-  it('names a migration the code does not know', async () => {
-    const { problems } = await checkAfter([
+  it('only warns about a migration the code does not know: the database is ahead', async () => {
+    const { problems, warnings } = await checkAfter([
       `insert into drizzle.__drizzle_migrations (hash, created_at) values ('${'f'.repeat(64)}', 4102444800000)`,
     ]);
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain('1 migration(s) this code does not know');
-    expect(problems[0]).toContain('ffffffffff');
+    expect(problems).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('1 migration(s) this code does not know');
+    expect(warnings[0]).toContain('ffffffffff');
+    expect(warnings[0]).toContain('The database is ahead of this code.');
   });
 
-  it('reports an edited migration both ways', async () => {
-    const { problems } = await checkAfter([
+  it('warns about every unknown migration at once, and still finds none unapplied', async () => {
+    const { problems, warnings } = await checkAfter([
+      `insert into drizzle.__drizzle_migrations (hash, created_at) values ('${'a'.repeat(64)}', 4102444800000)`,
+      `insert into drizzle.__drizzle_migrations (hash, created_at) values ('${'b'.repeat(64)}', 4102444900000)`,
+    ]);
+    expect(problems).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('2 migration(s) this code does not know');
+    expect(warnings[0]).toContain('aaaaaaaaaa, bbbbbbbbbb');
+  });
+
+  it('reports an edited migration both ways: the new version is a problem, the old one a warning', async () => {
+    const { problems, warnings } = await checkAfter([
       `update drizzle.__drizzle_migrations set hash = '${'e'.repeat(64)}' where id = (select max(id) from drizzle.__drizzle_migrations)`,
     ]);
-    expect(problems).toHaveLength(2);
+    expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('0011_hot_query_indexes');
-    expect(problems[1]).toContain('eeeeeeeeee');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('eeeeeeeeee');
   });
 
   it('treats a database that was never migrated as having applied nothing', async () => {
-    const { problems } = await checkAfter(['drop schema drizzle cascade']);
+    const { problems, warnings } = await checkAfter(['drop schema drizzle cascade']);
+    expect(warnings).toEqual([]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain(
       `${readKnownMigrations().length} migration(s) the database has not applied: 0000_chubby_lifeguard`,
@@ -234,9 +273,54 @@ describe('the startup exit (a child process, like the real start)', () => {
     expect(output).not.toContain('sekrit-pw');
   }, 30_000);
 
+  const testDatabaseUrl = buildRawTestEnv().TEST_DATABASE_URL!;
+
   it('starts when the database matches the code', () => {
-    const result = start(buildRawTestEnv().TEST_DATABASE_URL!);
+    const result = start(testDatabaseUrl);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('database ok');
+    expect(result.stdout).toContain('database reachable, migrations match the code');
+    expect(result.stdout).not.toContain('"level":40');
+  }, 30_000);
+
+  it('starts, with a warning naming the migration, when the database is ahead of the code', async () => {
+    const hash = 'c'.repeat(64);
+    await pool.query(
+      `insert into drizzle.__drizzle_migrations (hash, created_at) values ('${hash}', 4102444800000)`,
+    );
+    try {
+      const result = start(testDatabaseUrl);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('database ok');
+      const output = result.stdout + result.stderr;
+      expect(output).toContain('"level":40');
+      expect(output).toContain('1 migration(s) this code does not know');
+      expect(output).toContain('cccccccccc');
+      expect(output).toContain('Starting anyway');
+      expect(output).not.toContain('Startup check failed');
+    } finally {
+      await pool.query(`delete from drizzle.__drizzle_migrations where hash = '${hash}'`);
+    }
+  }, 30_000);
+
+  it('exits 1, naming the migration, when the code has one the database has not applied', async () => {
+    const { rows } = await pool.query<{ hash: string; created_at: string }>(
+      'delete from drizzle.__drizzle_migrations where id = (select max(id) from drizzle.__drizzle_migrations) returning hash, created_at',
+    );
+    try {
+      const result = start(testDatabaseUrl);
+      expect(result.status).toBe(1);
+      const output = result.stdout + result.stderr;
+      expect(output).toContain(
+        '1 migration(s) the database has not applied: 0011_hot_query_indexes',
+      );
+      expect(output).toContain('Startup check failed');
+      expect(output).not.toContain('database ok');
+    } finally {
+      await pool.query(
+        'insert into drizzle.__drizzle_migrations (hash, created_at) values ($1, $2)',
+        [rows[0]!.hash, rows[0]!.created_at],
+      );
+    }
   }, 30_000);
 });

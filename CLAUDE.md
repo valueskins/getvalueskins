@@ -149,7 +149,7 @@ Details are in the spec. These are the invariants.
 
 - Schema in `apps/api/src/db/schema/`. Migrations are generated with `pnpm db:generate` into `apps/api/drizzle/`.
   - **Never edit a migration that has been merged.** Write a new one.
-  - Migrations run by script or in the deploy step, never on app start. Production on the free tier is migrated by hand (`pnpm db:migrate`, `docs/DEPLOYMENT.md` section 21.4). The API checks at startup that the database's applied migrations are exactly the code's, and refuses to start otherwise.
+  - Migrations run by script or in the deploy step, never on app start. Production on the free tier is migrated by hand (`pnpm db:migrate`, `docs/DEPLOYMENT.md` section 21.4). The API checks at startup that the database has applied every migration the code has, and refuses to start otherwise. A database that is ahead of the code only logs a warning, so a rollback works.
 - UUID v7 primary keys. `timestamptz` in UTC. Money columns are `*_paise BIGINT`. Enums are Postgres enums, with values from `packages/shared`.
 - Foreign keys everywhere, and an index on every foreign key and every filtered column.
 - Rules that must never break are also enforced in the database (CHECK, partial unique indexes), not only in code.

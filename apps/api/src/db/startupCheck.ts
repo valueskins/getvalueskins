@@ -65,28 +65,30 @@ export function compareMigrations(
   };
 }
 
-/** What to tell a person, one line per problem. Names the migrations, and says what to do. */
+/** Why the API cannot start: the code has migrations the database has not applied. */
 export function migrationProblems(comparison: MigrationComparison): string[] {
-  const problems: string[] = [];
-  if (comparison.unapplied.length > 0) {
-    problems.push(
-      `The code has ${comparison.unapplied.length} migration(s) the database has not applied: ${comparison.unapplied
-        .map((m) => m.tag)
-        .join(', ')}. Run them by hand before this deploy (docs/DEPLOYMENT.md section 21.4).`,
-    );
-  }
-  if (comparison.unknown.length > 0) {
-    problems.push(
-      `The database has ${comparison.unknown.length} migration(s) this code does not know (hash ${comparison.unknown
-        .map((m) => m.hash.slice(0, 10))
-        .join(', ')}, applied ${comparison.unknown
-        .map((m) => new Date(m.createdAt).toISOString())
-        .join(
-          ', ',
-        )}). This code is older than the database, or a merged migration was edited. Deploy the newer code, or restore the database (docs/RUNBOOK.md section 7).`,
-    );
-  }
-  return problems;
+  if (comparison.unapplied.length === 0) return [];
+  return [
+    `The code has ${comparison.unapplied.length} migration(s) the database has not applied: ${comparison.unapplied
+      .map((m) => m.tag)
+      .join(', ')}. Run them by hand before this deploy (docs/DEPLOYMENT.md section 21.4).`,
+  ];
+}
+
+/**
+ * What to tell a person, without stopping: the database has migrations this code does not know. It is
+ * ahead of the code, for example because a migration was run before the deploy, or because this is an
+ * older deploy. Migrations are written so the previous code keeps working (docs/DEPLOYMENT.md section
+ * 16), so it starts. A merged migration that was edited is listed here too (its old version), next to
+ * its new version as an unapplied migration.
+ */
+export function migrationWarnings(comparison: MigrationComparison): string[] {
+  if (comparison.unknown.length === 0) return [];
+  const hashes = comparison.unknown.map((m) => m.hash.slice(0, 10)).join(', ');
+  const times = comparison.unknown.map((m) => new Date(m.createdAt).toISOString()).join(', ');
+  return [
+    `The database has ${comparison.unknown.length} migration(s) this code does not know (hash ${hashes}, applied ${times}). The database is ahead of this code.`,
+  ];
 }
 
 /**
@@ -113,16 +115,19 @@ export function describeConnectionError(err: unknown): string {
 }
 
 export interface DatabaseCheck {
-  /** Empty when the database is reachable and its migrations match the code. */
+  /** Why the API must not start. Empty when the database answers and has every migration the code has. */
   problems: string[];
+  /** Worth a log line, but the API starts: the database is ahead of the code. */
+  warnings: string[];
   host: string | null;
 }
 
 /**
- * The checks the API makes before it listens (SPEC 19): the database answers, and its applied
- * migrations are exactly the ones this code ships. Neither direction is allowed: a database behind
- * the code would fail at the first query that needs the missing change, and a database ahead of it
- * means a rollback to older code.
+ * The checks the API makes before it listens (SPEC 19): the database answers, and it has applied every
+ * migration this code ships. A database behind the code would fail at the first query that needs the
+ * missing change, so that refuses to start. A database ahead of the code (migrations this code does not
+ * know) only warns: the code was written to keep working against a newer schema, and refusing would
+ * stop a rollback or a deploy that follows a migration run by hand.
  */
 export async function verifyDatabase(
   pool: Pick<Pool | PoolClient, 'query'>,
@@ -134,6 +139,7 @@ export async function verifyDatabase(
   } catch (err) {
     return {
       host,
+      warnings: [],
       problems: [
         `Could not connect to the database${host ? ` at ${host}` : ''}. ${describeConnectionError(err)}`,
       ],
@@ -141,5 +147,6 @@ export async function verifyDatabase(
   }
   const known = readKnownMigrations(options.folder);
   const applied = await readAppliedMigrations(pool);
-  return { host, problems: migrationProblems(compareMigrations(known, applied)) };
+  const comparison = compareMigrations(known, applied);
+  return { host, problems: migrationProblems(comparison), warnings: migrationWarnings(comparison) };
 }

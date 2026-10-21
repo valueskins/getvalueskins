@@ -5,7 +5,7 @@
 # Neon's free plan, which is not on Render and so is not in this file. DATABASE_URL is a prompted
 # variable holding Neon's direct connection string. Free instances have no pre-deploy command, so
 # migrations are run by hand before each deploy that adds one (docs/DEPLOYMENT.md section 21.4),
-# and the API refuses to start if the database and the code disagree about them. Moving to paid
+# and the API refuses to start if the code has a migration the database has not applied. Moving to paid
 # is described in docs/DEPLOYMENT.md section 21.9, and must happen before PAYMENTS_MODE or
 # DEAL_POSTING_MODE leave `off`.
 #
@@ -50,7 +50,7 @@ services:
     # --prod=false: installs devDependencies (typescript) even if NODE_ENV=production.
     buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter "./packages/*" run build && pnpm --filter @valueskins/api run build
     # No preDeployCommand: free instances do not have one. The API never migrates on start or
-    # in the build; it refuses to start when the database and the code disagree.
+    # in the build; it refuses to start when the code has a migration the database has not applied.
     startCommand: pnpm --filter @valueskins/api run start
     healthCheckPath: /api/health
     domains:

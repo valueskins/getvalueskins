@@ -5,6 +5,7 @@ import {
   MIGRATIONS_FOLDER,
   compareMigrations,
   describeConnectionError,
+  migrationWarnings,
   readAppliedMigrations,
   readKnownMigrations,
 } from './startupCheck.js';
@@ -37,9 +38,12 @@ async function main(): Promise<void> {
 
   const known = readKnownMigrations();
   const before = compareMigrations(known, await readAppliedMigrations(pool));
-  if (before.unknown.length > 0) {
+  for (const warning of migrationWarnings(before)) console.warn(warning);
+  if (before.unknown.length > 0 && before.unapplied.length > 0) {
+    // Drizzle applies a migration only if it is newer than the newest one recorded, so migrations
+    // missing from behind a newer one would be skipped. Run this from the newest code.
     console.error(
-      `The database has ${before.unknown.length} migration(s) this code does not know. This code is older than the database, or a merged migration was edited. Nothing was applied.`,
+      `The database is ahead of this checkout and also lacks ${before.unapplied.map((m) => m.tag).join(', ')}. Nothing was applied. Run this command from the newest main (git pull).`,
     );
     process.exitCode = 1;
     return;
@@ -53,7 +57,7 @@ async function main(): Promise<void> {
   await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
   const after = compareMigrations(known, await readAppliedMigrations(pool));
-  if (after.unapplied.length > 0 || after.unknown.length > 0) {
+  if (after.unapplied.length > 0) {
     console.error('The migrations did not match the code after the run. Check the database.');
     process.exitCode = 1;
     return;

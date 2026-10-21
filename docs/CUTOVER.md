@@ -8,7 +8,7 @@ What this cutover assumes:
 - **Fee invoice numbering starts at `VS/2026-27/000001`** for the current financial year (April to March). The counter row is created by the first invoice, so there is nothing to seed. No fee is taken during the cutover, so this stays untouched until payments open.
 - **Production starts with `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`.** Brands can set up their profile and billing and save drafts. Publishing and the fee are closed, with a reason on screen. Opening them later needs an env change and a restart, not a deploy (`docs/DEPLOYMENT.md` section 16a).
 - **Production runs free until payments open:** the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. A startup guard keeps `PAYMENTS_MODE` and `DEAL_POSTING_MODE` at `off` until `HOSTING_TIER=paid`. Moving to paid is `docs/DEPLOYMENT.md` section 21.9, and it comes before any launch gate opens.
-- **Migrations are run by hand.** A free instance has no pre-deploy step and the API never migrates on start, so step A6 runs them against Neon before the first deploy. The API checks at start that the database and the code agree about migrations, and refuses to start if they do not.
+- **Migrations are run by hand.** A free instance has no pre-deploy step and the API never migrates on start, so step A6 runs them against Neon before the first deploy. The API checks at start that the database has every migration the code has, and refuses to start if it does not. A database that is ahead of the code only logs a warning and the API starts.
 - **Staging has been run through `docs/DEPLOYMENT.md` section 13.** When this was written, `staging.valueskins.com` and `api-staging.valueskins.com` had no DNS records, so check this first. If staging was never set up, do sections 5 to 13 there before you start, because production would otherwise be the first real run of this code.
 
 The production API is in `render.yaml` (production only: staging is managed by hand), the database is a Neon project, and every production setting is in `docs/DEPLOYMENT.md` section 21. This file is the order of the switch, the checks and the rollback.
@@ -138,7 +138,7 @@ The Render address of the service (for example `https://valueskins-api.onrender.
 **Verify:**
 
 - The migration command printed `to apply:` with the migrations, then `migrations applied`. Running it again prints `no migrations to apply`.
-- In the Render **Logs** there is no `Invalid environment configuration`, `Startup guard failed`, `Could not connect to the database` or `migration(s)` line, and there are two lines: one with `"razorpayMode":"none"`, `"hostingTier":"free"`, `"paymentsMode":"off"` and `"dealPostingMode":"off"`, and one that says `database reachable, migrations match the code`.
+- In the Render **Logs** there is no `Invalid environment configuration`, `Startup guard failed`, `Could not connect to the database` or `migration(s) the database has not applied` line, and there are two lines: one with `"razorpayMode":"none"`, `"hostingTier":"free"`, `"paymentsMode":"off"` and `"dealPostingMode":"off"`, and one that says `database reachable, migrations match the code`.
 - `curl -s https://<the Render address>/api/health` prints `{"ok":true}`. The first request can take about a minute while the free instance wakes. That is normal.
 
 ### A7. DNS for the API and the temporary web host
@@ -387,7 +387,7 @@ The records that change, and the ones that must not:
    - `https://api.valueskins.com/api/health` still answers (nothing depends on it now).
 5. **Say what happened** to the founders, in plain words. Write down the cause before trying again.
 
-If the problem is only with the new web app, rolling the Vercel deployment back is faster (`docs/RUNBOOK.md` section 6). If it is the API, roll back the Render deploy (same section), but only if no migration has been applied since that deploy: the API refuses to start when the database has a migration the code does not know, so after a migration a rollback cannot start (`docs/DEPLOYMENT.md` section 21.10). Use this rollback when the new app as a whole is not ready.
+If the problem is only with the new web app, rolling the Vercel deployment back is faster (`docs/RUNBOOK.md` section 6). If it is the API, roll back the Render deploy (same section). The older code starts against a database that has a newer migration, with a warning in the logs, which is safe because migrations are written so the previous code keeps working (`docs/DEPLOYMENT.md` section 21.10). Use this rollback when the new app as a whole is not ready.
 
 ## G. Opening payments
 
