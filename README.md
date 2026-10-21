@@ -13,7 +13,7 @@ Working conventions for Claude Code are in [CLAUDE.md](CLAUDE.md).
 ## Repo layout
 
 - `apps/api` — Express 5 + Socket.io backend, deployed on Render
-- `apps/web` — Next.js App Router frontend, deployed on Vercel
+- `apps/web` — Next.js App Router frontend, deployed on Netlify (production, from GitHub Actions) and Vercel (staging)
 - `packages/shared` — money math, deal state machine, Zod schemas, copy constants, imported by both apps
 - `docs/` — spec and process notes
 
@@ -54,7 +54,7 @@ Instagram login (SPEC 6.1) needs a real Meta app and a real Instagram tester acc
 
 ## Deploying
 
-Staging setup (Render, Vercel, DNS, Meta, Razorpay, Resend) is described step by step in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The Render Blueprint is [render.yaml](render.yaml) and the Vercel config is [apps/web/vercel.json](apps/web/vercel.json).
+Staging setup (Render, Vercel, DNS, Meta, Razorpay, Resend) and production (Render, Netlify, Neon) is described step by step in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The Render Blueprint is [render.yaml](render.yaml) and the Vercel config (staging) is [apps/web/vercel.json](apps/web/vercel.json). The production web app is deployed by [the deploy-web-production workflow](.github/workflows/deploy-web-production.yml) with [apps/web/netlify.toml](apps/web/netlify.toml).
 
 ## Checks
 

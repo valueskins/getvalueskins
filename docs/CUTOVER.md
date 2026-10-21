@@ -7,11 +7,11 @@ What this cutover assumes:
 - **No data is imported.** The live app's database holds only the two founders' test accounts: no deals, payments or invoices. Everyone signs in fresh with Instagram. Step C0 checks this again just before the switch.
 - **Fee invoice numbering starts at `VS/2026-27/000001`** for the current financial year (April to March). The counter row is created by the first invoice, so there is nothing to seed. No fee is taken during the cutover, so this stays untouched until payments open.
 - **Production starts with `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`.** Brands can set up their profile and billing and save drafts. Publishing and the fee are closed, with a reason on screen. Opening them later needs an env change and a restart, not a deploy (`docs/DEPLOYMENT.md` section 16a).
-- **Production runs free until payments open:** the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. A startup guard keeps `PAYMENTS_MODE` and `DEAL_POSTING_MODE` at `off` until `HOSTING_TIER=paid`. Moving to paid is `docs/DEPLOYMENT.md` section 21.9, and it comes before any launch gate opens.
+- **Production runs free until payments open:** the web app on Netlify's Free plan (300 credits a month, 15 per deploy; at zero every site on the account is paused, `docs/DEPLOYMENT.md` section 21.6), the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. A startup guard keeps `PAYMENTS_MODE` and `DEAL_POSTING_MODE` at `off` until `HOSTING_TIER=paid`. Moving to paid is `docs/DEPLOYMENT.md` section 21.9, and it comes before any launch gate opens.
 - **Migrations are run by hand.** A free instance has no pre-deploy step and the API never migrates on start, so step A6 runs them against Neon before the first deploy. The API checks at start that the database has every migration the code has, and refuses to start if it does not. A database that is ahead of the code only logs a warning and the API starts.
 - **Staging has been run through `docs/DEPLOYMENT.md` section 13.** When this was written, `staging.valueskins.com` and `api-staging.valueskins.com` had no DNS records, so check this first. If staging was never set up, do sections 5 to 13 there before you start, because production would otherwise be the first real run of this code.
 
-The production API is in `render.yaml` (production only: staging is managed by hand), the database is a Neon project, and every production setting is in `docs/DEPLOYMENT.md` section 21. This file is the order of the switch, the checks and the rollback.
+The production API is in `render.yaml` (production only: staging is managed by hand), the database is a Neon project, the web app is a Netlify site that GitHub Actions deploys (no Git link, `apps/web/netlify.toml` and `.github/workflows/deploy-web-production.yml`), and every production setting is in `docs/DEPLOYMENT.md` section 21. This file is the order of the switch, the checks and the rollback.
 
 The order: **A** prepare, **B** check production on a temporary hostname, **C** switch, **D** check again on the real hostname, **E** keep the old app for a week, **F** roll back if needed, **G** open payments later.
 
@@ -19,14 +19,14 @@ The order: **A** prepare, **B** check production on a temporary hostname, **C** 
 
 Checked from public DNS and HTTP on 16 Oct 2026. Check them again in step A1, because Cloudflare hides what sits behind a proxied record.
 
-| Hostname                 | Today                                                                                | After the cutover                                                |
-| ------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `valueskins.com`         | Cloudflare proxy in front of Vercel. Answers `308` to `https://www.valueskins.com/`. | The new web app. No redirect.                                    |
-| `www.valueskins.com`     | DNS-only CNAME to `cname.vercel-dns.com`. This is where the live app is served.      | Redirects (`308`) to `https://valueskins.com/`.                  |
-| `api.valueskins.com`     | No DNS record.                                                                       | The new API on Render. DNS only (grey cloud).                    |
-| `next.valueskins.com`    | No DNS record.                                                                       | Used only for the checks before DNS moves. Removed after a week. |
-| `old.valueskins.com`     | No DNS record.                                                                       | The old Vercel project, kept for a week as the rollback.         |
-| Mail on `valueskins.com` | Zoho (MX and SPF). There are no Resend records (`resend._domainkey`, `send`).        | Unchanged, plus the Resend records on their own names.           |
+| Hostname                 | Today                                                                                | After the cutover                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `valueskins.com`         | Cloudflare proxy in front of Vercel. Answers `308` to `https://www.valueskins.com/`. | The new web app on Netlify. No redirect. DNS only.                                     |
+| `www.valueskins.com`     | DNS-only CNAME to `cname.vercel-dns.com`. This is where the live app is served.      | CNAME to Netlify. Redirects permanently to `https://valueskins.com/`.                  |
+| `api.valueskins.com`     | No DNS record.                                                                       | The new API on Render. DNS only (grey cloud).                                          |
+| `next.valueskins.com`    | No DNS record.                                                                       | The new Netlify site, used only for the checks before DNS moves. Removed after a week. |
+| `old.valueskins.com`     | No DNS record.                                                                       | The old Vercel project, kept for a week as the rollback.                               |
+| Mail on `valueskins.com` | Zoho (MX and SPF). There are no Resend records (`resend._domainkey`, `send`).        | Unchanged, plus the Resend records on their own names.                                 |
 
 The direction of the redirect flips: the live app sits on `www` and the apex redirects to it, and the new app sits on the apex and `www` redirects to it. The new API uses `WEB_ORIGIN=https://valueskins.com`.
 
@@ -40,13 +40,13 @@ The direction of the redirect flips: the live app sits on `www` and the apex red
 
 ## 2. Who does what
 
-| Role          | Who                                                     | Does                                                                                                                   |
-| ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Engineer**  | Maintains `valueskins/getvalueskins`                    | Render, the production env, running the commands, reading logs, Sentry. Leads the cutover.                             |
-| **Saketh**    | Maintains the live app (`valueskins/valueskins`)        | The old Vercel project, the old app's settings and database, the freeze, the Meta app settings if the Meta app is his. |
-| **Founder A** | Owns an Instagram **Business** account                  | Signs in as a brand and runs the brand checks.                                                                         |
-| **Founder B** | Owns an Instagram **Creator** account                   | Signs in as a creator and runs the creator checks.                                                                     |
-| **DNS owner** | Whoever has the Cloudflare account for `valueskins.com` | Adds and changes DNS records. Changes nothing else.                                                                    |
+| Role          | Who                                                     | Does                                                                                                                    |
+| ------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Engineer**  | Maintains `valueskins/getvalueskins`                    | Render, Netlify, the GitHub secrets, the production env, running the commands, reading logs, Sentry. Leads the cutover. |
+| **Saketh**    | Maintains the live app (`valueskins/valueskins`)        | The old Vercel project, the old app's settings and database, the freeze, the Meta app settings if the Meta app is his.  |
+| **Founder A** | Owns an Instagram **Business** account                  | Signs in as a brand and runs the brand checks.                                                                          |
+| **Founder B** | Owns an Instagram **Creator** account                   | Signs in as a creator and runs the creator checks.                                                                      |
+| **DNS owner** | Whoever has the Cloudflare account for `valueskins.com` | Adds and changes DNS records. Changes nothing else.                                                                     |
 
 Write the names next to the accounts they hold. A step names a role, so the person has to have the access.
 
@@ -54,7 +54,8 @@ Write the names next to the accounts they hold. A step names a role, so the pers
 | ------------------------ | ------- |
 | Cloudflare (DNS)         |         |
 | Render (production)      |         |
-| Vercel (new project)     |         |
+| Netlify (production web) |         |
+| GitHub (repo secrets)    |         |
 | Vercel (old project)     |         |
 | Meta developer (the app) |         |
 | Resend                   |         |
@@ -83,7 +84,7 @@ Write the names next to the accounts they hold. A step names a role, so the pers
 
 **Who:** DNS owner.
 
-**Do:** A day before step C, set the TTL of every DNS-only record you may have to change to 5 minutes (`www`, and any record Vercel later asks you to change). Proxied records have no TTL to set.
+**Do:** A day before step C, set the TTL of every DNS-only record you may have to change to 5 minutes (`www`, the apex, and any record Netlify later asks you to change). Proxied records have no TTL to set.
 
 **Verify:** The Cloudflare record list shows the new TTL.
 
@@ -143,13 +144,13 @@ The Render address of the service (for example `https://valueskins-api.onrender.
 
 ### A7. DNS for the API and the temporary web host
 
-**Who:** DNS owner (records), Engineer (Render and Vercel).
+**Who:** DNS owner (records), Engineer (Render, Netlify and the GitHub settings).
 
 **Do:**
 
 - In Cloudflare add `api` as a CNAME to the Render address, **DNS only** (grey cloud). In Render, **Settings > Custom Domains**, click **Verify** for `api.valueskins.com`. Render issues the certificate by itself.
-- In Vercel create the production web project (for example `valueskins-web`, root directory `apps/web`, Node 22, production branch `main`), following `docs/DEPLOYMENT.md` section 9. Variables: `NEXT_PUBLIC_API_URL` = `https://api.valueskins.com` and `NEXT_PUBLIC_SENTRY_DSN` = the Next.js DSN from A5. Do not add `NEXT_PUBLIC_ENABLE_DEV_LOGIN`: a build that has it `true` and the production API address fails on purpose. Deploy.
-- In that project add the domain `next.valueskins.com`. In Cloudflare add the record Vercel shows (normally a CNAME to `cname.vercel-dns.com`), **DNS only**.
+- **The Netlify site and the deploy.** Follow `docs/DEPLOYMENT.md` section 21.6: create the site `valueskins-web` with **no Git link**, find its Site ID, create the access token, and add the GitHub secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` and the variables `NEXT_PUBLIC_API_URL` = `https://api.valueskins.com` and `NEXT_PUBLIC_SENTRY_DSN` = the Next.js DSN from A5. Do not add `NEXT_PUBLIC_ENABLE_DEV_LOGIN` anywhere: a build that has it `true` and the production API address fails on purpose. Then deploy: if the workflow is already on `main`, open GitHub **Actions > deploy-web-production**, the latest run, **Re-run all jobs** (a re-run always deploys). Otherwise the merge that adds it deploys. Wait for the run to finish green. It shows the deploy address.
+- In the Netlify site, **Domain management**, add the domain `next.valueskins.com`. In Cloudflare add `next` as a CNAME to the site's Netlify address (`<site name>.netlify.app`), **DNS only**. Netlify shows the domain as waiting for DNS until the record resolves, then requests the certificate by itself, usually within a few minutes.
 
 **Verify:**
 
@@ -160,7 +161,7 @@ curl -s https://api.valueskins.com/api/health
 curl -sI https://next.valueskins.com/privacy | head -1
 ```
 
-The third prints `{"ok":true}` and the fourth `HTTP/2 200`. Check also that `https://valueskins.com/` and `https://www.valueskins.com/` still show the live app, unchanged.
+The third prints `{"ok":true}` and the fourth `HTTP/2 200`. Check also that `https://valueskins.com/` and `https://www.valueskins.com/` still show the live app, unchanged. Open `https://next.valueskins.com/` in a browser with the developer tools open: the page loads with no "Content Security Policy" errors in the **Console**, and in **Elements** the `<script>` tags carry a `nonce` (the policy and its nonce run in a Netlify Edge Function, `docs/DEPLOYMENT.md` section 21.6).
 
 ### A8. Meta: add the redirect URI
 
@@ -190,7 +191,7 @@ Use a clean browser profile for each founder, or one normal and one private wind
 
 - The session cookie is set for `.valueskins.com`, so a browser cannot keep a session on `onrender.com`, and the Instagram redirect URI is registered for the API host.
 - Render issues the certificate for `api.valueskins.com` only after its DNS record exists, so a hosts-file entry for the API still needs that record. It is a new name, so it does not touch the live app.
-- Vercel serves whichever project owns a hostname, so a hosts-file entry for `valueskins.com` would still show the old app. The new web app has to be on its own name until the switch.
+- The old Vercel project owns `valueskins.com` until the switch, and Netlify serves a site only for domains added to it, so a hosts-file entry for `valueskins.com` would not show the new app with a valid certificate. The new web app has to be on its own name until the switch.
 - The Render address is still useful for one thing: `curl -s https://<the Render address>/api/health` before the DNS record exists.
 
 The founders do the sign-in checks and the Engineer watches the Render **Logs** while they do.
@@ -296,16 +297,19 @@ Leave the OAuth redirect URIs as they are (old and new). Leave the privacy polic
 
 **Verify:** The service is live, the Render **Logs** show `database reachable, migrations match the code`, and `curl -s https://api.valueskins.com/api/health` prints `{"ok":true}`. From this moment sign-in on `next.valueskins.com` stops working. That is expected.
 
-### C3. Move the web domains in Vercel
+### C3. Move the web domains from Vercel to Netlify
 
-**Who:** Saketh (the old project), Engineer (the new project), DNS owner (only if Vercel asks for a record).
+**Who:** Saketh (the old Vercel project), Engineer (the Netlify site), DNS owner (the Cloudflare records).
 
-**Do:**
+**Do, in this order and without a long gap between the steps:**
 
-1. Old project: **Settings > Domains**. Remove `valueskins.com` and `www.valueskins.com`. A domain can belong to one project at a time. Check that `old.valueskins.com` is still listed.
-2. New project: **Settings > Domains**. Add `valueskins.com` as the main domain. Add `www.valueskins.com` and set it to **redirect** to `valueskins.com` with a permanent redirect (`308`).
-3. Look at the records Vercel says it needs. If the records in Cloudflare already match, change nothing: Vercel decides which project answers, and both projects use the same Vercel address. If Vercel shows different values or asks for a verification `TXT` record, the DNS owner adds or changes exactly that record. Do not turn the proxy on or off in the same step.
-4. Wait until both domains show as valid, with HTTPS.
+1. Old Vercel project: **Settings > Domains**. Remove `valueskins.com` and `www.valueskins.com`. A domain can belong to one project at a time. Check that `old.valueskins.com` is still listed.
+2. Netlify site: **Domain management**. Add `valueskins.com` and set it as the **primary domain**. Add `www.valueskins.com`. With the apex as primary, Netlify redirects `www` to it by itself. (Netlify advises a subdomain as primary when DNS is outside Netlify. We keep the apex as the public address and accept that, `docs/DEPLOYMENT.md` section 21.6.)
+3. Cloudflare, DNS owner. Both records **DNS only** (grey cloud), because Netlify issues and renews the certificate itself and has to reach the site directly:
+   - **Apex `valueskins.com`:** replace the current record (its type, target and proxy setting are in the rollback sheet) with a **CNAME** to `apex-loadbalancer.netlify.com`. Cloudflare flattens a CNAME at the apex, and this is the record Netlify's documentation recommends for DNS outside Netlify. If your DNS plan cannot flatten it, use an **A** record to `75.2.60.5`, Netlify's load balancer address (Netlify's fallback).
+   - **`www`:** change the CNAME to the Netlify address of the site (`<site name>.netlify.app`).
+   - Netlify may also ask for another record; add exactly what its **Domain management** page shows.
+4. Wait until both domains show as valid in Netlify, with HTTPS. Netlify requests the certificate once DNS points at it, usually within minutes, but DNS changes can take longer. **Until the certificate is issued, browsers warn about the certificate on `valueskins.com`.** That is the short outage window of the switch, and the earlier `next` check does not cover it.
 
 **Verify:** From your computer (allow the TTL from A2 plus a few minutes for caches):
 
@@ -315,7 +319,7 @@ curl -sI https://www.valueskins.com/ | head -5
 curl -sI https://old.valueskins.com/ | head -1
 ```
 
-The first answers `HTTP/2 200` with no `location` header (it was `308` to `www` before). The second answers `308` with `location: https://valueskins.com/`. The third still answers.
+The first answers `HTTP/2 200` with no `location` header (it was `308` to `www` before). The second answers a permanent redirect (`301` from Netlify, or `308`) with `location: https://valueskins.com/`. The third still answers. If `www` answers `200` instead of redirecting, tell the Engineer: the fix is a redirect rule in `apps/web/netlify.toml`, which is a code change, not a dashboard setting.
 
 ### C4. Meta: the privacy policy and terms URLs
 
@@ -329,15 +333,15 @@ The first answers `HTTP/2 200` with no `location` header (it was `308` to `www` 
 
 The records that change, and the ones that must not:
 
-| Name                                 | Type            | Target                                          | Proxy    | When  | To undo                               |
-| ------------------------------------ | --------------- | ----------------------------------------------- | -------- | ----- | ------------------------------------- |
-| `api`                                | CNAME           | the Render address from A6                      | DNS only | A7    | Delete it                             |
-| `next`                               | CNAME           | the value Vercel shows (`cname.vercel-dns.com`) | DNS only | A7    | Delete it (E)                         |
-| `old`                                | CNAME           | the value Vercel shows                          | DNS only | A9    | Delete it (E)                         |
-| `resend._domainkey`, `send`          | as Resend shows | as Resend shows                                 | DNS only | A3    | Delete them only if Resend is dropped |
-| `valueskins.com` (apex)              | as today        | as today, unless Vercel shows different values  | as today | C3    | The value in the rollback sheet       |
-| `www`                                | CNAME           | as today, unless Vercel shows different values  | as today | C3    | The value in the rollback sheet       |
-| apex `MX`, `SPF`, verification `TXT` | -               | **Do not change**                               | -        | never | -                                     |
+| Name                                 | Type              | Target                                            | Proxy    | When  | To undo                               |
+| ------------------------------------ | ----------------- | ------------------------------------------------- | -------- | ----- | ------------------------------------- |
+| `api`                                | CNAME             | the Render address from A6                        | DNS only | A7    | Delete it                             |
+| `next`                               | CNAME             | the Netlify address (`<site name>.netlify.app`)   | DNS only | A7    | Delete it (E)                         |
+| `old`                                | CNAME             | the value Vercel shows                            | DNS only | A9    | Delete it (E)                         |
+| `resend._domainkey`, `send`          | as Resend shows   | as Resend shows                                   | DNS only | A3    | Delete them only if Resend is dropped |
+| `valueskins.com` (apex)              | CNAME (flattened) | `apex-loadbalancer.netlify.com`, or A `75.2.60.5` | DNS only | C3    | The value in the rollback sheet       |
+| `www`                                | CNAME             | the Netlify address (`<site name>.netlify.app`)   | DNS only | C3    | The value in the rollback sheet       |
+| apex `MX`, `SPF`, verification `TXT` | -                 | **Do not change**                                 | -        | never | -                                     |
 
 ## D. After DNS: the same checks
 
@@ -351,7 +355,7 @@ The records that change, and the ones that must not:
    - **B6 to B8:** Founder A saves a draft, checks that Publish is blocked with its reason (button and console line), then deletes the draft.
    - **B9:** the admin signs in and sees `/admin/deals`. The other founder gets the 404 page on `/admin/deals`.
 2. Also check, because they only matter after the switch:
-   - The redirect direction from C3 holds (`https://www.valueskins.com/` answers `308` to `https://valueskins.com/`).
+   - The redirect direction from C3 holds (`https://www.valueskins.com/` answers a permanent redirect, `301` or `308`, to `https://valueskins.com/`).
    - Meta's **privacy policy URL** (changed in C4) opens the new `/privacy` page, from the link shown in the Meta app.
    - The signed request check from C1 still prints `{"ok":true}`.
    - In Render **Logs**, a founder's sign-in shows no errors, and `GET /api/me` answers `200` after sign-in.
@@ -363,10 +367,10 @@ The records that change, and the ones that must not:
 
 **Who:** Engineer, Saketh.
 
-- Each day, look at Sentry and the Render **Logs** for errors, and check `q "select count(*) from users"` against what you expect.
+- Each day, look at Sentry and the Render **Logs** for errors, and check `q "select count(*) from users"` against what you expect. Look at the Netlify credit usage too (`docs/DEPLOYMENT.md` section 21.6): at zero credits every site on the account is paused.
 - Keep the old project and `old.valueskins.com` for **7 days**. Saketh does not deploy to the old project.
 - On day 7, if nothing has gone wrong:
-  - DNS owner: delete the `next` record. Engineer: remove `next.valueskins.com` from the new Vercel project.
+  - DNS owner: delete the `next` record. Engineer: remove `next.valueskins.com` from the Netlify site.
   - Meta: remove the old OAuth redirect URI of the live app.
   - Razorpay: remove the old app's webhook (the new one is registered only when payments open, section G).
   - Saketh decides when to retire the old Vercel project and its database, and removes `old.valueskins.com` then.
@@ -378,7 +382,7 @@ The records that change, and the ones that must not:
 
 **Who:** Saketh, Engineer, DNS owner.
 
-1. **Vercel.** New project: remove `valueskins.com` and `www.valueskins.com`. Old project: add them back, and set them as in the rollback sheet (`valueskins.com` redirecting to `www.valueskins.com`, `www` as the main domain). If you changed any Cloudflare record in C3, put it back to the value in the rollback sheet.
+1. **Cloudflare, Netlify and Vercel.** DNS owner: put the apex and `www` records back to the values in the rollback sheet, including the proxy setting. Engineer: remove `valueskins.com` and `www.valueskins.com` from the Netlify site. Saketh: in the old Vercel project add them back, and set them as in the rollback sheet (`valueskins.com` redirecting to `www.valueskins.com`, `www` as the main domain). Vercel may ask for a verification record: the DNS owner adds exactly that one. Leave `next` as it is.
 2. **Meta.** Set the **Deauthorize callback URL**, **Data deletion request URL**, **Privacy policy URL** and **Terms of Service URL** back to the values in the rollback sheet. The old OAuth redirect URI was never removed, so sign-in on the old app works again.
 3. **Render.** Leave the new API running. If you will try again later, set `WEB_ORIGIN` back to `https://next.valueskins.com` so the checks can run again.
 4. **Verify:**
@@ -387,7 +391,7 @@ The records that change, and the ones that must not:
    - `https://api.valueskins.com/api/health` still answers (nothing depends on it now).
 5. **Say what happened** to the founders, in plain words. Write down the cause before trying again.
 
-If the problem is only with the new web app, rolling the Vercel deployment back is faster (`docs/RUNBOOK.md` section 6). If it is the API, roll back the Render deploy (same section). The older code starts against a database that has a newer migration, with a warning in the logs, which is safe because migrations are written so the previous code keeps working (`docs/DEPLOYMENT.md` section 21.10). Use this rollback when the new app as a whole is not ready.
+If the problem is only with the new web app, rolling back the web deploy is faster: re-run the workflow for the last good commit, or Publish an earlier Netlify deploy (`docs/RUNBOOK.md` section 6, `docs/DEPLOYMENT.md` section 21.10). If it is the API, roll back the Render deploy (same section). The older code starts against a database that has a newer migration, with a warning in the logs, which is safe because migrations are written so the previous code keeps working (`docs/DEPLOYMENT.md` section 21.10). Use this rollback when the new app as a whole is not ready.
 
 ## G. Opening payments
 
@@ -412,6 +416,7 @@ Fill this in at step A1. Keep it somewhere private, not in the repo.
 | Cloudflare: `www` record (type, target, TTL, proxy)                         |       |
 | Old Vercel project (name, team)                                             |       |
 | Old Vercel project: primary domain and redirects                            |       |
+| Netlify site: name and address (`<site name>.netlify.app`)                  |       |
 | Meta: OAuth redirect URIs (the full list)                                   |       |
 | Meta: Deauthorize callback URL                                              |       |
 | Meta: Data deletion request URL                                             |       |
