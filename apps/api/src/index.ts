@@ -1,6 +1,7 @@
 import './instrument.js';
 import { createApp } from './app.js';
 import { closeDb } from './db/client.js';
+import { exitUnlessDatabaseReady } from './db/exitUnlessDatabaseReady.js';
 import { getEnv } from './env/index.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { logger } from './logging/logger.js';
@@ -17,9 +18,14 @@ logger.info(
     razorpayMode: env.RAZORPAY_KEY_ID === '' ? 'none' : razorpayModeFromKeyId(env.RAZORPAY_KEY_ID),
     paymentsMode: env.PAYMENTS_MODE,
     dealPostingMode: env.DEAL_POSTING_MODE,
+    hostingTier: env.HOSTING_TIER,
   },
-  'razorpay mode and launch modes',
+  'razorpay mode, launch modes and hosting tier',
 );
+
+// SPEC 19: the database answers and its migrations match the code, or the API does not start.
+await exitUnlessDatabaseReady(env.DATABASE_URL);
+
 const app = createApp(env);
 
 const server = app.listen(env.PORT, () => {

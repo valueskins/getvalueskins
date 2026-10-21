@@ -141,10 +141,12 @@ describe('getStartupGuardViolations', () => {
   });
 
   describe('launch gates (SPEC 19)', () => {
+    // Paid hosting, so these cases are about the Razorpay values. The free tier is under 'hosting tier'.
     const production = {
       NODE_ENV: 'production',
       ENABLE_DEV_LOGIN: 'false',
       EMAIL_TRANSPORT: 'resend',
+      HOSTING_TIER: 'paid',
     } as const;
     const noRazorpay = {
       RAZORPAY_KEY_ID: '',
@@ -276,6 +278,176 @@ describe('getStartupGuardViolations', () => {
     it('does not require Razorpay variables for DEAL_POSTING_MODE alone', () => {
       const env = buildTestEnv({ ...production, ...noRazorpay, DEAL_POSTING_MODE: 'on' });
       expect(getStartupGuardViolations(env)).toEqual([]);
+    });
+  });
+
+  describe('hosting tier (the free tier cannot run payments or reminders)', () => {
+    const production = {
+      NODE_ENV: 'production',
+      ENABLE_DEV_LOGIN: 'false',
+      EMAIL_TRANSPORT: 'resend',
+      RAZORPAY_KEY_ID: '',
+      RAZORPAY_KEY_SECRET: '',
+      RAZORPAY_WEBHOOK_SECRET: '',
+    } as const;
+    const live = {
+      RAZORPAY_KEY_ID: 'rzp_live_x',
+      RAZORPAY_KEY_SECRET: 'secret',
+      RAZORPAY_WEBHOOK_SECRET: 'whsec',
+      COMPANY_GSTIN: '29ABCDE1234F1Z5',
+    };
+
+    it('defaults to free, and a blank value counts as unset', () => {
+      const raw = buildRawTestEnv();
+      delete raw.HOSTING_TIER;
+      expect(parseEnv(raw).HOSTING_TIER).toBe('free');
+      expect(buildTestEnv({ HOSTING_TIER: '' }).HOSTING_TIER).toBe('free');
+      expect(buildTestEnv({ HOSTING_TIER: 'paid' }).HOSTING_TIER).toBe('paid');
+    });
+
+    it.each(['Free', 'PAID', 'premium', 'yes'])('rejects "%s"', (value) => {
+      expect(() => buildTestEnv({ HOSTING_TIER: value })).toThrow(/HOSTING_TIER/);
+    });
+
+    it('production on the free tier starts closed', () => {
+      const env = buildTestEnv({
+        ...production,
+        HOSTING_TIER: 'free',
+        PAYMENTS_MODE: 'off',
+        DEAL_POSTING_MODE: 'off',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([]);
+    });
+
+    it('production on the free tier starts closed when the modes are left at their default', () => {
+      expect(getStartupGuardViolations(buildTestEnv(production))).toEqual([]);
+    });
+
+    it.each(['admins', 'on'] as const)('refuses PAYMENTS_MODE=%s on the free tier', (mode) => {
+      const env = buildTestEnv({
+        ...production,
+        ...live,
+        HOSTING_TIER: 'free',
+        PAYMENTS_MODE: mode,
+      });
+      expect(getStartupGuardViolations(env)).toEqual([
+        'PAYMENTS_MODE must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders',
+      ]);
+    });
+
+    it.each(['admins', 'on'] as const)('refuses DEAL_POSTING_MODE=%s on the free tier', (mode) => {
+      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', DEAL_POSTING_MODE: mode });
+      expect(getStartupGuardViolations(env)).toEqual([
+        'DEAL_POSTING_MODE must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders',
+      ]);
+    });
+
+    it('names both when both are opened', () => {
+      const env = buildTestEnv({
+        ...production,
+        ...live,
+        HOSTING_TIER: 'free',
+        PAYMENTS_MODE: 'on',
+        DEAL_POSTING_MODE: 'admins',
+      });
+      expect(getStartupGuardViolations(env)).toHaveLength(2);
+    });
+
+    it('the same unset tier counts as free', () => {
+      const raw = buildRawTestEnv({ ...production, ...live, PAYMENTS_MODE: 'on' });
+      delete raw.HOSTING_TIER;
+      expect(getStartupGuardViolations(parseEnv(raw))).toHaveLength(1);
+    });
+
+    it.each(['admins', 'on'] as const)(
+      'allows PAYMENTS_MODE=%s on the paid tier with live keys',
+      (mode) => {
+        const env = buildTestEnv({
+          ...production,
+          ...live,
+          HOSTING_TIER: 'paid',
+          PAYMENTS_MODE: mode,
+          DEAL_POSTING_MODE: mode,
+        });
+        expect(getStartupGuardViolations(env)).toEqual([]);
+      },
+    );
+
+    it.each(['staging', 'development', 'test'] as const)('does not apply in %s', (nodeEnv) => {
+      const env = buildTestEnv({
+        NODE_ENV: nodeEnv,
+        HOSTING_TIER: 'free',
+        PAYMENTS_MODE: 'on',
+        DEAL_POSTING_MODE: 'on',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([]);
+    });
+  });
+
+  describe('the database connection string (Neon)', () => {
+    const production = {
+      NODE_ENV: 'production',
+      ENABLE_DEV_LOGIN: 'false',
+      EMAIL_TRANSPORT: 'resend',
+      RAZORPAY_KEY_ID: '',
+      RAZORPAY_KEY_SECRET: '',
+      RAZORPAY_WEBHOOK_SECRET: '',
+    } as const;
+    const direct =
+      'postgresql://owner:pw@ep-cool-123456.ap-southeast-1.aws.neon.tech/valueskins?sslmode=require';
+    const pooled =
+      'postgresql://owner:pw@ep-cool-123456-pooler.ap-southeast-1.aws.neon.tech/valueskins?sslmode=require';
+
+    it('accepts the direct string with TLS in production', () => {
+      expect(
+        getStartupGuardViolations(buildTestEnv({ ...production, DATABASE_URL: direct })),
+      ).toEqual([]);
+    });
+
+    it('refuses a pooled host in production, saying to use the direct string', () => {
+      expect(
+        getStartupGuardViolations(buildTestEnv({ ...production, DATABASE_URL: pooled })),
+      ).toEqual([
+        'DATABASE_URL points at a pooled host (its name contains "-pooler"). Use the direct connection string: advisory locks need it',
+      ]);
+    });
+
+    it.each(['staging', 'development', 'test'] as const)(
+      'refuses a pooled host in %s too',
+      (nodeEnv) => {
+        const violations = getStartupGuardViolations(
+          buildTestEnv({ NODE_ENV: nodeEnv, DATABASE_URL: pooled }),
+        );
+        expect(violations).toHaveLength(1);
+        expect(violations[0]).toContain('-pooler');
+      },
+    );
+
+    it('requires TLS in production', () => {
+      const env = buildTestEnv({
+        ...production,
+        DATABASE_URL:
+          'postgresql://owner:pw@ep-cool-123456.ap-southeast-1.aws.neon.tech/valueskins',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([
+        'DATABASE_URL must include sslmode=require (TLS is required)',
+      ]);
+    });
+
+    it('does not require TLS outside production (a local database)', () => {
+      const env = buildTestEnv({
+        NODE_ENV: 'development',
+        DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([]);
+    });
+
+    it('never repeats the connection string in a message', () => {
+      const text = getStartupGuardViolations(
+        buildTestEnv({ ...production, DATABASE_URL: pooled.replace('?sslmode=require', '') }),
+      ).join(' ');
+      expect(text).not.toContain('owner');
+      expect(text).not.toContain(':pw@');
     });
   });
 });

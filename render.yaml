@@ -1,8 +1,17 @@
-# Render Blueprint for STAGING (api-staging.valueskins.com) and PRODUCTION
-# (api.valueskins.com). See docs/DEPLOYMENT.md (staging: sections 1 to 20,
-# production: section 21) and docs/CUTOVER.md.
+# Render Blueprint for PRODUCTION (api.valueskins.com). See docs/DEPLOYMENT.md section 21
+# and docs/CUTOVER.md.
 #
-# Applying this Blueprint creates every resource below, staging and production.
+# Production runs FREE for now: the API on Render's free instance type, and the database on
+# Neon's free plan, which is not on Render and so is not in this file. DATABASE_URL is a prompted
+# variable holding Neon's direct connection string. Free instances have no pre-deploy command, so
+# migrations are run by hand before each deploy that adds one (docs/DEPLOYMENT.md section 21.4),
+# and the API refuses to start if the database and the code disagree about them. Moving to paid
+# is described in docs/DEPLOYMENT.md section 21.9, and must happen before PAYMENTS_MODE or
+# DEAL_POSTING_MODE leave `off`.
+#
+# STAGING is not in this file. The staging services already exist and are managed by hand in the
+# Render dashboard (docs/DEPLOYMENT.md, "Staging is managed by hand"). Applying this Blueprint
+# creates production only.
 #
 # Variables marked `sync: false` are prompted for in the dashboard when the
 # Blueprint is first applied (or when a service is added to it), and are then owned
@@ -10,141 +19,24 @@
 # `value:` is reset to that value by every sync, so never change one of those by hand.
 # Secrets never live in this file.
 
-databases:
-  - name: valueskins-staging-db
-    # Free Render Postgres: expires 30 days after creation, no backups, no
-    # point-in-time recovery. Fine for staging; see docs/DEPLOYMENT.md section 12.
-    plan: free
-    region: singapore
-    postgresMajorVersion: '16'
-    # Internal connections only. Seed through Render Shell on the API service.
-    ipAllowList: []
-
-  - name: valueskins-db
-    # PRODUCTION. A paid plan, so Render backs it up continuously (point-in-time recovery
-    # plus daily logical backups, nothing to switch on). How far back you can recover
-    # depends on the Render workspace plan: 3 days on Hobby, 7 days on Pro and above.
-    # See docs/DEPLOYMENT.md section 21 and docs/RUNBOOK.md section 7.
-    plan: 0.5c-1g
-    region: singapore
-    postgresMajorVersion: '16'
-    # Internal connections only. The production database is never seeded.
-    ipAllowList: []
-
 services:
-  - type: web
-    name: valueskins-api-staging
-    runtime: node
-    # Paid and always-on: OAuth callbacks and Meta callbacks cannot wait for a
-    # free service to wake up (free services sleep after 15 minutes).
-    plan: 0.5c-512mb
-    region: singapore
-    branch: main
-    autoDeployTrigger: checksPass
-    buildFilter:
-      paths:
-        - apps/api/**
-        - packages/shared/**
-        - package.json
-        - pnpm-lock.yaml
-        - pnpm-workspace.yaml
-        - tsconfig.base.json
-        - render.yaml
-    # --prod=false: installs devDependencies (typescript) even if NODE_ENV=production.
-    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter "./packages/*" run build && pnpm --filter @valueskins/api run build
-    preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy
-    startCommand: pnpm --filter @valueskins/api run start
-    healthCheckPath: /api/health
-    domains:
-      - api-staging.valueskins.com
-    envVars:
-      # PORT is injected by Render (default 10000) and is intentionally not listed.
-      - key: NODE_VERSION
-        value: '22'
-      - key: NODE_ENV
-        value: staging
-      - key: DATABASE_URL
-        fromDatabase:
-          name: valueskins-staging-db
-          property: connectionString
-      - key: WEB_ORIGIN
-        value: https://staging.valueskins.com
-      - key: COOKIE_DOMAIN
-        value: .valueskins.com
-      - key: SESSION_COOKIE_NAME
-        value: vs_session_staging
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: TOKEN_ENCRYPTION_KEY
-        generateValue: true
-      - key: INSTAGRAM_APP_ID
-        sync: false
-      - key: INSTAGRAM_APP_SECRET
-        sync: false
-      - key: INSTAGRAM_REDIRECT_URI
-        value: https://api-staging.valueskins.com/api/auth/instagram/callback
-      - key: META_APP_SECRET
-        sync: false
-      # Razorpay TEST keys only. The API refuses to start with rzp_live_ outside production.
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        value: 'ValueSkins <notifications@valueskins.com>'
-      - key: EMAIL_TRANSPORT
-        value: resend
-      - key: ADMIN_INSTAGRAM_USER_IDS
-        sync: false
-      # The address users write to. DISPUTE_EMAIL is omitted on purpose: it defaults to this.
-      - key: SUPPORT_EMAIL
-        value: founder@valueskins.com
-      - key: ENABLE_DEV_LOGIN
-        value: 'true'
-      - key: AUTH_EMAIL_ENABLED
-        value: 'true'
-      # Error reporting (SPEC 20). Leave blank to turn it off; the DSN comes from the Sentry project.
-      - key: SENTRY_DSN
-        sync: false
-      - key: COMPANY_LEGAL_NAME
-        value: Valueskins Private Limited
-      - key: COMPANY_ADDRESS
-        sync: false
-      - key: COMPANY_STATE
-        sync: false
-      # GST is charged (REPLACEMENT_PLAN 2.2), so a startup guard requires the GSTIN.
-      - key: COMPANY_GSTIN
-        sync: false
-      - key: COMMISSION_SAC_CODE
-        sync: false
-      - key: GST_RATE_BPS
-        value: '1800'
-      # Launch gates (SPEC 19): off | admins | on. Staging is fully open; production defaults to off.
-      - key: PAYMENTS_MODE
-        value: 'on'
-      - key: DEAL_POSTING_MODE
-        value: 'on'
-      # TEST_DATABASE_URL is omitted on purpose: Vitest-only, defaults to empty.
-
   # PRODUCTION. Starts closed: PAYMENTS_MODE and DEAL_POSTING_MODE are entered as `off`,
   # and no Razorpay variable is set (there are no live keys until the bank account is
-  # ready). To open them later, change the two modes in the dashboard and restart
-  # (docs/DEPLOYMENT.md section 16a). Do not give them a `value:` here: a Blueprint sync
-  # would reset it.
+  # ready). To open them later, first move to paid hosting (docs/DEPLOYMENT.md section
+  # 21.9), then change the two modes in the dashboard and restart (section 16a). Do not
+  # give them a `value:` here: a Blueprint sync would reset it.
   - type: web
     name: valueskins-api
     runtime: node
-    # Paid and always-on, like staging.
-    plan: 0.5c-512mb
+    # Render's free instance type: it spins down after 15 minutes without traffic and takes
+    # about a minute to wake, scheduled jobs run only while it is awake, and Render may restart
+    # it at any time. It has no pre-deploy command. Moving to paid is docs/DEPLOYMENT.md 21.9.
+    plan: free
     region: singapore
     branch: main
-    # Deployed by hand (Render: Manual Deploy), after staging has shown the change works.
-    # The pre-deploy step below migrates the production database, so this also decides
-    # when that happens.
+    # Deployed by hand (Render: Manual Deploy), after staging has shown the change works,
+    # and after any new migration has been run by hand against the production database
+    # (docs/DEPLOYMENT.md section 21.4).
     autoDeployTrigger: 'off'
     buildFilter:
       paths:
@@ -157,7 +49,8 @@ services:
         - render.yaml
     # --prod=false: installs devDependencies (typescript) even if NODE_ENV=production.
     buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter "./packages/*" run build && pnpm --filter @valueskins/api run build
-    preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy
+    # No preDeployCommand: free instances do not have one. The API never migrates on start or
+    # in the build; it refuses to start when the database and the code disagree.
     startCommand: pnpm --filter @valueskins/api run start
     healthCheckPath: /api/health
     domains:
@@ -168,10 +61,11 @@ services:
         value: '22'
       - key: NODE_ENV
         value: production
+      # Neon's DIRECT connection string, ending in ?sslmode=require (docs/DEPLOYMENT.md
+      # section 21.3). Not the pooled one: its host name contains "-pooler", and the API
+      # refuses to start with it.
       - key: DATABASE_URL
-        fromDatabase:
-          name: valueskins-db
-          property: connectionString
+        sync: false
       # Enter https://next.valueskins.com while production is being checked, then
       # https://valueskins.com at the switch (docs/CUTOVER.md step C2). No trailing slash.
       - key: WEB_ORIGIN
@@ -230,6 +124,10 @@ services:
         sync: false
       - key: GST_RATE_BPS
         value: '1800'
+      # The hosting tier (SPEC 19): enter `free`. A startup guard refuses any launch gate other
+      # than `off` while this is not `paid`. Set it to `paid` only after the move to paid hosting.
+      - key: HOSTING_TIER
+        sync: false
       # Launch gates (SPEC 19): enter `off` for both. Change them in the dashboard to open.
       - key: PAYMENTS_MODE
         sync: false

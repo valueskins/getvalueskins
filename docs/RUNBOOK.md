@@ -14,7 +14,7 @@ What to do when something goes wrong in staging or production. Plain steps, in t
 
 You need: the Render dashboard, the Razorpay dashboard, Sentry, and an admin sign-in (an Instagram account listed in `ADMIN_INSTAGRAM_USER_IDS`).
 
-**Render Shell** (service `valueskins-api-staging`, or the production service). Define the query helper once per shell:
+**Render Shell** (service `valueskins-api-staging`, or the production service once it is on a paid instance type). A **free** Render instance has no Shell: while production is on free hosting, run the same queries from your own machine against Neon with `read -rs DATABASE_URL && export DATABASE_URL` (the direct connection string, `docs/DEPLOYMENT.md` section 21.4), and `unset DATABASE_URL` afterwards. Define the query helper once per shell:
 
 ```bash
 q() { pnpm --filter @valueskins/api exec node -e "const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query(process.argv[1]).then(r=>{console.log(JSON.stringify(r.rows,null,1));return p.end()})" "$1"; }
@@ -142,7 +142,7 @@ A deal's brand or confirmed creator raises it from the deal page (from `CONFIRME
 
 **The API is down or deploying badly.**
 
-1. Render > service > **Events**. Find the last deploy that worked and use **Rollback**. Database migrations are not undone by a rollback (migrations are written so the previous code keeps working).
+1. Render > service > **Events**. Find the last deploy that worked and use **Rollback**. Database migrations are not undone by a rollback. **The production API refuses to start when the database has a migration the code does not know** (`docs/DEPLOYMENT.md` section 21.4): if a migration was applied after that deploy, the older code will not start. Then fix forward with a new deploy, or restore the database (section 7).
 2. If the deploy failed at startup, open **Logs**. A line `Invalid environment configuration` names the missing variable. A line `Startup guard failed` is a safety rule stopping the API on purpose.
 3. The API process also runs the schedules and the sockets. While it is down: reminders do not fire (they resume at their next time; run them by hand afterwards), sockets reconnect by themselves, and people see errors.
 4. **Razorpay webhooks are not retried by us.** Razorpay retries failed deliveries for a while. After an outage, open the Razorpay dashboard (**Accounts & Settings > Webhooks**) and re-deliver any `payment.captured` or `order.paid` events that failed. Re-delivery is safe: events are de-duplicated and the capture is idempotent. Brands who paid during the outage and then reloaded their deal page were also completed by verify.
@@ -156,7 +156,7 @@ A deal's brand or confirmed creator raises it from the deal page (from `CONFIRME
 
 ## 7. Restoring the database
 
-Use this when data was lost or corrupted (a bad migration, a bad script, an accidental delete). It needs a **paid** Render Postgres plan; the free staging database has no backups and cannot be restored (recreate and reseed it, `docs/DEPLOYMENT.md` section 17).
+Use this when data was lost or corrupted (a bad migration, a bad script, an accidental delete). **Production while it is free is on Neon's Free plan, which can restore only the last 6 hours** (no daily backups). Neon's console has a restore function for a branch to a point in that window (look under the project's branches or backup and restore; menu names change, so follow Neon's own restore documentation), and you can create a branch from `main` before a risky migration as a copy to return to. After the restore, do steps 3 to 8 below with Neon's direct connection string for the restored data. Moving to paid hosting, with a longer window, is `docs/DEPLOYMENT.md` section 21.9. The free staging database has no backups and cannot be restored (recreate and reseed it, `docs/DEPLOYMENT.md` section 17). The rest of this section describes a **paid** Render Postgres plan.
 
 Render keeps point-in-time recovery for the last 3 days (Hobby plans) or 7 days (Pro and above). A restore creates a **new** database; the old one is left alone.
 
@@ -179,7 +179,7 @@ Render keeps point-in-time recovery for the last 3 days (Hobby plans) or 7 days 
 
 ## Running a job by hand
 
-Jobs: `instagram-refresh`, `cleanup`, `fee-reminder`, `payment-due-reminder`, `confirm-payment-reminder`, `review-reminder`, `content-overdue`. In the Render Shell:
+Jobs: `instagram-refresh`, `cleanup`, `fee-reminder`, `payment-due-reminder`, `confirm-payment-reminder`, `review-reminder`, `content-overdue`. On the free tier the scheduled jobs run only while the API is awake and are not caught up afterwards, and a free instance has no Shell to run one by hand (`docs/DEPLOYMENT.md` section 21.8). On a service with a Shell:
 
 ```bash
 pnpm --filter @valueskins/api run job:deploy -- --list
