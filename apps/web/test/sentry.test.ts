@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const init = vi.fn();
 const captureException = vi.fn();
 const captureRequestError = vi.fn();
+const flush = vi.fn(async (_timeout?: number) => true);
 
 vi.mock('@sentry/nextjs', () => ({
   init: (options: unknown) => init(options),
   captureException: (error: unknown) => captureException(error),
   captureRequestError: (...args: unknown[]) => captureRequestError(...args),
+  flush: (timeout?: number) => flush(timeout),
   linkedErrorsIntegration: () => ({ name: 'LinkedErrors' }),
   dedupeIntegration: () => ({ name: 'Dedupe' }),
   globalHandlersIntegration: () => ({ name: 'GlobalHandlers' }),
@@ -23,6 +25,7 @@ beforeEach(() => {
   init.mockClear();
   captureException.mockClear();
   captureRequestError.mockClear();
+  flush.mockClear();
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -45,8 +48,9 @@ describe('Sentry is off unless NEXT_PUBLIC_SENTRY_DSN is set', () => {
   it('the server request-error hook does nothing while it is off', async () => {
     vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', '');
     const { onRequestError } = await import('@/instrumentation');
-    (onRequestError as (...args: unknown[]) => void)(new Error('x'), {}, {});
+    await (onRequestError as (...args: unknown[]) => Promise<void>)(new Error('x'), {}, {});
     expect(captureRequestError).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
   });
 });
 
@@ -102,6 +106,21 @@ describe('Sentry with a DSN', () => {
       expect(text, leaked).not.toContain(leaked);
     }
     expect(out.request).toEqual({ url: 'https://valueskins.com/deals' });
+  });
+
+  it('the server request-error hook captures the error, then waits for the flush (Netlify has no waitUntil)', async () => {
+    const { onRequestError } = await import('@/instrumentation');
+    const error = new Error('boom');
+    const order: string[] = [];
+    captureRequestError.mockImplementationOnce(() => order.push('capture'));
+    flush.mockImplementationOnce(async () => {
+      order.push('flush');
+      return true;
+    });
+    await (onRequestError as (...args: unknown[]) => Promise<void>)(error, {}, {});
+    expect(captureRequestError).toHaveBeenCalledWith(error, {}, {});
+    expect(flush).toHaveBeenCalledWith(2000);
+    expect(order).toEqual(['capture', 'flush']);
   });
 
   it('reportError sends the error', () => {
