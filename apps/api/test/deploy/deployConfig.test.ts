@@ -13,21 +13,8 @@ const ALL_ENV_KEYS = Object.keys(envSchema.shape);
 // Injected by Render, or defaulted and so safely omitted from the Blueprint.
 const NOT_IN_BLUEPRINT = ['PORT', 'TEST_DATABASE_URL', 'DISPUTE_EMAIL'];
 
-/** render.yaml split at each database and service: a chunk starts at `  - name:` or `  - type:`. */
-const chunks = renderYaml.split(/^(?= {2}- (?:name|type): )/m);
-
-function chunkNamed(kind: 'database' | 'service', name: string): string {
-  const start = kind === 'service' ? '  - type: web' : '  - name:';
-  const found = chunks.find(
-    (c) => c.startsWith(start) && new RegExp(`^\\s*(?:- )?name: ${name}$`, 'm').test(c),
-  );
-  if (!found) throw new Error(`render.yaml has no ${kind} named ${name}`);
-  return found;
-}
-
-const stagingApi = chunkNamed('service', 'valueskins-api-staging');
-const productionApi = chunkNamed('service', 'valueskins-api');
-const productionDb = chunkNamed('database', 'valueskins-db');
+/** The one service in render.yaml, from its `- type:` line to the end of the file. */
+const productionApi = renderYaml.slice(renderYaml.indexOf('  - type: web'));
 
 function keysIn(chunk: string): string[] {
   return [...chunk.matchAll(/^\s*- key: ([A-Z_]+)\s*$/gm)].map((m) => m[1]!);
@@ -51,89 +38,42 @@ function valueIn(chunk: string, key: string): string | undefined {
   return match?.[1];
 }
 
-const blueprintKeys = () => keysIn(renderYaml);
-const blueprintValue = (key: string) => valueIn(stagingApi, key);
+/** A line of the file that is not a comment, so a comment may mention what it forbids. */
+function codeLines(text: string): string[] {
+  return text.split('\n').filter((l) => !/^\s*#/.test(l));
+}
 
 const RAZORPAY_KEYS = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'];
+const NEON_DIRECT =
+  'postgresql://owner:pw@ep-cool-darkness-123456.ap-southeast-1.aws.neon.tech/valueskins?sslmode=require';
 
-describe('render.yaml', () => {
-  it('lists every API env var the API requires at startup, so a new var cannot be forgotten', () => {
-    const listed = keysIn(stagingApi);
-    const missing = ALL_ENV_KEYS.filter(
-      (k) => !NOT_IN_BLUEPRINT.includes(k) && !listed.includes(k),
-    );
-
-    expect(missing).toEqual([]);
+describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md section 21)', () => {
+  it('defines production only: one service, no Render database, and no staging', () => {
+    const code = codeLines(renderYaml).join('\n');
+    expect([...code.matchAll(/^\s*- type: /gm)]).toHaveLength(1);
+    expect(code).toMatch(/^\s+name: valueskins-api$/m);
+    expect(code).not.toMatch(/^databases:/m);
+    expect(code).not.toMatch(/fromDatabase/);
+    expect(code).not.toMatch(/staging/i);
   });
 
-  it('lists no unknown keys (other than Render own NODE_VERSION)', () => {
-    const unknown = blueprintKeys().filter(
-      (k) => k !== 'NODE_VERSION' && !ALL_ENV_KEYS.includes(k),
-    );
-
-    expect(unknown).toEqual([]);
-  });
-
-  it('has the staging values from the deployment spec', () => {
-    expect(blueprintValue('NODE_ENV')).toBe('staging');
-    expect(blueprintValue('WEB_ORIGIN')).toBe('https://staging.valueskins.com');
-    expect(blueprintValue('COOKIE_DOMAIN')).toBe('.valueskins.com');
-    expect(blueprintValue('SESSION_COOKIE_NAME')).toBe('vs_session_staging');
-    expect(blueprintValue('EMAIL_TRANSPORT')).toBe('resend');
-    expect(blueprintValue('ENABLE_DEV_LOGIN')).toBe('true');
-    expect(blueprintValue('AUTH_EMAIL_ENABLED')).toBe('true');
-    // GST is charged (REPLACEMENT_PLAN 2.2), so the GSTIN is a value the human enters.
-    expect(blueprintValue('GST_RATE_BPS')).toBe('1800');
-    expect(stagingApi).toMatch(/- key: COMPANY_GSTIN\n\s+sync: false/);
-    expect(blueprintValue('SUPPORT_EMAIL')).toBe('founder@valueskins.com');
-    expect(blueprintValue('INSTAGRAM_REDIRECT_URI')).toBe(
-      'https://api-staging.valueskins.com/api/auth/instagram/callback',
-    );
-  });
-
-  it('keeps every secret out of the file (prompted with sync: false)', () => {
-    for (const key of [
-      'INSTAGRAM_APP_SECRET',
-      'META_APP_SECRET',
-      'RAZORPAY_KEY_SECRET',
-      'RAZORPAY_WEBHOOK_SECRET',
-      'RESEND_API_KEY',
-    ]) {
-      expect(stagingApi).toMatch(new RegExp(`- key: ${key}\\n\\s+sync: false`));
-    }
-    expect(renderYaml).not.toMatch(/rzp_(live|test)_[A-Za-z0-9]{6,}/);
-  });
-
-  it('is a paid, always-on service with health check and pre-deploy migrations', () => {
-    expect(stagingApi).toMatch(/plan: 0\.5c-512mb/);
-    expect(stagingApi).toMatch(/healthCheckPath: \/api\/health/);
-    expect(stagingApi).toMatch(/preDeployCommand: .*db:migrate:deploy/);
-    expect(stagingApi).toMatch(/domains:\n\s+- api-staging\.valueskins\.com/);
-  });
-});
-
-describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
-  it('has a paid, backed-up database in Singapore, reachable only from inside Render', () => {
-    expect(productionDb).toMatch(/plan: 0\.5c-1g/);
-    expect(productionDb).not.toMatch(/plan: free/);
-    expect(productionDb).toMatch(/region: singapore/);
-    expect(productionDb).toMatch(/postgresMajorVersion: '16'/);
-    expect(productionDb).toMatch(/ipAllowList: \[\]/);
-  });
-
-  it('is a paid, always-on API in Singapore with pre-deploy migrations, deployed by hand', () => {
-    expect(productionApi).toMatch(/plan: 0\.5c-512mb/);
-    expect(productionApi).toMatch(/region: singapore/);
+  it('is Render free, in Singapore, with a health check and the production domain', () => {
+    expect(productionApi).toMatch(/^\s+plan: free$/m);
+    expect(productionApi).toMatch(/^\s+region: singapore$/m);
     expect(productionApi).toMatch(/healthCheckPath: \/api\/health/);
-    expect(productionApi).toMatch(/preDeployCommand: .*db:migrate:deploy/);
     expect(productionApi).toMatch(/domains:\n\s+- api\.valueskins\.com\n/);
     // Quoted: a bare `off` is the YAML boolean false.
     expect(productionApi).toMatch(/autoDeployTrigger: 'off'/);
   });
 
-  it('reads its database from the production database, never the staging one', () => {
-    expect(entryOf(productionApi, 'DATABASE_URL')).toContain('name: valueskins-db');
-    expect(entryOf(stagingApi, 'DATABASE_URL')).toContain('name: valueskins-staging-db');
+  it('has no pre-deploy command, and nothing that migrates in the build or on start', () => {
+    const code = codeLines(productionApi);
+    expect(code.join('\n')).not.toMatch(/preDeployCommand/);
+    for (const key of ['buildCommand', 'startCommand']) {
+      const line = code.find((l) => l.trim().startsWith(`${key}:`));
+      expect(line, key).toBeDefined();
+      expect(line, key).not.toMatch(/migrat/i);
+    }
   });
 
   it('lists every API env var except the Razorpay ones, which are left out on purpose', () => {
@@ -144,6 +84,14 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
 
     expect(missing).toEqual([]);
     for (const key of RAZORPAY_KEYS) expect(listed).not.toContain(key);
+  });
+
+  it('lists no unknown keys (other than Render own NODE_VERSION)', () => {
+    const unknown = keysIn(renderYaml).filter(
+      (k) => k !== 'NODE_VERSION' && !ALL_ENV_KEYS.includes(k),
+    );
+
+    expect(unknown).toEqual([]);
   });
 
   it('has the production values', () => {
@@ -160,12 +108,11 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
     // The variable has no default, so it is present and false (the guard refuses true).
     expect(value('ENABLE_DEV_LOGIN')).toBe('false');
     expect(value('AUTH_EMAIL_ENABLED')).toBe('false');
-    // No staging value leaked in (comments may mention staging).
-    expect(productionApi).not.toMatch(/^\s+value: .*staging/im);
   });
 
   it('keeps every secret out of the file: prompted with sync: false, or generated', () => {
     for (const key of [
+      'DATABASE_URL',
       'INSTAGRAM_APP_ID',
       'INSTAGRAM_APP_SECRET',
       'META_APP_SECRET',
@@ -177,10 +124,14 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
     for (const key of ['SESSION_SECRET', 'TOKEN_ENCRYPTION_KEY']) {
       expect(entryOf(productionApi, key), key).toMatch(/generateValue: true/);
     }
+    expect(renderYaml).not.toMatch(/rzp_(live|test)_[A-Za-z0-9]{6,}/);
+    expect(renderYaml).not.toMatch(/postgres(ql)?:\/\/[^\s]*:[^\s]*@/);
   });
 
   it('leaves the values that change after launch to the dashboard (a Blueprint sync resets any value in this file)', () => {
     for (const key of [
+      'DATABASE_URL',
+      'HOSTING_TIER',
       'PAYMENTS_MODE',
       'DEAL_POSTING_MODE',
       'ADMIN_INSTAGRAM_USER_IDS',
@@ -194,6 +145,8 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
   /** What Render would hand the API: the file's values, plus what a person types at each prompt. */
   function productionEnv(prompted: Record<string, string> = {}): Record<string, string> {
     const typed: Record<string, string> = {
+      DATABASE_URL: NEON_DIRECT,
+      HOSTING_TIER: 'free',
       WEB_ORIGIN: 'https://next.valueskins.com',
       INSTAGRAM_APP_ID: 'ci-instagram-app-id',
       INSTAGRAM_APP_SECRET: 'ci-instagram-app-secret',
@@ -214,17 +167,17 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
       const entry = entryOf(productionApi, key);
       if (/sync: false/.test(entry)) env[key] = typed[key] ?? '';
       else if (/generateValue: true/.test(entry)) env[key] = 'render-generated-value';
-      else if (/fromDatabase:/.test(entry)) env[key] = 'postgres://user:pass@db:5432/valueskins';
       else env[key] = valueIn(productionApi, key) ?? '';
     }
     return env;
   }
 
-  it('starts: the real env parser and startup guards accept it, closed, with no Razorpay variable', () => {
+  it('starts: the real env parser and startup guards accept it, free, closed, with no Razorpay variable', () => {
     const env = parseEnv(productionEnv());
 
     expect(getStartupGuardViolations(env)).toEqual([]);
     expect(env.NODE_ENV).toBe('production');
+    expect(env.HOSTING_TIER).toBe('free');
     expect([env.PAYMENTS_MODE, env.DEAL_POSTING_MODE]).toEqual(['off', 'off']);
     expect([env.RAZORPAY_KEY_ID, env.RAZORPAY_KEY_SECRET, env.RAZORPAY_WEBHOOK_SECRET]).toEqual([
       '',
@@ -235,15 +188,39 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
     expect(env.AUTH_EMAIL_ENABLED).toBe(false);
   });
 
-  it('still starts closed if both mode prompts are left blank', () => {
-    const env = parseEnv(productionEnv({ PAYMENTS_MODE: '', DEAL_POSTING_MODE: '' }));
+  it('still starts closed and free if the tier and both mode prompts are left blank', () => {
+    const env = parseEnv(
+      productionEnv({ HOSTING_TIER: '', PAYMENTS_MODE: '', DEAL_POSTING_MODE: '' }),
+    );
 
+    expect(env.HOSTING_TIER).toBe('free');
     expect([env.PAYMENTS_MODE, env.DEAL_POSTING_MODE]).toEqual(['off', 'off']);
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
-  it('does not start with payments opened before the live Razorpay values are added', () => {
-    const env = parseEnv(productionEnv({ PAYMENTS_MODE: 'on' }));
+  it('does not start with a launch gate opened while the hosting is free', () => {
+    for (const name of ['PAYMENTS_MODE', 'DEAL_POSTING_MODE']) {
+      const violations = getStartupGuardViolations(parseEnv(productionEnv({ [name]: 'admins' })));
+      expect(violations.some((v) => v.startsWith(`${name} must be "off" when HOSTING_TIER`))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('does not start on a pooled Neon host, or without TLS', () => {
+    const pooled = NEON_DIRECT.replace('-123456.', '-123456-pooler.');
+    expect(
+      getStartupGuardViolations(parseEnv(productionEnv({ DATABASE_URL: pooled }))).join(' '),
+    ).toContain('-pooler');
+    expect(
+      getStartupGuardViolations(
+        parseEnv(productionEnv({ DATABASE_URL: NEON_DIRECT.replace('?sslmode=require', '') })),
+      ).join(' '),
+    ).toContain('sslmode=require');
+  });
+
+  it('on paid hosting, payments still need the live Razorpay values', () => {
+    const env = parseEnv(productionEnv({ HOSTING_TIER: 'paid', PAYMENTS_MODE: 'on' }));
 
     expect(getStartupGuardViolations(env)).toEqual(
       expect.arrayContaining([
@@ -252,8 +229,8 @@ describe('render.yaml: production (docs/DEPLOYMENT.md section 21)', () => {
     );
   });
 
-  it('opening deal posting needs no Razorpay variable', () => {
-    const env = parseEnv(productionEnv({ DEAL_POSTING_MODE: 'on' }));
+  it('on paid hosting, opening deal posting needs no Razorpay variable', () => {
+    const env = parseEnv(productionEnv({ HOSTING_TIER: 'paid', DEAL_POSTING_MODE: 'on' }));
 
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
@@ -277,6 +254,27 @@ describe('docs/DEPLOYMENT.md', () => {
     for (const key of ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_SENTRY_DSN', ...RAZORPAY_KEYS]) {
       expect(section).toContain(key);
     }
+  });
+
+  it('describes the free production setup: Neon, the direct string, manual migrations, moving to paid', () => {
+    const section = deploymentDoc.slice(deploymentDoc.indexOf('\n## 21. Production'));
+    for (const text of [
+      'Neon',
+      '-pooler',
+      'sslmode=require',
+      'read -rs',
+      'db:migrate',
+      'Moving to paid',
+      'HOSTING_TIER',
+      'sleeps',
+    ]) {
+      expect(section, text).toContain(text);
+    }
+  });
+
+  it('says the staging services are managed by hand and are not in render.yaml', () => {
+    expect(deploymentDoc).toContain('Staging is managed by hand');
+    expect(renderYaml).toContain('Staging is managed by hand');
   });
 
   it('documents the web env vars', () => {

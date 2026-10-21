@@ -20,6 +20,15 @@ const launchMode = z.preprocess(
   z.enum(LAUNCH_MODES).optional(),
 );
 
+/**
+ * free | paid. Blank counts as unset, and unset means `free`, the safe value: a startup guard refuses
+ * to open payments or posting in production unless this is `paid` (SPEC 19).
+ */
+const hostingTier = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.enum(['free', 'paid']).default('free'),
+);
+
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']),
   PORT: z.coerce.number().int().positive(),
@@ -77,6 +86,7 @@ export const envSchema = z.object({
       .refine((value) => value.startsWith('https://'), 'must be an https URL')
       .optional(),
   ),
+  HOSTING_TIER: hostingTier,
   PAYMENTS_MODE: launchMode,
   DEAL_POSTING_MODE: launchMode,
   // Blank counts as unset: z.coerce.number() would turn '' into 0 and silently drop the GST.

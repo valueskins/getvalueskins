@@ -18,7 +18,23 @@ function resolveConnectionString(): string {
   return url;
 }
 
-export const pool = new Pool({ connectionString: resolveConnectionString() });
+/**
+ * A small pool: Neon's free plan has few connections, and one connection is held for the whole run
+ * of a scheduled job (its advisory lock). A connection that cannot be had in 30 seconds is an error,
+ * not a hang: that covers a Neon compute that is waking up, and a pool that is somehow exhausted.
+ */
+export const pool = new Pool({
+  connectionString: resolveConnectionString(),
+  max: 5,
+  connectionTimeoutMillis: 30_000,
+});
+
+// A Neon compute that suspends, or a restart on the database's side, drops idle connections. The
+// pool reports that as an 'error' event, and an event nobody listens to would end the process.
+// Only the code is logged: the message can carry the host.
+pool.on('error', (err: Error & { code?: string }) => {
+  console.error(`database pool: an idle connection failed (${err.code ?? 'no code'})`);
+});
 
 export const db = drizzle(pool, { schema });
 

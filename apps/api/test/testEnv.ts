@@ -4,7 +4,7 @@ import type { Env } from '../src/env/schema.js';
 const BASE_RAW_ENV: NodeJS.ProcessEnv = {
   NODE_ENV: 'test',
   PORT: '4001',
-  DATABASE_URL: 'postgres://valueskins:valueskins@localhost:5432/valueskins_dev',
+  DATABASE_URL: 'postgres://valueskins:valueskins@localhost:5432/valueskins_dev?sslmode=require',
   TEST_DATABASE_URL: 'postgres://valueskins:valueskins@localhost:5432/valueskins_test',
   WEB_ORIGIN: 'http://localhost:3000',
   COOKIE_DOMAIN: '',

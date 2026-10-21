@@ -60,12 +60,14 @@ Commands (from the repo root):
   - production has `ENABLE_DEV_LOGIN=true`
   - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else), checked whenever a key is set
   - production has `PAYMENTS_MODE` other than `off` without a live key id, key secret, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`
+  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` other than `off` while `HOSTING_TIER` is not `paid` (the free tier sleeps)
+  - `DATABASE_URL` is a pooled host (`-pooler`), in any environment, or lacks `sslmode=require` in production
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
   Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
-- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
+- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy. `HOSTING_TIER` (`free` or `paid`, unset means `free`) must be `paid` before either leaves `off` in production.
 - **Dev login** exists only when `NODE_ENV !== 'production'` and `ENABLE_DEV_LOGIN=true`. **Email-code sign-in** is for staging and tests only, never production.
 
 ## 6. Product rules the code must always enforce
@@ -147,7 +149,7 @@ Details are in the spec. These are the invariants.
 
 - Schema in `apps/api/src/db/schema/`. Migrations are generated with `pnpm db:generate` into `apps/api/drizzle/`.
   - **Never edit a migration that has been merged.** Write a new one.
-  - Migrations run by script or in the deploy step, never on app start.
+  - Migrations run by script or in the deploy step, never on app start. Production on the free tier is migrated by hand (`pnpm db:migrate`, `docs/DEPLOYMENT.md` section 21.4). The API checks at startup that the database has applied every migration the code has, and refuses to start otherwise. A database that is ahead of the code only logs a warning, so a rollback works.
 - UUID v7 primary keys. `timestamptz` in UTC. Money columns are `*_paise BIGINT`. Enums are Postgres enums, with values from `packages/shared`.
 - Foreign keys everywhere, and an index on every foreign key and every filtered column.
 - Rules that must never break are also enforced in the database (CHECK, partial unique indexes), not only in code.

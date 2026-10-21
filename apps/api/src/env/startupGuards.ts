@@ -1,3 +1,4 @@
+import { databaseUrlProblems } from '../db/databaseUrl.js';
 import type { Env } from './schema.js';
 
 export class StartupGuardError extends Error {
@@ -60,6 +61,24 @@ export function getStartupGuardViolations(env: Env): string[] {
   // Production sign-in is Instagram only (REPLACEMENT_PLAN 2.3, CLAUDE.md 5).
   if (env.NODE_ENV === 'production' && env.AUTH_EMAIL_ENABLED) {
     violations.push('AUTH_EMAIL_ENABLED must not be true when NODE_ENV=production');
+  }
+
+  // The database is reached over TLS in production, and never through a pooler: advisory locks
+  // (the scheduled jobs) need a direct connection.
+  violations.push(
+    ...databaseUrlProblems(env.DATABASE_URL, { requireTls: env.NODE_ENV === 'production' }),
+  );
+
+  // The free hosting tier sleeps (the API after 15 minutes idle, so no scheduled job or reminder
+  // runs while it does), so nothing that takes money or posts deals may open on it.
+  if (env.NODE_ENV === 'production' && env.HOSTING_TIER !== 'paid') {
+    for (const name of ['PAYMENTS_MODE', 'DEAL_POSTING_MODE'] as const) {
+      if (env[name] !== 'off') {
+        violations.push(
+          `${name} must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders`,
+        );
+      }
+    }
   }
 
   return violations;

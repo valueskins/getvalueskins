@@ -1,6 +1,8 @@
 # Staging deployment
 
-Every manual step to put staging on the internet, in order. **Production is section 21**, and the order of the switch from the live app is in `docs/CUTOVER.md`. Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
+Every manual step to put staging on the internet, in order. **Production is section 21**, and the order of the switch from the live app is in `docs/CUTOVER.md`.
+
+**Staging is managed by hand.** The staging services on Render (`valueskins-api-staging` and its database) were created from an earlier `render.yaml`. They are now changed only in the Render dashboard, and `render.yaml` describes production only, so applying it creates production only. Render never deletes a resource because it left the file. Sections 1 to 20 describe staging, and section 18 lists its settings: use them to change staging, or to recreate it by hand, where "Blueprint" steps appear (create the web service and the database in the dashboard with the same settings). The one new variable, `HOSTING_TIER`, is optional on staging: unset means `free`, and the guard that uses it applies only in production. Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
 
 Dashboard menu names change often. Where a name below could not be checked against the current dashboard, it says "look for". The values and URLs are exact.
 
@@ -107,6 +109,8 @@ The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on
 Until the domain is verified, sends fail and are recorded as FAILED in the `email_log` table; nothing crashes.
 
 ## 8. Render (API and database)
+
+> `render.yaml` no longer contains staging (see the top of this file). The Blueprint steps below show how staging was set up and which settings it has. To recreate it, create the web service and the Postgres database by hand in the dashboard with the same settings.
 
 1. In Render, **New > Blueprint**.
 2. Connect GitHub and pick `valueskins/getvalueskins`. Branch `main`. Render reads `render.yaml`.
@@ -504,7 +508,7 @@ Submission text for reviewers: the staging URL, the step-by-step above, and the 
 
 ## 16. Rollback
 
-**API (Render).** Service > **Events** (or **Deploys**) > pick the last good deploy > **Rollback**. Database migrations are not undone by a rollback. Write migrations so the previous code still works after them (add columns before using them; remove them in a later change). If a migration itself is bad: the pre-deploy command fails, the deploy fails, and the old version keeps serving. Fix forward with a new migration. The free staging database has no backups, so there is no restore; staging data is disposable, so recreate and reseed (section 17).
+**API (Render).** Service > **Events** (or **Deploys**) > pick the last good deploy > **Rollback**. Database migrations are not undone by a rollback. Write migrations so the previous code still works after them (add columns before using them; remove them in a later change). A rollback to a deploy older than the last applied migration starts with a warning (production's API logs the migrations the code does not know, section 21.4, and starts), so that rule is what keeps a rollback safe: never write a migration that the previous code cannot run against. If a migration itself is bad: the pre-deploy command fails, the deploy fails, and the old version keeps serving. Fix forward with a new migration. The free staging database has no backups, so there is no restore; staging data is disposable, so recreate and reseed (section 17).
 
 **Web (Vercel).** Project > **Deployments** > open the last good Production deployment > the menu > **Instant Rollback** (or **Promote to Production**).
 
@@ -527,6 +531,8 @@ Production starts closed: with `PAYMENTS_MODE` and `DEAL_POSTING_MODE` unset, bo
 | Staging      | `on` (`render.yaml`)                  | `on` (`render.yaml`)  |
 | Production   | unset, which is `off`, until you open | unset, until you open |
 
+**Step 0, before anything below: move to paid hosting (section 21.9).** Production starts on free hosting, which sleeps and cannot run payments or reminders. The API refuses to start with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` other than `off` unless `HOSTING_TIER=paid`, and `HOSTING_TIER=paid` must only be set after the move is done.
+
 While payments are `off` in production, the Razorpay variables can be left out. To open payments:
 
 1. In the production service set `RAZORPAY_KEY_ID` (a `rzp_live_` key), `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`. The API refuses to start in production with `PAYMENTS_MODE` other than `off` if any is missing, or if the key is a test key.
@@ -536,7 +542,7 @@ While payments are `off` in production, the Razorpay variables can be left out. 
 
 To open posting, set `DEAL_POSTING_MODE=admins`, check with an admin, then `on`, and restart each time. Until it is `on`, brands see a banner and the Publish button says why it is off.
 
-Then tell people. In the Render Shell, run each command without `--send` first (it prints counts and sends nothing), then with it:
+Then tell people. In the Render Shell (available once the service is on a paid instance type), run each command without `--send` first (it prints counts and sends nothing), then with it:
 
 ```bash
 pnpm --filter @valueskins/api run notify:launch:deploy -- --audience brands
@@ -559,6 +565,8 @@ Only one free Postgres can be active per Render workspace.
 ## 18. Reference: environment variables
 
 ### Render, API service `valueskins-api-staging`
+
+These are staging's settings. Rows that say `render.yaml` mean the earlier file that created staging: staging is now managed by hand (see the top of this file), so change a value in the Render dashboard.
 
 | Variable                   | Staging value                                                    | Where it comes from                                                                                                                    |
 | -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -595,12 +603,13 @@ Only one free Postgres can be active per Render workspace.
 | `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
 | `PAYMENTS_MODE`            | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
 | `DEAL_POSTING_MODE`        | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
+| `HOSTING_TIER`             | unset, which is `free`                                           | Optional. `free` or `paid`. A startup guard uses it only in production (section 21.2); staging ignores it                              |
 | `SENTRY_DSN`               | optional, blank turns it off                                     | Sentry project settings (RUNBOOK). Errors only; personal data is removed before sending                                                |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
 
 **Razorpay keys.** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` may be left out while `PAYMENTS_MODE=off`. When a key id is set it must match the environment (`rzp_test_` outside production, `rzp_live_` in production).
 
-**`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging and in production (set in `render.yaml` for both). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
+**`SUPPORT_EMAIL` in every environment.** The API refuses to start without it, and no code or example file supplies a value. The value is `founder@valueskins.com` on staging (set by hand in the dashboard) and in production (set in `render.yaml`). Create that mailbox before the deploy: it becomes the reply-to, the footer line of every email and the address in error messages, and `DISPUTE_EMAIL` follows it unless you set one. Local development and CI use a test value of your own in `apps/api/.env`.
 
 ### Vercel, project `valueskins-staging-web`
 
@@ -661,23 +670,29 @@ Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `
 
 ## 21. Production
 
-Production is `valueskins.com` (web) and `api.valueskins.com` (API). It goes live **closed**: `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`, with no Razorpay variable set, because the company bank account and the live Razorpay account are not ready. Brands can set up a profile and billing and save drafts; Publish and the fee show a reason. No data is imported from the live app. This section holds every setting and who provides it. The order of the switch, the checks and the rollback are in `docs/CUTOVER.md`. Nothing here is done by code: `render.yaml` describes the Render side, and you click through the dashboards.
+Production is `valueskins.com` (web) and `api.valueskins.com` (API). It goes live **closed and free**:
+
+- `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`, with no Razorpay variable set, because the company bank account and the live Razorpay account are not ready. Brands can set up a profile and billing and save drafts; Publish and the fee show a reason.
+- **Free hosting** until payments open: the API on Render's free instance type, and the database on Neon's free plan. Section 21.8 says what that means, and section 21.9 is the move to paid, which must happen before either launch gate leaves `off`.
+- No data is imported from the live app.
+
+This section holds every setting and who provides it. The order of the switch, the checks and the rollback are in `docs/CUTOVER.md`. Nothing here is done by code: `render.yaml` describes the Render side, and you click through the dashboards.
 
 ### 21.1 What you are building
 
-| Piece           | URL                                  | Where it runs                                                    | Deploys from                                     |
-| --------------- | ------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
-| Web (Next.js)   | `https://valueskins.com`             | Vercel, a new project (for example `valueskins-web`)             | `main`, root directory `apps/web`, on each merge |
-| API (Express)   | `https://api.valueskins.com`         | Render web service `valueskins-api` (paid, always-on, Singapore) | `main`, **by hand** (Manual Deploy)              |
-| Database        | internal only                        | Render Postgres `valueskins-db` (paid plan `0.5c-1g`, Singapore) | created by the Blueprint                         |
-| Email           | from `notifications@valueskins.com`  | Resend                                                           | -                                                |
-| Payments        | not connected                        | no Razorpay variable is set until payments open (section 16a)    | -                                                |
-| Instagram login | everyone with a Professional account | the same Meta app the live app uses, in Live mode                | -                                                |
-| Errors          | -                                    | Sentry, two production projects (Node.js and Next.js)            | -                                                |
+| Piece           | URL                                  | Where it runs                                                                | Deploys from                                     |
+| --------------- | ------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------ |
+| Web (Next.js)   | `https://valueskins.com`             | Vercel, a new project (for example `valueskins-web`)                         | `main`, root directory `apps/web`, on each merge |
+| API (Express)   | `https://api.valueskins.com`         | Render web service `valueskins-api`, **free instance type**, Singapore       | `main`, **by hand** (Manual Deploy)              |
+| Database        | internal to the API                  | **Neon**, a Free plan project: Postgres 16, Singapore, **direct** connection | migrations **by hand** (section 21.4)            |
+| Email           | from `notifications@valueskins.com`  | Resend                                                                       | -                                                |
+| Payments        | not connected                        | no Razorpay variable is set until payments open (section 16a)                | -                                                |
+| Instagram login | everyone with a Professional account | the same Meta app the live app uses, in Live mode                            | -                                                |
+| Errors          | -                                    | Sentry, two production projects (Node.js and Next.js)                        | -                                                |
 
 Cookies: the web app and the API are both under `valueskins.com`, so the session cookie (`vs_session`, domain `.valueskins.com`, Secure, SameSite=Lax) is sent between them.
 
-**Who is who.** The names are the roles used in `docs/CUTOVER.md`: **Engineer** (maintains this repo and runs Render), **Saketh** (maintains the live app and, if it is his, the Meta app), **Founders** (decide, and hold the company records and the support mailbox), **DNS owner** (the Cloudflare account for `valueskins.com`), and **the CA** (the company's chartered accountant, for tax details).
+**Who is who.** The names are the roles used in `docs/CUTOVER.md`: **Engineer** (maintains this repo and runs Render and Neon), **Saketh** (maintains the live app and, if it is his, the Meta app), **Founders** (decide, and hold the company records and the support mailbox), **DNS owner** (the Cloudflare account for `valueskins.com`), and **the CA** (the company's chartered accountant, for tax details).
 
 ### 21.2 Every value, where it comes from, and who provides it
 
@@ -687,7 +702,8 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 | -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `NODE_VERSION`             | `22` (file)                                                      | `render.yaml`                                                                                                                                                                                | Engineer                                           |
 | `NODE_ENV`                 | `production` (file)                                              | `render.yaml`. Turns on the production startup guards                                                                                                                                        | Engineer                                           |
-| `DATABASE_URL`             | the internal connection string of `valueskins-db` (file)         | Render fills it in from the database                                                                                                                                                         | Render, automatic                                  |
+| `DATABASE_URL`             | prompted: Neon's **direct** connection string                    | Neon console, **Connect**, with "Connection pooling" **off** (section 21.3). The host has no `-pooler` in it and the string ends in `?sslmode=require`. The API refuses to start otherwise   | Engineer (the Neon account holder)                 |
+| `HOSTING_TIER`             | prompted: `free`                                                 | SPEC 19. `free` or `paid`. While it is not `paid`, a startup guard refuses any launch gate other than `off`. Set to `paid` only after section 21.9                                           | Engineer; Founders decide when                     |
 | `WEB_ORIGIN`               | prompted: `https://next.valueskins.com`                          | The address people use for the web app, no trailing slash. It is the temporary check address until `docs/CUTOVER.md` step C2, then `https://valueskins.com`                                  | Engineer                                           |
 | `COOKIE_DOMAIN`            | `.valueskins.com` (file)                                         | SPEC 19                                                                                                                                                                                      | Engineer                                           |
 | `SESSION_COOKIE_NAME`      | `vs_session` (file)                                              | SPEC 19                                                                                                                                                                                      | Engineer                                           |
@@ -695,12 +711,12 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 | `TOKEN_ENCRYPTION_KEY`     | generated                                                        | Render generates it. Changing it later makes stored Instagram tokens unreadable, so everyone signs in again                                                                                  | Render, automatic                                  |
 | `INSTAGRAM_APP_ID`         | prompted                                                         | Meta app: **Instagram > API setup with Instagram login > Business login settings** (section 5 step 3). This is not the Meta app id                                                           | Meta app owner (Saketh if it is his)               |
 | `INSTAGRAM_APP_SECRET`     | prompted                                                         | The same page, **Show**                                                                                                                                                                      | Meta app owner                                     |
-| `INSTAGRAM_REDIRECT_URI`   | `https://api.valueskins.com/api/auth/instagram/callback` (file)  | `render.yaml`. It must match the redirect URI added in Meta exactly (21.5)                                                                                                                   | Engineer writes it, Meta app owner adds it in Meta |
+| `INSTAGRAM_REDIRECT_URI`   | `https://api.valueskins.com/api/auth/instagram/callback` (file)  | `render.yaml`. It must match the redirect URI added in Meta exactly (21.7)                                                                                                                   | Engineer writes it, Meta app owner adds it in Meta |
 | `META_APP_SECRET`          | prompted                                                         | Meta app: **App settings > Basic > App secret**. The API accepts a signed request made with this or the Instagram app secret, so set both                                                    | Meta app owner                                     |
 | `RESEND_API_KEY`           | prompted                                                         | Resend: **API Keys > Create API Key**, "Sending access", domain `valueskins.com` (section 7). Shown once                                                                                     | Engineer (the Resend account holder)               |
 | `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>` (file)               | The Resend sending domain                                                                                                                                                                    | Engineer                                           |
 | `EMAIL_TRANSPORT`          | `resend` (file)                                                  | The API refuses `console` in production                                                                                                                                                      | Engineer                                           |
-| `ADMIN_INSTAGRAM_USER_IDS` | prompted: `none` at first, then the admins' ids, comma-separated | Each admin's `instagram_user_id`, read from the database after they sign in once (section 14). An admin signs in again to pick it up                                                         | Engineer reads it, the admin signs in              |
+| `ADMIN_INSTAGRAM_USER_IDS` | prompted: `none` at first, then the admins' ids, comma-separated | Each admin's `instagram_user_id`, read from the database after they sign in once (section 14, run from your own machine: section 21.4). An admin signs in again to pick it up                | Engineer reads it, the admin signs in              |
 | `SUPPORT_EMAIL`            | `founder@valueskins.com` (file)                                  | The mailbox users write to. It is the reply-to and the footer of every email. `DISPUTE_EMAIL` follows it                                                                                     | Founders (the mailbox must exist and receive mail) |
 | `ENABLE_DEV_LOGIN`         | `false` (file)                                                   | The variable is required; the API refuses `true` in production                                                                                                                               | Engineer                                           |
 | `AUTH_EMAIL_ENABLED`       | `false` (file)                                                   | The API refuses `true` in production. Sign-in is Instagram only                                                                                                                              | Engineer                                           |
@@ -718,6 +734,7 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 
 - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`. They are optional while `PAYMENTS_MODE=off`, and there are no live keys yet. When payments open you add all three in the dashboard (section 16a); the API refuses to start with payments on and any of them missing, or with a test key.
 - `DISPUTE_EMAIL`: it follows `SUPPORT_EMAIL`. `TEST_DATABASE_URL`: tests only. `PORT`: Render sets it.
+- There is no Render database: the database is on Neon, so `render.yaml` has no `databases:` section.
 
 **Vercel, the production web project.**
 
@@ -727,18 +744,59 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 | `NEXT_PUBLIC_SENTRY_DSN`       | the Next.js project's DSN    | Sentry (section 12a). Blank turns Sentry off. Baked in at build time, so redeploy after changing it                                                              | Engineer        |
 | `NEXT_PUBLIC_ENABLE_DEV_LOGIN` | **not set**                  | Never on production. A build with it `true` and the production API address fails on purpose                                                                      | -               |
 
-`apps/web/vercel.json` is shared by the staging and the production projects and holds only the framework and the install and build commands, so it has nothing specific to production. Everything else is project settings (21.4).
+`apps/web/vercel.json` is shared by the staging and the production projects and holds only the framework and the install and build commands, so it has nothing specific to production. Everything else is project settings (21.6).
 
-### 21.3 Creating the Render resources
+### 21.3 Neon: the production database
 
-Prerequisites: this `render.yaml` is on `main` (section 3), Resend and Sentry are set up (21.5), and you have the values above ready.
+**Who:** Engineer, with a Founder if the Neon account belongs to the company.
 
-1. In Render, **New > Blueprint**, connect GitHub, pick `valueskins/getvalueskins`, branch `main`, and leave the Blueprint path as `render.yaml`. If you already have a Blueprint for this repo (staging), open it and **Sync** (look for a button with that name) instead.
-2. **Applying a Blueprint creates every resource in the file: staging and production.** If staging does not exist yet, this also creates the staging database (free) and the staging API (paid). Say so before you apply if you do not want that.
-3. Render lists the variables marked `sync: false` and asks for them. For production (`valueskins-api`) enter:
+1. Sign in at Neon (neon.com) with the company account and create a **project** on the **Free** plan. Name it `valueskins`.
+2. **Postgres version: 16.** **Region: AWS Asia Pacific (Singapore)** (`aws-ap-southeast-1`), next to the Render API in Singapore. Leave the default branch (`main`) and database; if Neon lets you name the database, use `valueskins`.
+3. Open the project dashboard and click **Connect** (look for a button with that name). Choose the branch, the database and the role, and **turn "Connection pooling" off**. Copy the connection string. It must have **both** of these:
+   - a host **without** `-pooler` in its name (for example `ep-cool-darkness-123456.ap-southeast-1.aws.neon.tech`). A pooled string has `ep-...-pooler...` in the host: do not use it. The pooler runs PgBouncer in transaction mode, where session-level advisory locks do not work, and the scheduled jobs and the migrations depend on them. The API refuses to start with a pooled host.
+   - `?sslmode=require` at the end. The API refuses to start in production without it. (This version of the `pg` driver treats `sslmode=require` as `verify-full`, so Neon's certificate is checked, and prints a warning about that when it starts. The warning is harmless. `sslmode=verify-full` also works and silences it.)
+4. The string holds the password. Keep it in your password manager and paste it only into the Render prompt for `DATABASE_URL` and into the migration command (21.4). Never put it in a file, a chat, a ticket or the repo.
+5. Neon's Free plan, from Neon's pages (checked 21 Oct 2026): 1 GB of storage per project, 100 compute-hours per project per month, the compute **scales to zero after 5 minutes without activity** (it cannot be turned off on Free), and the restore window is **6 hours**.
+
+**Verify:** run the migration command in 21.4. It prints the database host, then what it applies, and fails with a reason if it cannot connect.
+
+### 21.4 Running the migrations by hand
+
+Free Render instances have no pre-deploy command, and the API never migrates on start or in the build. So you run the migrations yourself, from your own machine, **before the first deploy and before every deploy that adds a migration** (a new file in `apps/api/drizzle/`).
+
+From the repo root, on the commit you are about to deploy:
+
+```bash
+git checkout main && git pull && pnpm install
+read -rs DATABASE_URL && export DATABASE_URL && pnpm --filter @valueskins/api run db:migrate; unset DATABASE_URL
+```
+
+`read -rs` waits for you to paste Neon's direct connection string and press Enter. The string is not shown, is not kept in your shell history and is never written to a file. `unset` removes it afterwards. The command prints the database host (never the password), then `to apply: ...` or `no migrations to apply`, then `migrations applied`. It refuses a pooled host, and a remote host without `sslmode`. Never set `NODE_ENV=test` for it, and `pnpm db:seed` refuses production on its own.
+
+**The startup check.** Every time the API starts, before it listens, it connects to the database and compares the migrations the database has applied with the migrations in the code. It refuses to start only when the **code** has migrations the **database** has not applied. When the database is ahead of the code it logs a warning and starts. Either way the log names the migrations:
+
+- **Refuses to start: the code has migrations the database has not applied.** `The code has N migration(s) the database has not applied: 0012_x`, then `Startup check failed`, and the process exits with code 1, so Render shows a failed start with the reason. Run the command above, then deploy again. A merged migration that was edited counts here too, under its new hash: do not edit a merged migration, write a new one.
+- **Starts with a warning: the database has migrations the code does not know.** `The database has N migration(s) this code does not know (hash ..., applied ...). The database is ahead of this code. Starting anyway.` This is what you see after migrating before a deploy, after a rollback to older code, and for the old version of an edited migration. It is safe as long as migrations are written so the previous code keeps working against them (section 16): add before you use, remove in a later change. A warning that stays after the new code is deployed means the database has a migration that is not in `main`: find out why.
+- **It cannot connect:** `Could not connect to the database at <host>. <reason>`. The reason comes from the error code (host not found, refused, timeout, wrong password, TLS). It never prints the connection string.
+
+Two things follow from this:
+
+- **Migrate first, then deploy.** The other order fails: new code against a database that lacks its migration refuses to start. Between the two, the old code runs against the newer database, and even if the free API sleeps and wakes in that gap it starts, with the warning.
+- **A rollback works** (section 21.10), because a database that is ahead only warns.
+
+**Running queries and checks against production.** A free Render instance has **no Shell** (Render's documentation). For `docs/RUNBOOK.md`'s `q` helper, the admin id lookup of section 14 and the checks in `docs/CUTOVER.md`, run them from your own machine the same way: `read -rs DATABASE_URL && export DATABASE_URL`, define `q` from the RUNBOOK, run your `select`, then `unset DATABASE_URL`. Use `select` statements only.
+
+### 21.5 Creating the Render service
+
+Prerequisites: this `render.yaml` is on `main` (section 3), Neon is set up (21.3), the migrations have been run (21.4), and Resend and Sentry exist (21.7).
+
+1. In Render, **New > Blueprint**, connect GitHub, pick `valueskins/getvalueskins`, branch `main`, and leave the Blueprint path as `render.yaml`. **This creates production only**: the file has no staging. The existing staging services are untouched.
+2. Render lists the variables marked `sync: false` and asks for them. Enter:
 
    | Prompt                                     | Enter                                        |
    | ------------------------------------------ | -------------------------------------------- |
+   | `DATABASE_URL`                             | Neon's direct connection string (21.3)       |
+   | `HOSTING_TIER`                             | `free`                                       |
    | `WEB_ORIGIN`                               | `https://next.valueskins.com`                |
    | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | from the Meta app (21.2)                     |
    | `META_APP_SECRET`                          | from the Meta app                            |
@@ -751,14 +809,13 @@ Prerequisites: this `render.yaml` is on `main` (section 3), Resend and Sentry ar
    | `PAYMENTS_MODE`                            | `off`                                        |
    | `DEAL_POSTING_MODE`                        | `off`                                        |
 
-4. Apply. The production API has **manual deploys**, so Render creates it and may build it once; if it does not deploy, open the service and use **Manual Deploy > Deploy latest commit** (look for a menu with that name). The build installs, builds `packages/shared` and the API; the pre-deploy command then runs the database migrations on the new, empty production database; the service starts only when `/api/health` answers.
-5. Open the service page and copy its default address, for example `https://valueskins-api.onrender.com`. `<that address>/api/health` must show `{"ok":true}`.
-6. In the service's **Logs**, one line reads `"razorpayMode":"none","paymentsMode":"off","dealPostingMode":"off"`. A line starting `Invalid environment configuration` names a missing or wrong variable, and `Startup guard failed` is a safety rule stopping the API on purpose (section 8).
+3. Apply. If Render rejects the free instance type in Singapore (its documentation does not say which instance types each region has), tell the Engineer: the choices are another Render region, with the Neon project created in the nearest AWS region, or a paid instance.
+4. The API has **manual deploys**. If it did not build when you applied, open the service and use **Manual Deploy > Deploy latest commit**. The build installs, builds `packages/shared` and the API, and starts it. A free instance has no pre-deploy step, so nothing migrates here.
+5. Open the service page and copy its default address, for example `https://valueskins-api.onrender.com`. `<that address>/api/health` must show `{"ok":true}`. The first request can take about a minute (section 21.8).
+6. In the service's **Logs** look for two lines: `"hostingTier":"free"` with the two launch modes `off` and `razorpayMode` `none`, and `database reachable, migrations match the code`. A line starting `Invalid environment configuration` names a missing or wrong variable. `Startup guard failed` is a safety rule stopping the API on purpose (a pooled database host, no `sslmode`, a launch gate opened on the free tier, and so on). `Could not connect to the database` and `migration(s) the database has not applied` are the startup check stopping the API (21.4). `migration(s) this code does not know` is only a warning: the database is ahead of the code, and the API starts.
 7. **Settings > Custom Domains** should list `api.valueskins.com`. Click **Verify** once the DNS record exists (section 10 and `docs/CUTOVER.md` step A7).
 
-**Never** run `db:seed` on production: it refuses to run there.
-
-### 21.4 The Vercel project
+### 21.6 The Vercel project
 
 In Vercel, **Add New > Project**, import `valueskins/getvalueskins`, and follow section 9 with these differences:
 
@@ -769,9 +826,11 @@ In Vercel, **Add New > Project**, import `valueskins/getvalueskins`, and follow 
 
 Unlike the API, the web project deploys on every merge to `main`. A web change that needs a new API endpoint must therefore not be merged before the API has been deployed to production by hand. If a merge breaks the web app, use **Deployments > Instant Rollback** (section 16).
 
-### 21.5 Resend, Meta and Sentry
+On every first load of a page the web app calls `GET /api/health` once without waiting, so a sleeping API starts waking while the visitor reads, and the "Sign in with Instagram" button shows "Connecting..." while it waits for the answer (section 21.8).
 
-**Resend** (section 7). Add the domain `valueskins.com` and the records Resend shows, as **DNS only**. They are on their own names (`resend._domainkey` and `send`), so the apex mail (Zoho) is not touched. Create a "Sending access" key for the domain.
+### 21.7 Resend, Meta and Sentry
+
+**Resend** (section 7). Add the domain `valueskins.com` and the records Resend shows, as **DNS only**. They are on their own names (`resend._domainkey` and `send`), so the apex mail (Zoho) is not touched. Create a "Sending access" key for the domain. Resend is called over HTTPS, so Render's block on the SMTP ports does not matter.
 
 **Meta**: the same app the live app uses (`docs/REPLACEMENT_PLAN.md` section 1). The app must be in **Live** mode, or both founders must hold a role on it. These are the production values; the section 5 steps say where each field is.
 
@@ -785,18 +844,43 @@ Unlike the API, the web project deploys on every merge to `main`. A web change t
 
 The live app's legal pages are at `/legal/privacy`, `/legal/terms` and `/legal/refund`. The new app uses `/privacy`, `/terms` and `/refunds` and has no redirect from the old paths.
 
-**Sentry** (section 12a). Two production projects: Node.js for `SENTRY_DSN` and Next.js for `NEXT_PUBLIC_SENTRY_DSN`. In the test command of step 4, use `'production'` where it says `'staging'`.
+**Sentry** (section 12a). Two production projects: Node.js for `SENTRY_DSN` and Next.js for `NEXT_PUBLIC_SENTRY_DSN`. There is no Shell on the free API, so step 4 of section 12a (the API test error) runs from your own machine, with the DSN in the command and `'production'` where it says `'staging'`. That checks the DSN and what is scrubbed, with the same code the API uses, but it is not sent from the running service.
 
 **Razorpay**: nothing is created or changed for production now. The old app's webhook is left until the week after the switch (`docs/CUTOVER.md` section E).
 
-### 21.6 Deploying, rollback and backups
+### 21.8 What the free tier means
 
-- **Deploying the API.** Merge to `main` as usual. Staging deploys by itself. When staging shows the change works, open Render > `valueskins-api` > **Manual Deploy > Deploy latest commit**. The pre-deploy step migrates the production database, and the health check gates the release. Read the **Logs** until the service is live.
-- **Rolling back the API.** Render > service > **Events** > the last good deploy > **Rollback** (section 16). Migrations are not undone, which is why they are written so the previous code still works.
+Until payments open, production runs on free instances. They are fine for a closed launch and not for taking money.
+
+- **The API sleeps.** Render spins a free web service down after 15 minutes without traffic, and it takes about a minute to wake. Render shows browsers a loading page meanwhile. The first request after a quiet spell is slow. The web app softens this: it calls `GET /api/health` on every first page load without waiting, the Instagram button shows "Connecting..." while it waits for the answer, and after 60 seconds without one it says "We could not reach ValueSkins. Try again." with a "Try again" button.
+- **Neon sleeps too.** Its compute scales to zero after 5 minutes without activity, and wakes on the next query, which takes a moment. `GET /api/health` runs a query, so one call wakes both.
+- **Scheduled jobs run only while the API is awake.** The reminders and the Instagram token refresh are `node-cron` schedules inside the API process, with no catch-up: a job whose time passes while the service sleeps is skipped until its next time. Run one by hand with `docs/RUNBOOK.md` ("Running a job by hand") from a service that has a Shell, which the free instance does not. Nothing in this setup needs a job before deals exist.
+- **Live updates drop.** The sockets close when the API sleeps and reconnect when it wakes.
+- **Render may restart a free service at any time**, and counts 750 free instance hours per workspace per month across all free services.
+- **No Shell** on a free instance (21.4), and **no pre-deploy command**.
+- **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
+- **A startup guard keeps the gates shut.** In production the API refuses to start with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` other than `off` unless `HOSTING_TIER=paid`.
+
+### 21.9 Moving to paid
+
+Do all of this **before** `PAYMENTS_MODE` or `DEAL_POSTING_MODE` leave `off`, in this order. The guard checks only `HOSTING_TIER`: it does not check that the rest is done, so the Engineer ticks each item.
+
+1. **Render: a paid instance type** for `valueskins-api` (look for **Settings > Instance Type**, for example `0.5c-512mb`, the plan staging uses). The service no longer sleeps, and now has a Shell. Change `plan: free` in `render.yaml` to the same plan in the same pull request as step 2, so the next Blueprint sync does not set it back.
+2. **Restore the pre-deploy migration command.** In `render.yaml` add `preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy` back under the service, and merge it. From then on Render migrates before each deploy, and the manual command in 21.4 is only a fallback. Update the section 21.4 and `docs/CUTOVER.md` text in the same pull request. (The startup check stays on.)
+3. **A database with a longer restore window.** Either a paid Neon plan (look at Neon's pricing page for the plan and its restore window), or a paid Render Postgres database (Render keeps point-in-time recovery for 3 days on the Hobby workspace plan and 7 on Pro and above). If you leave Neon, move the data first (a dump and restore into the new database), run the migration check against it, and change `DATABASE_URL` in the dashboard. Keep the direct connection and TLS rules from 21.3.
+4. **Set `HOSTING_TIER` to `paid`** in the dashboard, and restart.
+5. **Practise the restore** once (`docs/RUNBOOK.md` section 7), and write down how long it took. SPEC 22 asks for it.
+6. **Check that the jobs run:** `pnpm --filter @valueskins/api run job:deploy -- --list` in the new Shell, then one job by hand, then look for `job finished` in the logs.
+7. **Then** section 16a: the live Razorpay values, `PAYMENTS_MODE=admins`, and the rest.
+
+### 21.10 Deploying, rollback and backups
+
+- **Deploying the API.** Merge to `main` as usual. Staging deploys by itself. When staging shows the change works: if the change adds a migration, run it first (21.4); then open Render > `valueskins-api` > **Manual Deploy > Deploy latest commit** straight away. Read the **Logs** until you see `database reachable, migrations match the code`.
+- **Rolling back the API.** Render > service > **Events** > the last good deploy > **Rollback** (section 16). It does not undo migrations, and the older code starts against the newer database with a warning (21.4). That is safe only if every migration since that deploy was written so the older code keeps working. If one was not, the older code fails at the query that needs the old schema: fix forward with a new deploy, or restore the database (`docs/RUNBOOK.md` section 7).
 - **Rolling back the web.** Vercel > the project > **Deployments** > **Instant Rollback**.
-- **Backups.** Render backs up a paid Postgres automatically: continuous point-in-time recovery and daily logical backups, with nothing to switch on. How far back you can recover depends on the Render **workspace** plan: 3 days on Hobby, 7 days on Pro and above. Check which plan you are on. Restoring creates a new database and is described in `docs/RUNBOOK.md` section 7, which SPEC 22 asks you to practise once before launch.
+- **Backups.** See 21.8: on Neon Free the restore window is 6 hours. On a paid plan it is longer (21.9).
 - **Changing a value.** A `value:` entry in `render.yaml` changes by editing the file and merging. A prompted value changes in the dashboard under **Environment**, and the service restarts.
 
-### 21.7 Opening payments and posting later
+### 21.11 Opening payments and posting later
 
-Section 16a. In short: add the three live Razorpay values in the dashboard, set `PAYMENTS_MODE` to `admins` and later `on`, and set `DEAL_POSTING_MODE` the same way, restarting each time. These two are prompted variables on purpose, so no merge and no deploy is needed.
+Section 21.9 first, then section 16a. These two gates are prompted variables on purpose, so no merge and no deploy is needed to change them.
