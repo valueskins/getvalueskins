@@ -1,0 +1,120 @@
+# Deploys the production web app (valueskins.com) to Netlify. docs/DEPLOYMENT.md section 21.6.
+#
+# The Netlify site has no Git link (the Free plan cannot connect a private organization repo), so
+# this workflow builds apps/web and uploads it with the Netlify CLI. Staging is on Vercel and is
+# not touched.
+#
+# It runs only when the CI workflow has passed on a push to main, for that same commit. It never
+# runs for a pull request, and not for a fork: workflow_run runs in the base repository with
+# secrets, so the job refuses anything but a push to this repository's main.
+#
+# A production deploy costs 15 of the Free plan's 300 monthly credits, so a merge that changed
+# nothing the web build uses is skipped. Re-running a run always deploys (that is the rollback).
+
+name: deploy-web-production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One deploy at a time, in order. A queued deploy is never cancelled by a newer one.
+concurrency:
+  group: deploy-web-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      # The files the web build reads. A merge commit is compared with its first parent, so a pull
+      # request counts as a whole. A re-run (run_attempt above 1) always deploys.
+      - name: Check whether the web app changed
+        id: changes
+        run: |
+          if [ "${{ github.run_attempt }}" != "1" ]; then
+            echo "Re-run: deploying."
+            echo "web=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD^ HEAD | grep -Eq '^(apps/web/|packages/shared/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|package\.json$|tsconfig\.base\.json$|\.nvmrc$|\.github/workflows/deploy-web-production\.yml$)'; then
+            echo "The web app or what it builds from changed: deploying."
+            echo "web=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the web build uses changed: skipping the deploy (it costs Netlify credits)."
+            echo "web=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fails early, and says which input is missing. It prints names only, never values. This
+      # step and the deploy step are the only ones that see the secrets, and both run only our own
+      # shell and the pinned Netlify CLI, never the install scripts of the project's packages.
+      - name: Check the deploy inputs
+        if: steps.changes.outputs.web == 'true'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+        run: |
+          missing=0
+          for name in NETLIFY_AUTH_TOKEN NETLIFY_SITE_ID NEXT_PUBLIC_API_URL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set. See docs/DEPLOYMENT.md section 21.6."
+              missing=1
+            fi
+          done
+          [ "$missing" = "0" ] || exit 1
+          if [ "$NEXT_PUBLIC_API_URL" != "https://api.valueskins.com" ]; then
+            echo "::error::NEXT_PUBLIC_API_URL must be https://api.valueskins.com for the production web app."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.web == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.web == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.web == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the shared package
+        if: steps.changes.outputs.web == 'true'
+        run: pnpm --filter "./packages/*" run build
+
+      # `netlify deploy` builds first (apps/web/netlify.toml: the shared package, then next build,
+      # which runs the dev-login build guard) and then uploads the result to the production site.
+      # NEXT_PUBLIC_ENABLE_DEV_LOGIN is never set here. The token goes in by environment, not
+      # --auth, and nothing is echoed.
+      - name: Build and deploy to Netlify
+        if: steps.changes.outputs.web == 'true'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+        run: >-
+          pnpm --package=netlify-cli@27.14.0 dlx netlify deploy
+          --prod --context production --filter @valueskins/web
+          --message "Deploy $DEPLOY_SHA"
