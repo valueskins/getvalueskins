@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      '**/.netlify/**',
       '**/coverage/**',
       'pnpm-lock.yaml',
       '**/next-env.d.ts',

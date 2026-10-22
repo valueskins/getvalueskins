@@ -1,0 +1,21 @@
+# Production web app on Netlify (docs/DEPLOYMENT.md section 21.6). The site has no Git link:
+# .github/workflows/deploy-web-production.yml builds and deploys it with the Netlify CLI, so this
+# file holds no Git, branch or deploy-preview settings and no environment values. Staging is on
+# Vercel (vercel.json) and does not use this file.
+#
+# The workflow runs the CLI from the repo root with `--filter @valueskins/web`. In that mode the
+# command starts in the repo root and `publish` is relative to it.
+
+[build]
+  # The shared package first, then the app. No `cd`: pnpm --filter works from any directory.
+  command = "pnpm --filter \"./packages/*\" run build && pnpm --filter @valueskins/web run build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The Next.js runtime. It comes with the pinned CLI (netlify-cli 27.14.0 brings
+# @netlify/plugin-nextjs 5.16.3), so it is not a dependency of this repo. Naming it here keeps it
+# explicit and makes the build fail if it is ever missing.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

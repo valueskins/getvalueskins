@@ -26,7 +26,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 - Work only on the current prompt. Do not build ahead, and do not add features, fields, endpoints, tables, env vars or dependencies the prompt and spec do not call for.
 - One task per branch, named `feat/...`, `fix/...` or `chore/...`. Small commits.
 - For any external API detail (Instagram, Meta, Razorpay, Resend), check the current official docs. Do not rely on memory. Say in your summary what you verified, and where.
-- Never create, change or delete resources in any external account (Render, Vercel, Razorpay, Meta, Resend, DNS). Write the config and the steps, and the human does it.
+- Never create, change or delete resources in any external account (Render, Vercel, Netlify, Razorpay, Meta, Resend, DNS). Write the config and the steps, and the human does it.
 - Ask before deleting anything you are not sure is unused.
 - End every task with:
   - what you built or changed
@@ -42,7 +42,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 - Node 22, pnpm 9 workspaces, TypeScript `strict` everywhere, ESM.
 - `apps/api`: Express 5, Drizzle ORM on PostgreSQL 16 (node-postgres), Zod, pino, rate-limiter-flexible, PDFKit, Resend. Socket.io from Prompt 16. Deployed on Render, Singapore.
 - `packages/shared`: money math, the deal state machine and allowed actions, enums, Zod request and response schemas, and text constants. Both apps import it, so rules and numbers can never disagree. Any rule needed by both apps lives here.
-- `apps/web`: Next.js on Vercel. Being rebuilt (section 15).
+- `apps/web`: Next.js. Production is on Netlify's Free plan with no Git link (GitHub Actions builds it and deploys it with the Netlify CLI after CI passes); staging is on Vercel. Being rebuilt (section 15).
 - `docs/`: spec, replacement plan, deployment, runbook.
 
 Commands (from the repo root):

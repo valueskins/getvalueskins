@@ -37,7 +37,7 @@ We process your data to perform our agreement with you, to meet our legal duties
 ## Who we share it with
 
 - **The other side of your Deal.** A confirmed Brand sees the Creator's full UPI ID and name, only while a payment is due. Everyone else sees it masked.
-- **Service providers.** Razorpay for fee payments, Vercel and Render to host the website and database, Resend to send email, and Meta for Instagram sign-in.
+- **Service providers.** Razorpay for fee payments, Netlify to host the website, Render to host the API, Neon to host the database, Resend to send email, and Meta for Instagram sign-in.
 - **When the law requires it.** To comply with a valid legal request.
 
 We do not sell your data and we do not use advertising trackers.

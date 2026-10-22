@@ -28,3 +28,6 @@ pnpm-debug.log*
 # turbo/next cache
 .turbo/
 *.tsbuildinfo
+
+# netlify CLI build output
+.netlify/

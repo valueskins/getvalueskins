@@ -8,6 +8,12 @@ import { buildTestEnv } from '../testEnv.js';
 const REPO_ROOT = new URL('../../../../', import.meta.url);
 const renderYaml = readFileSync(new URL('render.yaml', REPO_ROOT), 'utf8');
 const deploymentDoc = readFileSync(new URL('docs/DEPLOYMENT.md', REPO_ROOT), 'utf8');
+const cutoverDoc = readFileSync(new URL('docs/CUTOVER.md', REPO_ROOT), 'utf8');
+const netlifyToml = readFileSync(new URL('apps/web/netlify.toml', REPO_ROOT), 'utf8');
+const deployWorkflow = readFileSync(
+  new URL('.github/workflows/deploy-web-production.yml', REPO_ROOT),
+  'utf8',
+);
 
 const ALL_ENV_KEYS = Object.keys(envSchema.shape);
 // Injected by Render, or defaulted and so safely omitted from the Blueprint.
@@ -250,7 +256,7 @@ describe('docs/DEPLOYMENT.md', () => {
     const missing = keysIn(productionApi).filter((k) => !section.includes(k));
 
     expect(missing).toEqual([]);
-    // The two Vercel variables, and the three Razorpay ones it says are left out.
+    // The two web variables (GitHub Actions in production), and the three Razorpay ones it says are left out.
     for (const key of ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_SENTRY_DSN', ...RAZORPAY_KEYS]) {
       expect(section).toContain(key);
     }
@@ -321,5 +327,298 @@ describe('SUPPORT_EMAIL (SPEC 21)', () => {
     expect(section.slice(0, 700)).toContain('`founder@valueskins.com` on staging');
     expect(section.slice(0, 700)).toContain('and in production');
     expect(deploymentDoc).toMatch(/\| `SUPPORT_EMAIL`\s+\| `founder@valueskins\.com`/);
+  });
+});
+
+describe('netlify.toml: the production web app, with no Git link (docs/DEPLOYMENT.md section 21.6)', () => {
+  const code = codeLines(netlifyToml).join('\n');
+
+  it('builds the shared package, then the app, and publishes the Next.js build', () => {
+    const command = code.match(/^\s*command = "(.*)"$/m)?.[1] ?? '';
+    expect(command.indexOf('packages/*')).toBeGreaterThanOrEqual(0);
+    expect(command.indexOf('packages/*')).toBeLessThan(command.indexOf('@valueskins/web'));
+    expect(command).toContain('run build');
+    // Run from the repo root with --filter, so the publish path is relative to the root.
+    expect(command).not.toMatch(/\bcd\b/);
+    expect(code).toMatch(/^\s*publish = "apps\/web\/\.next"$/m);
+  });
+
+  it('uses Node 22 and the Next.js runtime', () => {
+    expect(code).toMatch(/^\[build\.environment\]\n\s+NODE_VERSION = "22"$/m);
+    expect(code).toMatch(/^\[\[plugins\]\]\n\s+package = "@netlify\/plugin-nextjs"$/m);
+  });
+
+  it('has no Git, branch, preview or ignore settings, and no environment values', () => {
+    expect(code).not.toMatch(/\[context/);
+    expect(code).not.toMatch(/^\s*(ignore|branch|repo|production_branch|base) *=/m);
+    expect(code).not.toMatch(/NEXT_PUBLIC_|NETLIFY_|SENTRY|rzp_/);
+    expect(code).not.toMatch(/\[build\.environment\][^[]*(?:\n\s+[A-Z_]+ = [^\n]*){2,}/);
+  });
+
+  it('is production only: vercel.json stays for staging and says nothing of Netlify', () => {
+    const vercel = readFileSync(new URL('apps/web/vercel.json', REPO_ROOT), 'utf8');
+    expect(vercel).toContain('"framework": "nextjs"');
+    expect(vercel).not.toMatch(/netlify/i);
+    expect(deploymentDoc).toMatch(/`apps\/web\/vercel\.json` is for \*\*staging only\*\*/);
+  });
+});
+
+describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () => {
+  const code = codeLines(deployWorkflow).join('\n');
+  const stepsBlock = code.slice(code.indexOf('    steps:\n') + '    steps:\n'.length);
+  const steps = stepsBlock
+    .split(/\n {6}- (?=name:|uses:)/)
+    .map((t, i) => (i === 0 ? t.replace(/^ {6}- /, '') : t));
+  const step = (name: string) => {
+    const found = steps.find((t) => t.includes(name));
+    if (!found) throw new Error(`no step "${name}"`);
+    return found;
+  };
+  const DEPLOY = 'Build and deploy to Netlify';
+
+  it('runs only after the CI workflow has finished on main, and on nothing else', () => {
+    const on = code.slice(code.indexOf('\non:\n'), code.indexOf('\npermissions:'));
+    expect(on).toMatch(
+      /workflow_run:\n\s+workflows: \[CI\]\n\s+types: \[completed\]\n\s+branches: \[main\]/,
+    );
+    expect(code).not.toMatch(
+      /pull_request|workflow_dispatch|schedule:|^\s{2}push:|repository_dispatch/m,
+    );
+    // And the CI workflow it waits for really is called CI and runs on pushes to main.
+    const ci = readFileSync(new URL('.github/workflows/ci.yml', REPO_ROOT), 'utf8');
+    expect(ci).toMatch(/^name: CI$/m);
+    expect(ci).toMatch(/push:\n\s+branches: \[main\]/);
+  });
+
+  it('deploys only a passed push to this repository main: never a pull request, never a fork', () => {
+    const condition = code.slice(code.indexOf('    if: >-'), code.indexOf('    runs-on:'));
+    for (const clause of [
+      "github.event.workflow_run.conclusion == 'success'",
+      "github.event.workflow_run.event == 'push'",
+      "github.event.workflow_run.head_branch == 'main'",
+      'github.event.workflow_run.head_repository.full_name == github.repository',
+    ]) {
+      expect(condition, clause).toContain(clause);
+    }
+  });
+
+  it('checks out exactly the commit CI tested, with read-only access and no stored credentials', () => {
+    expect(code).toMatch(/^permissions:\n {2}contents: read$/m);
+    expect(code).not.toMatch(/: write/);
+    const checkout = step('actions/checkout');
+    expect(checkout).toContain('ref: ${{ github.event.workflow_run.head_sha }}');
+    expect(checkout).toContain('persist-credentials: false');
+  });
+
+  it('uses Node 22 and pnpm with the frozen lockfile, like CI', () => {
+    expect(step('actions/setup-node')).toMatch(/node-version: 22\n\s+cache: pnpm/);
+    expect(step('pnpm/action-setup')).toContain('pnpm/action-setup@v4');
+    expect(step('Install dependencies')).toContain('pnpm install --frozen-lockfile');
+  });
+
+  it('builds the shared package, then deploys to production with the pinned Netlify CLI', () => {
+    expect(stepsBlock.indexOf('Build the shared package')).toBeGreaterThan(
+      stepsBlock.indexOf('Install dependencies'),
+    );
+    expect(stepsBlock.indexOf(DEPLOY)).toBeGreaterThan(
+      stepsBlock.indexOf('Build the shared package'),
+    );
+    expect(step('Build the shared package')).toContain('pnpm --filter "./packages/*" run build');
+    const deploy = step(DEPLOY).replace(/\s+/g, ' ');
+    expect(deploy).toMatch(/--package=netlify-cli@\d+\.\d+\.\d+ dlx netlify deploy/);
+    for (const flag of ['--prod', '--context production', '--filter @valueskins/web']) {
+      expect(deploy, flag).toContain(flag);
+    }
+    // `netlify deploy` builds by default (the Next.js runtime needs that); never skip it.
+    expect(deploy).not.toContain('--no-build');
+    // A real production deploy: not a draft (no --prod) and not triggered remotely.
+    expect(deploy).not.toContain('--trigger');
+  });
+
+  it('reads the two secrets and the two variables by the documented names', () => {
+    const env = step(DEPLOY);
+    for (const line of [
+      'NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}',
+      'NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}',
+      'NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}',
+      'NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}',
+    ]) {
+      expect(env, line).toContain(line);
+    }
+    for (const name of [
+      'NETLIFY_AUTH_TOKEN',
+      'NETLIFY_SITE_ID',
+      'NEXT_PUBLIC_API_URL',
+      'NEXT_PUBLIC_SENTRY_DSN',
+    ]) {
+      expect(deploymentDoc.slice(deploymentDoc.indexOf('\n## 21. Production')), name).toContain(
+        name,
+      );
+    }
+  });
+
+  it('never prints a secret, and only the two steps that run our own shell and the CLI can see them', () => {
+    const seeing = steps.filter((t) => /\$\{\{ secrets\./.test(t));
+    expect(seeing.map((t) => t.match(/name: (.*)/)![1])).toEqual([
+      'Check the deploy inputs',
+      DEPLOY,
+    ]);
+    // The install step runs the packages' own scripts: no secret and no variable there.
+    expect(step('Install dependencies')).not.toMatch(/secrets\.|vars\./);
+    expect(code.slice(0, code.indexOf('    steps:'))).not.toMatch(/secrets\./);
+    expect(code).not.toMatch(/--auth\b/);
+    expect(code).not.toMatch(/set -x|printenv|\benv \||\bcurl\b|ACTIONS_STEP_DEBUG/);
+    for (const line of code.split('\n').filter((l) => /\becho\b/.test(l))) {
+      expect(line, line).not.toMatch(/NETLIFY_AUTH_TOKEN|NETLIFY_SITE_ID|SENTRY_DSN|secrets\./);
+    }
+  });
+
+  it('never sets the dev login flag', () => {
+    expect(code).not.toContain('NEXT_PUBLIC_ENABLE_DEV_LOGIN');
+  });
+
+  it('stops early, by name only, on a missing input or any API address but the production one', () => {
+    const check = step('Check the deploy inputs');
+    for (const name of ['NETLIFY_AUTH_TOKEN', 'NETLIFY_SITE_ID', 'NEXT_PUBLIC_API_URL']) {
+      expect(check, name).toContain(name);
+    }
+    expect(check).toContain('"$NEXT_PUBLIC_API_URL" != "https://api.valueskins.com"');
+    expect(check).toContain('::error::');
+    expect(check).toContain('exit 1');
+  });
+
+  describe('the skip when the web app did not change (a deploy costs 15 Netlify credits)', () => {
+    const changes = step('Check whether the web app changed');
+    const pattern = new RegExp(changes.match(/grep -Eq '([^']+)'/)![1]!);
+    const deployed = (file: string) => pattern.test(file);
+
+    it('deploys for everything the web build reads, and for the workflow itself', () => {
+      for (const file of [
+        'apps/web/app/layout.tsx',
+        'apps/web/netlify.toml',
+        'apps/web/package.json',
+        'packages/shared/src/money.ts',
+        'pnpm-lock.yaml',
+        'pnpm-workspace.yaml',
+        'package.json',
+        'tsconfig.base.json',
+        '.nvmrc',
+        '.github/workflows/deploy-web-production.yml',
+      ]) {
+        expect(deployed(file), file).toBe(true);
+      }
+    });
+
+    it('skips API-only, docs-only and CI-only changes', () => {
+      for (const file of [
+        'apps/api/src/app.ts',
+        'docs/DEPLOYMENT.md',
+        'render.yaml',
+        'README.md',
+        '.github/workflows/ci.yml',
+        'apps/webish/x.ts',
+        'subdir/apps/web/x.ts',
+      ]) {
+        expect(deployed(file), file).toBe(false);
+      }
+    });
+
+    it('compares a merge commit with its first parent, and a re-run always deploys', () => {
+      expect(changes).toContain('git diff --name-only HEAD^ HEAD');
+      expect(changes).toMatch(/github\.run_attempt \}\}" != "1"/);
+      expect(deployWorkflow).toMatch(/fetch-depth: 2/);
+    });
+
+    it('runs every later step only when it says so', () => {
+      for (const name of [
+        'Check the deploy inputs',
+        'actions/setup-node',
+        'Install dependencies',
+        'Build the shared package',
+        DEPLOY,
+      ]) {
+        expect(step(name), name).toContain("if: steps.changes.outputs.web == 'true'");
+      }
+    });
+  });
+});
+
+describe('the production web build guard still applies on Netlify', () => {
+  it('next.config.ts runs it on every build, which `netlify deploy` performs', () => {
+    const config = readFileSync(new URL('apps/web/next.config.ts', REPO_ROOT), 'utf8');
+    expect(config).toContain('assertSafeWebEnv(process.env);');
+  });
+
+  it('refuses dev login with the production API, and accepts the environment the workflow passes', async () => {
+    const { assertSafeWebEnv } = (await import('../../../web/lib/env.ts')) as {
+      assertSafeWebEnv: (env: Record<string, string | undefined>) => void;
+    };
+    const fromWorkflow = {
+      NEXT_PUBLIC_API_URL: 'https://api.valueskins.com',
+      NEXT_PUBLIC_SENTRY_DSN: 'https://k@o9.ingest.sentry.io/1',
+    };
+    expect(() => assertSafeWebEnv(fromWorkflow)).not.toThrow();
+    // For example a variable someone added in the Netlify site settings.
+    expect(() =>
+      assertSafeWebEnv({ ...fromWorkflow, NEXT_PUBLIC_ENABLE_DEV_LOGIN: 'true' }),
+    ).toThrow(/NEXT_PUBLIC_ENABLE_DEV_LOGIN/);
+  });
+});
+
+describe('the Netlify docs (DEPLOYMENT.md section 21.6, CUTOVER.md A7, C3, F)', () => {
+  const section = deploymentDoc.slice(deploymentDoc.indexOf('\n## 21. Production'));
+
+  it('DEPLOYMENT.md explains the site, the credentials, the credits and the rollback', () => {
+    for (const text of [
+      'no Git link',
+      'Site ID',
+      'Personal access tokens',
+      'NETLIFY_AUTH_TOKEN',
+      'NETLIFY_SITE_ID',
+      'NEXT_PUBLIC_API_URL',
+      'NEXT_PUBLIC_SENTRY_DSN',
+      'Do not add environment variables in the Netlify site settings',
+      '300 credits',
+      '| One **production deploy**                     | 15',
+      'Site not available',
+      'paused',
+      'Publish deploy',
+      'Re-run all jobs',
+    ]) {
+      expect(section, text).toContain(text);
+    }
+  });
+
+  it('DEPLOYMENT.md no longer sends production to a Vercel project', () => {
+    expect(section).not.toContain('### 21.6 The Vercel project');
+    expect(section).not.toMatch(/Rolling back the web\.\*\* Vercel/);
+  });
+
+  it('CUTOVER.md sets up next.valueskins.com on Netlify and moves the apex and www through Cloudflare', () => {
+    for (const text of [
+      '<site name>.netlify.app',
+      '`next` as a CNAME',
+      'apex-loadbalancer.netlify.com',
+      '75.2.60.5',
+      '**DNS only**',
+      'primary domain',
+      'Remove `valueskins.com` and `www.valueskins.com`',
+    ]) {
+      expect(cutoverDoc, text).toContain(text);
+    }
+  });
+
+  it('CUTOVER.md rollback puts the Cloudflare records back and re-adds the domains on the old Vercel project', () => {
+    const rollback = cutoverDoc.slice(
+      cutoverDoc.indexOf('\n## F. Rollback'),
+      cutoverDoc.indexOf('\n## G.'),
+    );
+    expect(rollback).toContain(
+      'put the apex and `www` records back to the values in the rollback sheet',
+    );
+    expect(rollback).toContain(
+      'remove `valueskins.com` and `www.valueskins.com` from the Netlify site',
+    );
+    expect(rollback).toContain('in the old Vercel project add them back');
   });
 });

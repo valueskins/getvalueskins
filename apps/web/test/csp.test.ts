@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { middleware } from '@/middleware';
@@ -120,6 +121,16 @@ describe('the CSP middleware', () => {
     expect(nonce(a)).not.toBe(nonce(b));
     // Next.js passes the request header on to the render, where it reads the nonce.
     expect(first.headers.get('x-middleware-request-content-security-policy')).toBe(a);
+  });
+
+  // Netlify runs the middleware as an Edge Function: Web APIs only, no Node modules.
+  it('imports only next/server and our own two lib files, so it runs at the edge', () => {
+    const source = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
+    const imports = [...source.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1]);
+    expect(imports.sort()).toEqual(['./lib/csp', './lib/sentryDsn', 'next/server']);
+    expect(source).not.toMatch(/\b(node:|require\(|process\.(cwd|versions)|fs\b)/);
+    const csp = readFileSync(new URL('../lib/csp.ts', import.meta.url), 'utf8');
+    expect(csp).not.toMatch(/from 'node:|require\(/);
   });
 
   describe('reading the DSN from the environment', () => {
