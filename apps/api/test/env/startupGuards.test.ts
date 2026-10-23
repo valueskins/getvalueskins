@@ -335,7 +335,11 @@ describe('getStartupGuardViolations', () => {
     });
 
     it('allows DEAL_POSTING_MODE=admins on the free tier with no Razorpay variable', () => {
-      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', DEAL_POSTING_MODE: 'admins' });
+      const env = buildTestEnv({
+        ...production,
+        HOSTING_TIER: 'free',
+        DEAL_POSTING_MODE: 'admins',
+      });
       expect(getStartupGuardViolations(env)).toEqual([]);
     });
 
