@@ -44,7 +44,7 @@ Section 2 turns these into rules for your repo. Prompts 12 to 15 bring the API t
 1. **Live repo secrets (from the earlier review).** Rotating the live Razorpay keys and the Meta app secret affects both apps. Put the new **test** keys in getvalueskins staging. Put the new live keys only in production, at cutover (Prompt 19).
 2. **Same Meta app.** The live app reads the Instagram account type at sign-in for every user, so the Meta app it uses already works for the public. Use **that same app** for getvalueskins, and add the staging and production redirect URIs and the deauthorize and data-deletion URLs from `docs/DEPLOYMENT.md` to it.
 3. **Confirm with Saketh:**
-   - the minimum deal budget the live app enforces (the plan below keeps ₹5,000)
+   - the minimum deal budget the live app enforces (the plan below kept ₹5,000; it is now ₹886, see 2.2)
    - the GSTIN and SAC code for `COMPANY_GSTIN` and `COMMISSION_SAC_CODE`
    - the support address (the live app uses founder@valueskins.com)
    - whether the new app should keep the live site's look (section 6, D0)
@@ -98,7 +98,7 @@ Section 2 turns these into rules for your repo. Prompts 12 to 15 bring the API t
 
 - A flat fee of ₹750 + 18% GST = **₹885** on every deal, whatever the budget, as on the live site. Set `COMMISSION_PERCENT_BPS = 0` and keep the flat ₹750.
 - GST is charged: `GST_RATE_BPS=1800`, with `COMPANY_GSTIN` set. Keep the startup guard.
-- The minimum budget stays ₹5,000 unless Saketh says the live app uses another value.
+- The minimum budget is ₹886, just above the ₹885 fee, lowered for the founders' test (`MIN_BUDGET_PAISE`, with a test that keeps it above the fee including GST). It was ₹5,000. The creator's share at ₹886 is ₹1.00, split 30 / 70 as ₹0.30 and ₹0.70. Revisit before the public launch.
 
 ### 2.3 Sign-in and role
 
@@ -363,7 +363,7 @@ Add production to render.yaml and the Vercel project, and add a production secti
 - Resend production, the same Meta app with production URIs
 - ADMIN_INSTAGRAM_USER_IDS, COMPANY_* values, COMPANY_GSTIN, COMMISSION_SAC_CODE, GST_RATE_BPS=1800
 - SUPPORT_EMAIL, SESSION_COOKIE_NAME=vs_session, AUTH_EMAIL_ENABLED=false, no ENABLE_DEV_LOGIN
-Do not touch any account yourself. Walk me through docs/CUTOVER.md and the SPEC 22 checklist one step at a time, telling me how to verify each. The last step is one real ₹5,000 deal between the two founders on production, including a real ₹885 fee, before DNS moves.
+Do not touch any account yourself. Walk me through docs/CUTOVER.md and the SPEC 22 checklist one step at a time, telling me how to verify each. The last step is one real deal at the minimum budget (₹886 at the time of writing; it was ₹5,000 when this was drafted) between the two founders on production, including a real ₹885 fee, before DNS moves.
 ```
 
 ---
@@ -472,7 +472,7 @@ Same system, 1440px and 390px:
 2. Post a deal form:
    - Title.
    - A large description with an "Insert template" button (content type, shooting, travel, timeline, approval, rights, deliverables, restrictions, delivery, additional notes).
-   - Budget in whole rupees, with commas as you type and a minimum ₹5,000 error.
+   - Budget in whole rupees, with commas as you type and a minimum error (the minimum comes from `GET /config`; it was ₹5,000 when this was drafted, now ₹886).
    - Three dates, each with helper text: apply by, content due, deal ends. Plus the order error.
    - Directly under the budget, a live breakdown: "ValueSkins fee ₹885.00 (₹750.00 + GST ₹135.00), paid by you through Razorpay. To the creator by UPI: ₹2,734.50 before work starts, ₹6,380.50 after you approve. Total ₹10,000.00."
    - Autosave note, Save draft, Publish.

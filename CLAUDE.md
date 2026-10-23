@@ -60,14 +60,14 @@ Commands (from the repo root):
   - production has `ENABLE_DEV_LOGIN=true`
   - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else), checked whenever a key is set
   - production has `PAYMENTS_MODE` other than `off` without a live key id, key secret, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`
-  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` other than `off` while `HOSTING_TIER` is not `paid` (the free tier sleeps)
+  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` while `HOSTING_TIER` is not `paid` (the free tier sleeps; `off` and `admins` are allowed there)
   - `DATABASE_URL` is a pooled host (`-pooler`), in any environment, or lacks `sslmode=require` in production
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
   Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
-- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy. `HOSTING_TIER` (`free` or `paid`, unset means `free`) must be `paid` before either leaves `off` in production.
+- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy. `HOSTING_TIER` (`free` or `paid`, unset means `free`) must be `paid` before either becomes `on` in production. `admins` is allowed on the free tier for a closed test by admins.
 - **Dev login** exists only when `NODE_ENV !== 'production'` and `ENABLE_DEV_LOGIN=true`. **Email-code sign-in** is for staging and tests only, never production.
 
 ## 6. Product rules the code must always enforce

@@ -187,7 +187,7 @@ The 9 steps are Posted, Creator confirmed, Fee paid, Advance confirmed, Content 
   - When the other person acts, show a toast.
 - **Post a deal:**
   - The budget field adds commas as you type.
-  - The breakdown under it comes from `computeBreakdown`, using `GET /config`, and only from ₹5,000.00 up.
+  - The breakdown under it comes from `computeBreakdown`, using `GET /config`, and only from the minimum `GET /config` returns (₹886.00 now) up.
   - The form saves to localStorage every 30 seconds and on blur. "Save draft" saves to the server.
   - Publish checks the fields and either shows the errors or opens the confirm.
 - **Applying:** a confirm step comes first, because an application cannot be withdrawn.
