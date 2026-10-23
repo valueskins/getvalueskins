@@ -70,12 +70,13 @@ export function getStartupGuardViolations(env: Env): string[] {
   );
 
   // The free hosting tier sleeps (the API after 15 minutes idle, so no scheduled job or reminder
-  // runs while it does), so nothing that takes money or posts deals may open on it.
+  // runs while it does), so nothing may open to everyone on it. "admins" is allowed: only the
+  // admins named in ADMIN_INSTAGRAM_USER_IDS can post deals or pay the fee, for a closed test.
   if (env.NODE_ENV === 'production' && env.HOSTING_TIER !== 'paid') {
     for (const name of ['PAYMENTS_MODE', 'DEAL_POSTING_MODE'] as const) {
-      if (env[name] !== 'off') {
+      if (env[name] === 'on') {
         violations.push(
-          `${name} must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders`,
+          `${name} must be "off" or "admins" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders for everyone`,
         );
       }
     }
