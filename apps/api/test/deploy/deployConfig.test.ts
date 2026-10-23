@@ -204,13 +204,26 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
-  it('does not start with a launch gate opened while the hosting is free', () => {
+  it('does not start with a launch gate opened to everyone while the hosting is free', () => {
     for (const name of ['PAYMENTS_MODE', 'DEAL_POSTING_MODE']) {
-      const violations = getStartupGuardViolations(parseEnv(productionEnv({ [name]: 'admins' })));
-      expect(violations.some((v) => v.startsWith(`${name} must be "off" when HOSTING_TIER`))).toBe(
-        true,
-      );
+      const violations = getStartupGuardViolations(parseEnv(productionEnv({ [name]: 'on' })));
+      expect(
+        violations.some((v) => v.startsWith(`${name} must be "off" or "admins" when HOSTING_TIER`)),
+      ).toBe(true);
     }
+  });
+
+  it('starts with the gates open to admins on free hosting, once the live Razorpay values are set', () => {
+    // The Razorpay values are not in the blueprint: the person adds them in the dashboard (16a).
+    const env = parseEnv({
+      ...productionEnv({ PAYMENTS_MODE: 'admins', DEAL_POSTING_MODE: 'admins' }),
+      RAZORPAY_KEY_ID: 'rzp_live_x',
+      RAZORPAY_KEY_SECRET: 'secret',
+      RAZORPAY_WEBHOOK_SECRET: 'whsec',
+    });
+
+    expect(env.HOSTING_TIER).toBe('free');
+    expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
   it('does not start on a pooled Neon host, or without TLS', () => {

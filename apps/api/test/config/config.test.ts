@@ -16,7 +16,7 @@ describe('GET /api/config', () => {
     expect(res.status).toBe(200);
     expect(appConfigResponseSchema.parse(res.body)).toEqual({
       gstRateBps: 0,
-      minBudgetPaise: 5_000_00,
+      minBudgetPaise: 886_00,
       advancePercent: 30,
       authEmailEnabled: false,
       razorpayKeyId: env.RAZORPAY_KEY_ID,

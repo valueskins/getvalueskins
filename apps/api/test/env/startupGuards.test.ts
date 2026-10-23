@@ -323,32 +323,61 @@ describe('getStartupGuardViolations', () => {
       expect(getStartupGuardViolations(buildTestEnv(production))).toEqual([]);
     });
 
-    it.each(['admins', 'on'] as const)('refuses PAYMENTS_MODE=%s on the free tier', (mode) => {
+    it('allows PAYMENTS_MODE=admins and DEAL_POSTING_MODE=admins on the free tier, with live Razorpay values', () => {
       const env = buildTestEnv({
         ...production,
         ...live,
         HOSTING_TIER: 'free',
-        PAYMENTS_MODE: mode,
+        PAYMENTS_MODE: 'admins',
+        DEAL_POSTING_MODE: 'admins',
       });
-      expect(getStartupGuardViolations(env)).toEqual([
-        'PAYMENTS_MODE must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders',
-      ]);
+      expect(getStartupGuardViolations(env)).toEqual([]);
     });
 
-    it.each(['admins', 'on'] as const)('refuses DEAL_POSTING_MODE=%s on the free tier', (mode) => {
-      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', DEAL_POSTING_MODE: mode });
-      expect(getStartupGuardViolations(env)).toEqual([
-        'DEAL_POSTING_MODE must be "off" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders',
-      ]);
+    it('allows DEAL_POSTING_MODE=admins on the free tier with no Razorpay variable', () => {
+      const env = buildTestEnv({
+        ...production,
+        HOSTING_TIER: 'free',
+        DEAL_POSTING_MODE: 'admins',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([]);
     });
 
-    it('names both when both are opened', () => {
+    it('still needs the live Razorpay values for PAYMENTS_MODE=admins on the free tier', () => {
+      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', PAYMENTS_MODE: 'admins' });
+      expect(getStartupGuardViolations(env)).toEqual(
+        expect.arrayContaining([
+          'RAZORPAY_KEY_ID is required when PAYMENTS_MODE is not "off" in production',
+        ]),
+      );
+    });
+
+    it('refuses PAYMENTS_MODE=on on the free tier', () => {
       const env = buildTestEnv({
         ...production,
         ...live,
         HOSTING_TIER: 'free',
         PAYMENTS_MODE: 'on',
-        DEAL_POSTING_MODE: 'admins',
+      });
+      expect(getStartupGuardViolations(env)).toEqual([
+        'PAYMENTS_MODE must be "off" or "admins" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders for everyone',
+      ]);
+    });
+
+    it('refuses DEAL_POSTING_MODE=on on the free tier', () => {
+      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', DEAL_POSTING_MODE: 'on' });
+      expect(getStartupGuardViolations(env)).toEqual([
+        'DEAL_POSTING_MODE must be "off" or "admins" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders for everyone',
+      ]);
+    });
+
+    it('names both when both are opened to everyone', () => {
+      const env = buildTestEnv({
+        ...production,
+        ...live,
+        HOSTING_TIER: 'free',
+        PAYMENTS_MODE: 'on',
+        DEAL_POSTING_MODE: 'on',
       });
       expect(getStartupGuardViolations(env)).toHaveLength(2);
     });
@@ -357,6 +386,9 @@ describe('getStartupGuardViolations', () => {
       const raw = buildRawTestEnv({ ...production, ...live, PAYMENTS_MODE: 'on' });
       delete raw.HOSTING_TIER;
       expect(getStartupGuardViolations(parseEnv(raw))).toHaveLength(1);
+      const admins = buildRawTestEnv({ ...production, ...live, PAYMENTS_MODE: 'admins' });
+      delete admins.HOSTING_TIER;
+      expect(getStartupGuardViolations(parseEnv(admins))).toEqual([]);
     });
 
     it.each(['admins', 'on'] as const)(

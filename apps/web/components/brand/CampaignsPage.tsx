@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { validateDealForPublish, type DealMineItem } from '@valueskins/shared';
 import { useDeleteDraft, useMyDeals } from '@/lib/api/deals';
 import { errorText } from '@/lib/api/errors';
+import { useConfig } from '@/lib/api/queries';
 import { countdown, shortDate } from '@/lib/deadlines';
 import { currentStepNumber, NEXT_STEP_LABEL } from '@/lib/dealStatus';
 import { formatFullDayTime } from '@/lib/dealFormat';
@@ -53,7 +54,7 @@ const GROUPS: Array<{ id: Group; label: string; note: string }> = [
 ];
 
 /** The first thing a draft still needs, from the same check the API runs at publish. */
-function missing(d: DealMineItem, now: Date): string {
+function missing(d: DealMineItem, now: Date, minBudgetPaise?: number): string {
   const issues = validateDealForPublish(
     {
       title: d.title,
@@ -64,12 +65,14 @@ function missing(d: DealMineItem, now: Date): string {
       dealDeadline: d.dealDeadline,
     },
     now,
+    minBudgetPaise,
   );
   return issues.length ? issues[0]!.message : 'Ready to publish';
 }
 
 function DraftRow({ d, onDelete }: { d: DealMineItem; onDelete: (d: DealMineItem) => void }) {
   const now = useNow();
+  const config = useConfig();
   return (
     <li className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_minmax(0,1.6fr)_200px] md:items-center md:gap-5 md:px-6">
       <div className="flex min-w-0 flex-col gap-1">
@@ -85,7 +88,7 @@ function DraftRow({ d, onDelete }: { d: DealMineItem; onDelete: (d: DealMineItem
           <span className="t-small c-ink-3">No budget yet</span>
         )}
       </p>
-      <p className="t-small c-ink-2">{missing(d, now)}</p>
+      <p className="t-small c-ink-2">{missing(d, now, config.data?.minBudgetPaise)}</p>
       <div className="flex items-center gap-2 md:justify-end">
         <Link href={`/campaigns/${d.id}/edit`} className="btn btn-secondary btn-sm">
           Continue

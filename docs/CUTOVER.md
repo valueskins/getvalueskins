@@ -7,7 +7,8 @@ What this cutover assumes:
 - **No data is imported.** The live app's database holds only the two founders' test accounts: no deals, payments or invoices. Everyone signs in fresh with Instagram. Step C0 checks this again just before the switch.
 - **Fee invoice numbering starts at `VS/2026-27/000001`** for the current financial year (April to March). The counter row is created by the first invoice, so there is nothing to seed. No fee is taken during the cutover, so this stays untouched until payments open.
 - **Production starts with `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`.** Brands can set up their profile and billing and save drafts. Publishing and the fee are closed, with a reason on screen. Opening them later needs an env change and a restart, not a deploy (`docs/DEPLOYMENT.md` section 16a).
-- **Production runs free until payments open:** the web app on Netlify's Free plan (300 credits a month, 15 per deploy; at zero every site on the account is paused, `docs/DEPLOYMENT.md` section 21.6), the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. A startup guard keeps `PAYMENTS_MODE` and `DEAL_POSTING_MODE` at `off` until `HOSTING_TIER=paid`. Moving to paid is `docs/DEPLOYMENT.md` section 21.9, and it comes before any launch gate opens.
+- **Production runs free until payments open:** the web app on Netlify's Free plan (300 credits a month, 15 per deploy; at zero every site on the account is paused, `docs/DEPLOYMENT.md` section 21.6), the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. A startup guard refuses `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` until `HOSTING_TIER=paid`; `off` and `admins` are allowed. Moving to paid is `docs/DEPLOYMENT.md` section 21.9, and it comes before any launch gate opens.
+- **Admin testing on free hosting is optional.** The founders may set `DEAL_POSTING_MODE=admins` (and `PAYMENTS_MODE=admins`, with the live Razorpay values) before paid hosting to test with real admin accounts (`docs/DEPLOYMENT.md` section 21.11). While they do, reminders and scheduled jobs run only while the API is awake, and every test deal must be cancelled or completed before section C, because open deals are visible to all creators. Test deals also break the "no deals" assumption above.
 - **Migrations are run by hand.** A free instance has no pre-deploy step and the API never migrates on start, so step A6 runs them against Neon before the first deploy. The API checks at start that the database has every migration the code has, and refuses to start if it does not. A database that is ahead of the code only logs a warning and the API starts.
 - **Staging has been run through `docs/DEPLOYMENT.md` section 13.** When this was written, `staging.valueskins.com` and `api-staging.valueskins.com` had no DNS records, so check this first. If staging was never set up, do sections 5 to 13 there before you start, because production would otherwise be the first real run of this code.
 
@@ -273,6 +274,7 @@ Pick a time when nobody is expected to use the live app. Everyone involved is on
 
 - Saketh stops deploying to the old app from now until the week is over.
 - Saketh counts the rows on the old app's database: its users, deals and payments. Users must be the two founders' test accounts, and deals and payments must be zero.
+- The Engineer checks the new app's production database for admin test deals (`docs/DEPLOYMENT.md` section 21.11): every deal must be `COMPLETED` or `CANCELLED`, and no `OPEN` deal may remain, because open deals are visible to all creators. Cancel or finish any that are not before going on.
 
 **Verify:** Saketh reports the three numbers. The Engineer has B1 to B14 passed. **If the old database holds anything else, stop.** The "no import" assumption is wrong, and the plan has to change before anything moves.
 
@@ -397,12 +399,12 @@ If the problem is only with the new web app, rolling back the web deploy is fast
 
 Production is closed at the end of this cutover. When the company bank account and the Razorpay live account are ready:
 
-**Move to paid hosting first** (`docs/DEPLOYMENT.md` section 21.9): a paid Render instance, the pre-deploy migration command back, a database with a longer restore window, `HOSTING_TIER=paid`, a restore practised once, and the jobs checked. The API refuses to start with either launch gate open until `HOSTING_TIER` is `paid`.
+**Move to paid hosting first** (`docs/DEPLOYMENT.md` section 21.9): a paid Render instance, the pre-deploy migration command back, a database with a longer restore window, `HOSTING_TIER=paid`, a restore practised once, and the jobs checked. The API refuses to start with either launch gate set to `on` until `HOSTING_TIER` is `paid` (`admins` is allowed before that, for a closed test).
 
 Then:
 
 1. Follow `docs/DEPLOYMENT.md` section 16a, "Opening payments and posting": set the live Razorpay values and `COMPANY_GSTIN` in Render, register the live webhook (`payment.captured`, `payment.failed` and `order.paid` only), set `PAYMENTS_MODE=admins`, restart, and run one real deal as an admin. Then `on`.
-2. Do the remaining items in `docs/SPEC.md` section 22 that B13 left out: the Razorpay live account and webhook, the fee invoice format approved by the CA, and one real ₹5,000 deal between the two founders with a real ₹885.00 fee.
+2. Do the remaining items in `docs/SPEC.md` section 22 that B13 left out: the Razorpay live account and webhook, the fee invoice format approved by the CA, and one real ₹886 deal (the minimum) between the two founders with a real ₹885.00 fee. The creator's share is ₹1.00, paid as ₹0.30 and ₹0.70.
 3. The first fee issues invoice `VS/2026-27/000001`. Before the first payment, `q "select count(*) from invoice_counters"` must still print `0`. After it, `q "select kind, financial_year, last_sequence from invoice_counters"` shows `COMMISSION_TAX_INVOICE`, `2026-27`, `1`. A new financial year (from 1 April 2027) starts again at `000001` by itself.
 4. Set `DEAL_POSTING_MODE` the same way (`admins`, then `on`). Then tell people with `pnpm notify:launch` as in section 16a.
 

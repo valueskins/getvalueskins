@@ -109,10 +109,10 @@ function budgetPaise(digits: string): number | null {
   return Number.isSafeInteger(n * 100) ? n * 100 : null;
 }
 
-function Breakdown({ paise, gst }: { paise: number | null; gst: number }) {
-  const ok = paise !== null && paise >= MIN_BUDGET_PAISE;
+function Breakdown({ paise, gst, min }: { paise: number | null; gst: number; min: number }) {
+  const ok = paise !== null && paise >= min;
   // The fee is the same at every budget, so it shows even before the minimum.
-  const fee = computeBreakdown(ok ? paise : MIN_BUDGET_PAISE, gst);
+  const fee = computeBreakdown(ok ? paise : min, gst);
   const feeRow = (
     <div className="bd-row">
       <p className="t-small font-medium">ValueSkins fee</p>
@@ -128,7 +128,7 @@ function Breakdown({ paise, gst }: { paise: number | null; gst: number }) {
       <div className="breakdown" aria-live="polite">
         {feeRow}
         <p className="bd-note">
-          Enter {formatInr(MIN_BUDGET_PAISE)} or more to see what the creator gets and when.
+          Enter {formatInr(min)} or more to see what the creator gets and when.
         </p>
       </div>
     );
@@ -166,14 +166,16 @@ function Preview({
   f,
   paise,
   gst,
+  min,
   brand,
 }: {
   f: DraftFields;
   paise: number | null;
   gst: number;
+  min: number;
   brand: string;
 }) {
-  const ok = paise !== null && paise >= MIN_BUDGET_PAISE;
+  const ok = paise !== null && paise >= min;
   const b = ok ? computeBreakdown(paise, gst) : null;
   return (
     <aside className="flex flex-col gap-4" aria-label="How creators see it">
@@ -207,7 +209,7 @@ function Preview({
           </div>
         ) : (
           <p className="t-small c-ink-2">
-            The amounts show once the budget is {formatInr(MIN_BUDGET_PAISE)} or more.
+            The amounts show once the budget is {formatInr(min)} or more.
           </p>
         )}
         <div className="t-small c-ink-2 flex flex-wrap gap-4">
@@ -243,6 +245,8 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
   // SPEC 19: drafts work while posting is closed; only Publish is off, and it says why.
   const postingReason = config.data?.postingOpen === false ? POSTING_NOT_OPEN : undefined;
   const gst = config.data?.gstRateBps ?? GST_RATE_BPS;
+  // The API decides the minimum; the shared constant is only the fallback while /api/config loads.
+  const min = config.data?.minBudgetPaise ?? MIN_BUDGET_PAISE;
   const draftId = draft?.id ?? null;
   const serverFields = useMemo(() => (draft ? fieldsFromDeal(draft) : EMPTY), [draft]);
 
@@ -312,6 +316,7 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
         dealDeadline: f.dealDeadline,
       },
       new Date(),
+      min,
     );
 
   /** Saves to the server and returns the draft id. */
@@ -410,8 +415,7 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
     : savedLocal
       ? `Saved on this device at ${formatTime(savedLocal)}`
       : null;
-  const breakdown =
-    paise !== null && paise >= MIN_BUDGET_PAISE ? computeBreakdown(paise, gst) : null;
+  const breakdown = paise !== null && paise >= min ? computeBreakdown(paise, gst) : null;
 
   return (
     <div className="page">
@@ -557,7 +561,7 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
               <Field
                 id="f-budget"
                 label="Budget in rupees"
-                help={`Whole rupees. The minimum is ${formatInr(MIN_BUDGET_PAISE)}.`}
+                help={`Whole rupees. The minimum is ${formatInr(min)}.`}
                 error={errors.budgetRupees}
                 className="max-w-[320px]"
               >
@@ -583,7 +587,7 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
                   />
                 </span>
               </Field>
-              <Breakdown paise={paise} gst={gst} />
+              <Breakdown paise={paise} gst={gst} min={min} />
             </div>
           </section>
 
@@ -637,7 +641,7 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
             </div>
           </div>
         </form>
-        <Preview f={f} paise={paise} gst={gst} brand={me.data?.user.username ?? 'you'} />
+        <Preview f={f} paise={paise} gst={gst} min={min} brand={me.data?.user.username ?? 'you'} />
       </div>
 
       <Modal
