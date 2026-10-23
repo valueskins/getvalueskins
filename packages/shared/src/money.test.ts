@@ -58,6 +58,7 @@ describe('computeBreakdown', () => {
 
   describe('flat fee (REPLACEMENT_PLAN 2.2)', () => {
     it.each([
+      ['₹886', 88_600],
       ['₹5,000', 500_000],
       ['₹14,999', 1_499_900],
       ['₹15,001', 1_500_100],
@@ -103,14 +104,15 @@ describe('computeBreakdown', () => {
     it('succeeds exactly at the minimum budget', () => {
       const breakdown = computeBreakdown(MIN_BUDGET_PAISE);
 
+      // ₹886 less the ₹885 fee leaves the creator ₹1.00: ₹0.30 in advance and ₹0.70 at the end.
       expect(breakdown).toEqual({
-        budgetPaise: 500_000,
+        budgetPaise: 88_600,
         commissionBasePaise: 75_000,
         commissionGstPaise: 13_500,
         commissionTotalPaise: 88_500,
-        creatorAmountPaise: 411_500,
-        advancePaise: 123_450,
-        finalPaise: 288_050,
+        creatorAmountPaise: 100,
+        advancePaise: 30,
+        finalPaise: 70,
       });
       expect(breakdown.commissionTotalPaise + breakdown.advancePaise + breakdown.finalPaise).toBe(
         MIN_BUDGET_PAISE,
@@ -280,9 +282,12 @@ describe('paiseToDecimalString', () => {
   it.each([
     [0, '0.00'],
     [5, '0.05'],
+    [30, '0.30'],
+    [70, '0.70'],
     [100, '1.00'],
     [273450, '2734.50'],
     [88500, '885.00'],
+    [88650, '886.50'],
     [Number.MAX_SAFE_INTEGER, '90071992547409.91'],
   ])('%d paise is %s', (paise, expected) => {
     expect(paiseToDecimalString(paise)).toBe(expected);
@@ -292,6 +297,12 @@ describe('paiseToDecimalString', () => {
     for (const bad of [-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1]) {
       expect(() => paiseToDecimalString(bad)).toThrow(MoneyError);
     }
+  });
+
+  it('formats the advance and final of the minimum budget as 0.30 and 0.70', () => {
+    const b = computeBreakdown(MIN_BUDGET_PAISE, 1800);
+    expect(paiseToDecimalString(b.advancePaise)).toBe('0.30');
+    expect(paiseToDecimalString(b.finalPaise)).toBe('0.70');
   });
 
   it('agrees with computeBreakdown for an advance and a final', () => {

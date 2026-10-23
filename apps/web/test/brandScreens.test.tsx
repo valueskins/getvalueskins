@@ -136,16 +136,40 @@ describe('post a deal', () => {
   it('adds commas to the budget and shows the breakdown only from the minimum', async () => {
     renderForm();
     const budget = await screen.findByLabelText('Budget in rupees');
-    fireEvent.change(budget, { target: { value: '4999' } });
-    expect(budget).toHaveValue('4,999');
+    fireEvent.change(budget, { target: { value: '885' } });
+    expect(budget).toHaveValue('885');
     expect(
-      screen.getByText('Enter ₹5,000.00 or more to see what the creator gets and when.'),
+      screen.getByText('Enter ₹886.00 or more to see what the creator gets and when.'),
     ).toBeInTheDocument();
     fireEvent.change(budget, { target: { value: '1000000' } });
     expect(budget).toHaveValue('10,00,000');
     const breakdown = screen.getByLabelText('Payment breakdown');
     expect(breakdown).toHaveTextContent('₹885.00');
     expect(breakdown).toHaveTextContent('Creators see: You receive ₹9,99,115.00');
+  });
+
+  it('shows the whole breakdown at the ₹886 minimum: ₹885.00 fee, ₹0.30 then ₹0.70 to the creator', async () => {
+    renderForm();
+    fireEvent.change(await screen.findByLabelText('Budget in rupees'), {
+      target: { value: '886' },
+    });
+    const breakdown = screen.getByLabelText('Payment breakdown');
+    expect(breakdown).toHaveTextContent('₹885.00');
+    expect(breakdown).toHaveTextContent('₹0.30');
+    expect(breakdown).toHaveTextContent('₹0.70');
+    expect(breakdown).toHaveTextContent('₹886.00');
+  });
+
+  it('takes the minimum from /api/config, not from a number in the page', async () => {
+    renderForm({ 'GET /config': { ...CONFIG, minBudgetPaise: 1_200_00 } });
+    const budget = await screen.findByLabelText('Budget in rupees');
+    expect(await screen.findByText('Whole rupees. The minimum is ₹1,200.00.')).toBeInTheDocument();
+    fireEvent.change(budget, { target: { value: '1000' } });
+    expect(
+      screen.getByText('Enter ₹1,200.00 or more to see what the creator gets and when.'),
+    ).toBeInTheDocument();
+    fireEvent.change(budget, { target: { value: '1200' } });
+    expect(screen.getByLabelText('Payment breakdown')).toHaveTextContent('₹1,200.00');
   });
 
   it('inserts the deal template', async () => {
@@ -166,7 +190,7 @@ describe('post a deal', () => {
       '#f-title',
     );
     expect(
-      within(summary).getByRole('link', { name: 'The budget must be at least ₹5,000.00' }),
+      within(summary).getByRole('link', { name: 'The budget must be at least ₹886.00' }),
     ).toHaveAttribute('href', '#f-budget');
     expect(
       within(summary).getByRole('link', { name: 'Add a date for "Apply by"' }),

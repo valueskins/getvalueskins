@@ -30,6 +30,25 @@ describe('buildUpiPay', () => {
   });
 });
 
+describe('buildUpiPay for the minimum budget (₹886: ₹0.30 and ₹0.70 to the creator)', () => {
+  it.each([
+    [30, 'ADVANCE', '0.30', 'advance'],
+    [70, 'FINAL', '0.70', 'final'],
+    [88650, 'FINAL', '886.50', 'final'],
+  ] as const)('%d paise is am=%s', (amountPaise, stage, am, word) => {
+    const fields = buildUpiPay({
+      vpa: 'raj@okaxis',
+      name: 'Raj',
+      amountPaise,
+      dealShortId: 'ABCD2345',
+      stage,
+    });
+    expect(fields.am).toBe(am);
+    expect(fields.tn).toBe(`ValueSkins ABCD2345 ${word}`);
+    expect(upiPayUri(fields)).toContain(`&am=${am}&cu=INR&`);
+  });
+});
+
 describe('upiPayUri', () => {
   it('encodes every value and keeps the fields in order', () => {
     const uri = upiPayUri({

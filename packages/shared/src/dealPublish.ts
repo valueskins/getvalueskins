@@ -32,8 +32,13 @@ const DEADLINE_LABELS = {
  * problem, empty when the draft can be published. A deadline is the end of that
  * calendar day in IST, so "in the future" means that instant is after `now` and
  * today's date is still allowed. Order: application < content upload <= deal.
+ * `minBudgetPaise` defaults to the shared minimum; the web passes the one `/api/config` returns.
  */
-export function validateDealForPublish(deal: DealPublishFields, now: Date): DealPublishIssue[] {
+export function validateDealForPublish(
+  deal: DealPublishFields,
+  now: Date,
+  minBudgetPaise: number = MIN_BUDGET_PAISE,
+): DealPublishIssue[] {
   const issues: DealPublishIssue[] = [];
 
   if (!deal.title || deal.title.trim() === '') {
@@ -47,10 +52,10 @@ export function validateDealForPublish(deal: DealPublishFields, now: Date): Deal
     issues.push({ path: 'budgetRupees', message: 'Add a budget' });
   } else if (!Number.isSafeInteger(deal.budgetPaise) || deal.budgetPaise % 100 !== 0) {
     issues.push({ path: 'budgetRupees', message: 'The budget must be in whole rupees' });
-  } else if (deal.budgetPaise < MIN_BUDGET_PAISE) {
+  } else if (deal.budgetPaise < minBudgetPaise) {
     issues.push({
       path: 'budgetRupees',
-      message: `The budget must be at least ${formatInr(MIN_BUDGET_PAISE)}`,
+      message: `The budget must be at least ${formatInr(minBudgetPaise)}`,
     });
   }
 

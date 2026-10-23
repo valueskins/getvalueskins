@@ -36,7 +36,7 @@ You promise that what you tell us is true, that you are 18 or older, that you co
 
 ## How a Deal works
 
-A Brand posts a Deal with a description, an amount of at least ₹5,000.00 and three dates. A published Deal cannot be edited. Creators apply. The Brand confirms one Creator, pays our fee, and then pays the Creator 30% of the rest by UPI before work starts and the remaining 70% after it approves the content. Each payment to the Creator moves the Deal on only when the Creator confirms it arrived.
+A Brand posts a Deal with a description, an amount of at least ₹886.00 and three dates. A published Deal cannot be edited. Creators apply. The Brand confirms one Creator, pays our fee, and then pays the Creator 30% of the rest by UPI before work starts and the remaining 70% after it approves the content. Each payment to the Creator moves the Deal on only when the Creator confirms it arrived.
 
 ## Our fee
 
