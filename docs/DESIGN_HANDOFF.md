@@ -105,6 +105,8 @@ Board names are the canvas file names. Routes are suggestions.
 | Settings                              | SettingsCreator, SettingsBrand, SettingsDialogs, SettingsCreatorM                                                                            | `/settings`        | `GET /me`, `GET /me/payout-upi`, the PUTs above, `DELETE /me`                                          |
 | Terms, Privacy, Refunds, Contact, 404 | Terms, Privacy, Refunds, Contact, NotFound and the M boards                                                                                  | `/terms` and so on |                                                                                                        |
 
+The home page was later redesigned in code with its own look; SPEC section 18 (Homepage, Deal calculator) describes it, and the Home boards are no longer the reference.
+
 ### Creator (page Creator)
 
 | Screen               | Boards                                    | Route                                      | API                                                                             |
