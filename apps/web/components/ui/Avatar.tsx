@@ -15,6 +15,15 @@ function initial(name: string): string {
   return (clean[0] ?? '?').toUpperCase();
 }
 
+const TONES = ['tone-saffron', 'tone-rose', 'tone-sand', 'tone-green', 'tone-plum'] as const;
+
+/** A warm tint for the letter, the same for a name every time. */
+export function toneFor(name: string): (typeof TONES)[number] {
+  let sum = 0;
+  for (const ch of name.replace(/^@/, '').toLowerCase()) sum = (sum * 31 + ch.charCodeAt(0)) >>> 0;
+  return TONES[sum % TONES.length]!;
+}
+
 /** A circle with the picture, or the first letter while it loads or when there is none. */
 export function Avatar({ name, src, size = 32, className }: AvatarProps) {
   const [loaded, setLoaded] = useState(false);
@@ -22,7 +31,7 @@ export function Avatar({ name, src, size = 32, className }: AvatarProps) {
   const showImg = Boolean(src) && !failed;
   return (
     <span
-      className={cx('avatar relative', className)}
+      className={cx('avatar relative', toneFor(name), className)}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
       aria-hidden="true"
     >
