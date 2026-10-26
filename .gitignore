@@ -31,3 +31,8 @@ pnpm-debug.log*
 
 # netlify CLI build output
 .netlify/
+
+# design review screenshots
+.screens/
+.taste-skill/
+.hallmark/

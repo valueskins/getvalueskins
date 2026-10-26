@@ -7,7 +7,7 @@ import { cx } from '@/components/ui/cx';
 import { instagramLinkUrl, instagramSignInUrl } from '@/lib/signIn';
 import { apiHasAnswered, waitForApi } from '@/lib/wake';
 
-type Phase = 'ready' | 'connecting' | 'failed';
+export type Phase = 'ready' | 'connecting' | 'failed';
 
 /**
  * A link: sign-in leaves the app for the API and Instagram, then comes back. The API may be asleep
@@ -21,12 +21,18 @@ export function InstagramButton({
   large = false,
   block = false,
   variant = 'primary',
+  className: extraClassName,
+  onPhase,
 }: {
   label?: string;
   link?: boolean;
   large?: boolean;
   block?: boolean;
   variant?: 'primary' | 'secondary';
+  /** Replaces the Receipt button classes, for a page with its own button style. */
+  className?: string;
+  /** Told each time the button moves between ready, connecting and failed. */
+  onPhase?: (phase: Phase) => void;
 }) {
   const href = link ? instagramLinkUrl() : instagramSignInUrl();
   const [phase, setPhase] = useState<Phase>('ready');
@@ -37,13 +43,13 @@ export function InstagramButton({
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    onPhase?.(phase);
+  }, [phase, onPhase]);
 
-  const className = cx(
-    'btn',
-    `btn-${variant}`,
-    block && 'btn-block',
-    large && 'h-[52px] px-6 text-base',
-  );
+  const className =
+    extraClassName ??
+    cx('btn', `btn-${variant}`, block && 'btn-block', large && 'h-[52px] px-6 text-base');
 
   async function connect() {
     setPhase('connecting');
