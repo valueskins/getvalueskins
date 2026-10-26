@@ -1,5 +1,7 @@
 # Design handoff
 
+> **Superseded.** The "Receipt" look below is no longer used. The whole web app now follows the home page's look, with its tokens in `apps/web/app/styles/tokens.css` and the components shown at `/dev/components` (non-production builds); `docs/SPEC.md` section 18 describes it. `docs/design/receipt.css` stays as a record of the handoff. The boards still hold the layouts, copy, states and behaviour of the screens that have not been redesigned yet.
+
 The design for the web rebuild (W1 to W3 in `docs/REPLACEMENT_PLAN.md` section 7). It is the visual source of truth. The data source of truth stays `apps/api` and the schemas in `packages/shared`. Anything a screen needs that the API does not give is listed in `docs/WEB_API_GAPS.md`.
 
 - **The design canvas:** the link comes with the handoff instruction. It has one page per area. Each board is one self-contained HTML file, `project/<Board>.dc.html`, styled by `project/receipt.css`.
