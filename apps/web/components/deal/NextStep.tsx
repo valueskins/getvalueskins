@@ -419,7 +419,7 @@ function PaymentRecordRow({ deal }: { deal: DealDetail }) {
     <>
       <PaymentRecord record={record} viewer="brand" />
       {action ? (
-        <div className="border-t border-rule px-6 py-4">
+        <div className="border-t border-border px-6 py-4">
           <Button variant="secondary" disabledReason={reasonOf(action)}>
             Record another payment
           </Button>

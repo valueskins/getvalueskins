@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { SignIn } from './SignIn';
-import { Wordmark } from './Wordmark';
+import { Wordmark } from '@/components/shell/Wordmark';
 
 const LINKS = [
   { href: '#brands', label: 'For brands' },

@@ -83,7 +83,7 @@ export function ContentPage({ markdown, numbered = false, showMissing, footer }:
           {doc.title}
         </h1>
         {doc.lede ? (
-          <p className="text-[17px] leading-[26px] text-ink-2 [&_a]:text-ink [&_a]:underline">
+          <p className="text-[17px] leading-[26px] text-ink-muted [&_a]:text-ink [&_a]:underline">
             <ReactMarkdown components={{ p: ({ children }) => <>{children}</> }}>
               {doc.lede}
             </ReactMarkdown>
@@ -97,7 +97,7 @@ export function ContentPage({ markdown, numbered = false, showMissing, footer }:
             On this page
             <Icon name="caretDown" />
           </summary>
-          <nav className="toc border-t border-rule px-3.5 py-2" aria-label="On this page">
+          <nav className="toc border-t border-border px-3.5 py-2" aria-label="On this page">
             {toc}
           </nav>
         </details>

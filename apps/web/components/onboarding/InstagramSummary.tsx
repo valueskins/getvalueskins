@@ -78,7 +78,7 @@ export function InstagramSummary({ profile }: { profile: MeProfile }) {
           </div>
         </>
       ) : null}
-      <div className="border-t border-rule bg-page px-5 py-3 md:px-6">
+      <div className="border-t border-border bg-sunken px-5 py-3 md:px-6">
         <p className="t-small c-ink-2">
           Engagement is the average likes and comments on your last 12 posts, divided by your
           followers.

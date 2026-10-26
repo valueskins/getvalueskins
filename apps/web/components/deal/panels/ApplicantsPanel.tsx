@@ -37,7 +37,7 @@ function Row({
   const [open, setOpen] = useState(false);
   const c = item.creator;
   return (
-    <li className="border-t border-rule first:border-t-0">
+    <li className="border-t border-border first:border-t-0">
       <div className="grid items-center gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,2fr)_96px_96px_minmax(0,1.2fr)] md:gap-5 md:px-6">
         <button
           type="button"
@@ -122,7 +122,7 @@ export function ApplicantsPanel({ deal }: { deal: DealDetail }) {
     <>
       <div className="card overflow-hidden">
         <div
-          className="hidden gap-5 border-b border-rule bg-page px-6 py-2 md:grid md:grid-cols-[minmax(0,2fr)_96px_96px_minmax(0,1.2fr)]"
+          className="hidden gap-5 border-b border-border bg-sunken px-6 py-2 md:grid md:grid-cols-[minmax(0,2fr)_96px_96px_minmax(0,1.2fr)]"
           aria-hidden="true"
         >
           <p className="t-label c-ink-2">Creator</p>

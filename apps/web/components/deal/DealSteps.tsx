@@ -46,7 +46,9 @@ export function DealSteps({ steps }: { steps: DealStep[] }) {
         <p className="t-label c-ink-2">
           Step {n} of {steps.length}
         </p>
-        <p className={cx('t-h3', current.state === 'current' && 'text-prog')}>{current.label}</p>
+        <p className={cx('t-h3', current.state === 'current' && 'text-accent-ink')}>
+          {current.label}
+        </p>
         <div className="seg" aria-hidden="true">
           {steps.map((s) => (
             <span

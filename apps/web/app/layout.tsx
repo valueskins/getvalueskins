@@ -1,22 +1,14 @@
 import type { Metadata, Viewport } from 'next';
 import { connection } from 'next/server';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { fontVariables } from '@/lib/fonts';
 import './globals.css';
-import './receipt.css';
-import './app.css';
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/components.css';
+import './styles/shell.css';
+import './styles/screens.css';
 import './utilities.css';
 import { Providers } from './providers';
-
-const geist = Geist({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-geist',
-});
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-geist-mono',
-});
 
 export const metadata: Metadata = {
   title: { default: 'ValueSkins', template: '%s | ValueSkins' },
@@ -24,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#f7f8f8',
+  themeColor: '#fbf8f4',
   colorScheme: 'light',
 };
 
@@ -32,7 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Every page renders on request, so Next.js can put the CSP nonce on its scripts (middleware.ts).
   await connection();
   return (
-    <html lang="en-IN" className={`${geist.variable} ${geistMono.variable}`}>
+    <html lang="en-IN" className={fontVariables}>
       <body>
         <Providers>{children}</Providers>
       </body>

@@ -8,6 +8,7 @@ import {
   MIN_BUDGET_PAISE,
   rupeesToPaise,
 } from '@valueskins/shared';
+import { SiteFooter } from '@/components/shell/SiteChrome';
 import { decideAccess } from '@/lib/access';
 import { useConfig, useMe } from '@/lib/api/queries';
 import { EXAMPLE_RUPEES } from './amount';
@@ -15,7 +16,6 @@ import { Costs } from './Costs';
 import { DealBand } from './DealBand';
 import { Faq } from './Faq';
 import { FinalCta } from './FinalCta';
-import { Footer } from './Footer';
 import { Hero } from './Hero';
 import { HowItWorks } from './HowItWorks';
 import { useRiseIn } from './motion';
@@ -68,7 +68,7 @@ export function Landing({ initialDigits }: { initialDigits: string }) {
         <Faq fee={fee} minPaise={minPaise} />
         <FinalCta />
       </main>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }

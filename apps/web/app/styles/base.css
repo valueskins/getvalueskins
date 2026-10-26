@@ -1,0 +1,161 @@
+/*
+ * The page itself, text, and the type scale. Element rules use :where() so they weigh nothing and
+ * any component class (or the home page's .v3 rules) wins over them.
+ */
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 24px;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+:where(body) *,
+:where(body) *::before,
+:where(body) *::after {
+  box-sizing: border-box;
+}
+:where(h1, h2, h3, h4, p) {
+  margin: 0;
+}
+:where(a) {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+:where(a:hover) {
+  color: var(--ink-muted);
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Type scale. Headings are Bricolage bold with tight tracking, like the home page, one size calmer. */
+.t-display {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.t-h1 {
+  font-size: var(--text-2xl);
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+.t-h2 {
+  font-size: var(--text-xl);
+  line-height: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.t-h3 {
+  font-size: var(--text-lg);
+  line-height: 24px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.t-body {
+  font-size: var(--text-base);
+  line-height: 24px;
+  font-weight: 400;
+}
+.t-small {
+  font-size: var(--text-sm);
+  line-height: 20px;
+  font-weight: 400;
+}
+.t-label {
+  font-size: var(--text-xs);
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  font-variant-numeric: tabular-nums;
+}
+/* The serif italic accent: one word, used sparingly (the wordmark, a welcome headline). */
+.t-accent {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+}
+.c-ink {
+  color: var(--ink);
+}
+.c-ink-2 {
+  color: var(--ink-muted);
+}
+.c-ink-3 {
+  color: var(--ink-subtle);
+}
+
+/* Entrances. Things that arrive (list rows, cards, a toast, a panel) rise in a few pixels. Only
+ * newly mounted elements play it, so a realtime refetch animates just the rows that are new. */
+@keyframes vs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes vs-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes vs-pop {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+@keyframes vs-sheet {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@keyframes vs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes vs-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Reduced motion: no animation and no transition anywhere; everything shows its final state. */
+@media (prefers-reduced-motion: reduce) {
+  body *,
+  body *::before,
+  body *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

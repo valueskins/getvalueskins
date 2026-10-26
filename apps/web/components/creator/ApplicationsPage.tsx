@@ -115,7 +115,7 @@ export function ApplicationsPage() {
         <>
           <div className="card overflow-hidden">
             <div
-              className="hidden gap-5 border-b border-rule px-6 py-2.5 md:grid md:grid-cols-[minmax(0,2fr)_120px_120px_minmax(0,1.4fr)_120px]"
+              className="hidden gap-5 border-b border-border px-6 py-2.5 md:grid md:grid-cols-[minmax(0,2fr)_120px_120px_minmax(0,1.4fr)_120px]"
               aria-hidden="true"
             >
               <p className="t-label c-ink-2">Deal</p>
@@ -130,7 +130,7 @@ export function ApplicationsPage() {
                 return (
                   <li
                     key={a.id}
-                    className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_120px_120px_minmax(0,1.4fr)_120px] md:items-center md:gap-5 md:px-6"
+                    className="grid gap-3 border-t border-border px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_120px_120px_minmax(0,1.4fr)_120px] md:items-center md:gap-5 md:px-6"
                   >
                     <div className="flex min-w-0 flex-col gap-1.5">
                       <p className="t-body">{a.deal.title}</p>

@@ -56,7 +56,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div key={t.id} className="toast" role={t.tone === 'error' ? 'alert' : 'status'}>
             <span
               className={
-                t.tone === 'error' ? 'text-error' : t.tone === 'ok' ? 'text-ok' : 'text-ink-2'
+                t.tone === 'error'
+                  ? 'text-danger'
+                  : t.tone === 'ok'
+                    ? 'text-success'
+                    : 'text-ink-muted'
               }
             >
               <Icon

@@ -74,7 +74,7 @@ function DraftRow({ d, onDelete }: { d: DealMineItem; onDelete: (d: DealMineItem
   const now = useNow();
   const config = useConfig();
   return (
-    <li className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_minmax(0,1.6fr)_200px] md:items-center md:gap-5 md:px-6">
+    <li className="grid gap-3 border-t border-border px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_minmax(0,1.6fr)_200px] md:items-center md:gap-5 md:px-6">
       <div className="flex min-w-0 flex-col gap-1">
         <Link href={`/campaigns/${d.id}/edit`} className="t-body truncate">
           {d.title ?? 'Untitled draft'}
@@ -112,7 +112,7 @@ function OpenRow({ d }: { d: DealMineItem }) {
   const deadline = d.applicationDeadline;
   const c = deadline ? countdown(deadline, now) : null;
   return (
-    <li className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_130px_minmax(0,1.5fr)_190px] md:items-center md:gap-5 md:px-6">
+    <li className="grid gap-3 border-t border-border px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_130px_minmax(0,1.5fr)_190px] md:items-center md:gap-5 md:px-6">
       <div className="flex min-w-0 flex-col gap-1">
         <Link href={`/deals/${d.id}`} className="t-body truncate">
           {d.title}
@@ -132,7 +132,7 @@ function OpenRow({ d }: { d: DealMineItem }) {
             Closes {shortDate(deadline)} <span className="c-ink-3">({c.text})</span>
           </p>
         ) : (
-          <p className="t-small font-medium text-wait">
+          <p className="t-small font-medium text-warning">
             Closed {shortDate(deadline)}. Pick a creator.
           </p>
         )
@@ -198,7 +198,7 @@ function ClosedRow({ d }: { d: DealMineItem }) {
   const cancelled = d.status === 'CANCELLED';
   const when = cancelled ? d.cancelledAt : d.completedAt;
   return (
-    <li className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_140px_minmax(0,1.5fr)] md:items-center md:gap-5 md:px-6">
+    <li className="grid gap-3 border-t border-border px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_140px_140px_minmax(0,1.5fr)] md:items-center md:gap-5 md:px-6">
       <div className="flex min-w-0 flex-col gap-1">
         <Link href={`/deals/${d.id}`} className="t-body truncate">
           {d.title}
