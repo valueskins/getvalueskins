@@ -43,9 +43,46 @@ describe('the signed-in shell', () => {
         .getAllByRole('link')
         .map((a) => a.textContent),
     ).toEqual(['Campaigns', 'Settings']);
-    expect(screen.getByRole('link', { name: /Post a deal/ })).toHaveAttribute(
-      'href',
-      '/campaigns/new',
+    // One in the top bar, one in the phone tab bar; CSS shows one or the other.
+    const posts = screen.getAllByRole('link', { name: /Post a deal/ });
+    expect(posts).toHaveLength(2);
+    for (const link of posts) expect(link).toHaveAttribute('href', '/campaigns/new');
+  });
+
+  it('gives a creator a tab bar for phones with the same four places', async () => {
+    nav.pathname = '/deals';
+    mockApi({ 'GET /me': creator, 'GET /config': CONFIG });
+    renderPage(<DealsPage />);
+    const navs = await screen.findAllByRole('navigation', { name: 'Main' });
+    const tabbar = navs[1]!;
+    expect(
+      within(tabbar)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['Deals', 'Applications', 'My deals', 'Settings']);
+    expect(within(tabbar).getByRole('link', { name: 'Deals' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it('gives a brand a tab bar with Post a deal in the middle, current only on its own page', async () => {
+    nav.pathname = '/campaigns/new';
+    mockApi({ 'GET /me': brand, 'GET /config': CONFIG });
+    renderPage(<CampaignsPage />);
+    const navs = await screen.findAllByRole('navigation', { name: 'Main' });
+    const tabbar = navs[1]!;
+    expect(
+      within(tabbar)
+        .getAllByRole('link')
+        .map((a) => a.textContent),
+    ).toEqual(['Campaigns', 'Post a deal', 'Settings']);
+    expect(within(tabbar).getByRole('link', { name: 'Post a deal' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(tabbar).getByRole('link', { name: 'Campaigns' })).not.toHaveAttribute(
+      'aria-current',
     );
   });
 

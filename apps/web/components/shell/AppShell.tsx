@@ -5,17 +5,28 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { MeResponse } from '@valueskins/shared';
 import { Avatar } from '@/components/ui/Avatar';
-import { Icon } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
 import { focusables, trapTab } from '@/components/ui/focus';
 import { LaunchBanner } from './LaunchBanner';
 import { SkipLink } from './SkipLink';
 import { useSignOut } from './useSignOut';
+import { Wordmark } from './Wordmark';
 
 export interface NavItem {
   href: string;
   label: string;
 }
+
+/** The phone tab bar's icon for each destination. */
+const TAB_ICON: Record<string, IconName> = {
+  '/deals': 'compass',
+  '/applications': 'paperPlane',
+  '/my-deals': 'handshake',
+  '/settings': 'gear',
+  '/campaigns': 'megaphone',
+  '/campaigns/new': 'plus',
+};
 
 const CREATOR_NAV: NavItem[] = [
   { href: '/deals', label: 'Deals' },
@@ -144,6 +155,7 @@ export function MobileMenu({
   links,
   label = 'Main',
   postDeal = false,
+  account = false,
 }: {
   me: MeResponse;
   nav: NavItem[];
@@ -153,6 +165,8 @@ export function MobileMenu({
   label?: string;
   /** The brand's "Post a deal" button at the top of the sheet. */
   postDeal?: boolean;
+  /** The toggle shows the person's picture: the sheet is their account menu, not the navigation. */
+  account?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { signOut, pending } = useSignOut();
@@ -196,10 +210,19 @@ export function MobileMenu({
         aria-controls="app-sheet"
         onClick={() => setOpen((v) => !v)}
       >
-        <Icon name={open ? 'x' : 'list'} />
+        {account && !open ? (
+          <Avatar name={me.user.username} src={me.profile?.profilePictureUrl} size={32} />
+        ) : (
+          <Icon name={open ? 'x' : 'list'} />
+        )}
       </button>
       {open ? (
-        <nav ref={sheet} id="app-sheet" className="sheet is-fixed" aria-label={label}>
+        <nav
+          ref={sheet}
+          id="app-sheet"
+          className={cx('sheet is-fixed', account && 'is-account')}
+          aria-label={label}
+        >
           {postDeal ? (
             <Link href="/campaigns/new" className="btn btn-primary btn-block mb-2">
               <Icon name="plus" />
@@ -217,7 +240,7 @@ export function MobileMenu({
             </Link>
           ))}
           <div className="sheet-foot">
-            <div className="flex items-center gap-3 px-3 py-2">
+            <div className="sheet-head">
               <Avatar name={me.user.username} src={me.profile?.profilePictureUrl} size={32} />
               <div>
                 <p className="chip-name">@{me.user.username}</p>
@@ -244,7 +267,46 @@ export function MobileMenu({
   );
 }
 
-/** The signed-in shell: role navigation, the user menu, and the full-sheet menu on phones. */
+/** Phones: the role's destinations along the bottom edge, where a thumb reaches. */
+export function TabBar({ role, pathname }: { role: MeResponse['user']['role']; pathname: string }) {
+  const items: Array<NavItem & { primary?: boolean }> =
+    role === 'BRAND'
+      ? [
+          BRAND_NAV[0]!,
+          { href: '/campaigns/new', label: 'Post a deal', primary: true },
+          BRAND_NAV[1]!,
+        ]
+      : CREATOR_NAV;
+  // "Post a deal" is its own tab, so Campaigns is not also active on /campaigns/new.
+  const activeHref = items
+    .filter((item) => isActive(pathname, item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  return (
+    <nav className="tabbar" aria-label="Main">
+      {items.map((item) => {
+        const active = item.href === activeHref;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cx('tab-item', active && 'is-active', item.primary && 'is-primary')}
+            aria-current={active ? 'page' : undefined}
+          >
+            <span className="tab-icon">
+              <Icon name={TAB_ICON[item.href] ?? 'house'} />
+            </span>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * The signed-in shell. Laptops: the top bar with the role's navigation, Post a deal for brands, and
+ * the account menu. Phones: a compact top bar with the account sheet, and the tab bar at the bottom.
+ */
 export function AppShell({ me, children }: { me: MeResponse; children: ReactNode }) {
   const pathname = usePathname() ?? '';
   const nav = navFor(me);
@@ -254,8 +316,8 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
       <SkipLink />
       <header className="topbar hidden md:block">
         <div className="topbar-in">
-          <Link href={home} className="wordmark">
-            ValueSkins
+          <Link href={home} className="wordmark-link" aria-label="ValueSkins, home">
+            <Wordmark />
           </Link>
           <nav className="nav" aria-label="Main">
             {nav.map((item) => (
@@ -281,22 +343,27 @@ export function AppShell({ me, children }: { me: MeResponse; children: ReactNode
         </div>
       </header>
       <header className="topbar-m md:hidden">
-        <Link href={home} className="wordmark">
-          ValueSkins
+        <Link href={home} className="wordmark-link" aria-label="ValueSkins, home">
+          <Wordmark />
         </Link>
         <MobileMenu
           me={me}
-          nav={nav}
+          nav={[]}
           pathname={pathname}
           roleLabel={roleLine(me)}
           links={roleMenuLinks(me)}
+          label="Account"
           postDeal={me.user.role === 'BRAND'}
+          account
         />
       </header>
-      <main id="main">
+      <main id="main" className="app-main">
         <LaunchBanner role={me.user.role} />
         {children}
       </main>
+      <div className="md:hidden">
+        <TabBar role={me.user.role} pathname={pathname} />
+      </div>
     </>
   );
 }

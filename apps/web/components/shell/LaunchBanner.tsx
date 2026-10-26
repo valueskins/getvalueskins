@@ -14,10 +14,12 @@ export function LaunchBanner({ role }: { role: MeResponse['user']['role'] }) {
   if (config.data?.postingOpen !== false) return null;
   if (role !== 'BRAND' && role !== 'CREATOR') return null;
   return (
-    <div className="banner mb-6" role="status">
-      <div className="flex items-start gap-3">
-        <Icon name="info" />
-        <p className="t-body">{role === 'BRAND' ? LAUNCH_BANNER_BRAND : LAUNCH_BANNER_CREATOR}</p>
+    <div className="launch-banner">
+      <div className="banner" role="status">
+        <div className="flex items-start gap-3">
+          <Icon name="info" />
+          <p className="t-body">{role === 'BRAND' ? LAUNCH_BANNER_BRAND : LAUNCH_BANNER_CREATOR}</p>
+        </div>
       </div>
     </div>
   );
