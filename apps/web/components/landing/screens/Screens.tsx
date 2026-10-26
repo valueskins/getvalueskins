@@ -313,6 +313,11 @@ export function DealProgress({ reached }: { reached: number }) {
           </li>
         ))}
       </ol>
+      {/* On narrow screens the nine labels do not fit under the bar: only the current one shows. */}
+      <p className="v3-step-now">
+        Step {Math.max(1, Math.min(reached, STEP_LABELS.length))} of {STEP_LABELS.length}:{' '}
+        <span className="v3-strong">{STEP_LABELS[Math.max(0, Math.min(reached, 9) - 1)]}</span>
+      </p>
       <ul className="v3-pays">
         <li className={advanceDone ? 'is-done' : undefined}>
           <span>30% by UPI, before work</span>

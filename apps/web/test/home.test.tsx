@@ -183,6 +183,25 @@ describe('the pictures', () => {
   });
 });
 
+describe('How it works', () => {
+  it('lists all nine steps for assistive technology, and names the current one', () => {
+    mockApi(SIGNED_OUT);
+    const { container } = renderHome();
+    const steps = screen.getByRole('list', { name: 'The nine steps of a deal' });
+    const items = within(steps)
+      .getAllByRole('listitem')
+      .map((li) => li.textContent);
+    expect(items).toHaveLength(9);
+    // At rest (no motion) the example deal is completed.
+    expect(items[0]).toBe('Posted, done');
+    expect(items[8]).toBe('Completed, current step');
+    // The line shown under the bar on narrow screens.
+    expect(container.querySelector('.v3-how .v3-step-now')).toHaveTextContent(
+      'Step 9 of 9: Completed',
+    );
+  });
+});
+
 describe('the FAQ', () => {
   it('answers in native details that open with the keyboard', () => {
     mockApi(SIGNED_OUT);

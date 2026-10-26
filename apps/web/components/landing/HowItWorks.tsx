@@ -102,6 +102,15 @@ export function HowItWorks() {
             >
               <DealProgress reached={STEPS[active]!.reached} />
             </Panel>
+            {/* The panel is a picture; the nine steps are listed here for assistive technology. */}
+            <ol className="sr-only" aria-label="The nine steps of a deal">
+              {STEP_LABELS.map((label, i) => {
+                const reached = STEPS[active]!.reached;
+                const state =
+                  i < reached - 1 ? ', done' : i === reached - 1 ? ', current step' : '';
+                return <li key={label}>{`${label}${state}`}</li>;
+              })}
+            </ol>
           </div>
         </div>
       </div>

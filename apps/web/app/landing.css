@@ -947,6 +947,10 @@ body {
   transform-origin: left;
   transition: transform 450ms var(--v3-ease);
 }
+.v3-step-now {
+  display: none;
+  font-size: 12px;
+}
 .v3-steps li.is-done {
   color: var(--v3-ink);
   font-weight: 600;
@@ -1691,7 +1695,8 @@ body {
   text-underline-offset: 4px;
 }
 .v3 .v3-footer-legal {
-  margin-top: 28px;
+  /* Beats `.v3 p { margin: 0 }`, so the line stays centred in the container like the rest. */
+  margin: 28px auto 0;
   font-size: 14px;
   color: var(--v3-on-dark-muted);
 }
@@ -1772,6 +1777,21 @@ body {
 }
 
 @media (max-width: 599px) {
+  /* The step labels are hidden visually here; the current one shows below the bar. */
+  .v3-step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .v3-steps li {
+    gap: 0;
+  }
+  .v3-step-now {
+    display: block;
+  }
   .v3-nav-end .v3-signin-compact {
     display: none;
   }
