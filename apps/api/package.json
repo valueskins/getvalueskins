@@ -14,6 +14,7 @@
     "db:migrate:deploy": "node dist/db/migrate.js",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:deploy": "node dist/db/seed.js",
+    "db:seed-demo": "tsx scripts/seed-demo.ts",
     "job": "tsx src/jobs/run.ts",
     "job:deploy": "node dist/jobs/run.js",
     "notify:launch": "tsx src/scripts/notifyLaunch.ts",
