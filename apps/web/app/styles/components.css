@@ -1386,3 +1386,14 @@ a.chip:hover .chip-name {
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+
+/* The sign-in button while it waits for the API, with the reason under it */
+.signin-wait {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.signin-wait .reason {
+  margin-top: 8px;
+}

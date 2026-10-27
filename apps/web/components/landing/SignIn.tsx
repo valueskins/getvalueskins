@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { InstagramButton, type Phase } from '@/components/public/InstagramButton';
+import { ACCOUNT_NOTE, CONNECTING_REASON } from '@/components/public/signInCopy';
 
-export const CONNECTING_REASON = 'Waking up ValueSkins. This can take up to a minute.';
-export const ACCOUNT_NOTE =
-  'Your Instagram account must be public and a Business or Creator account.';
+export { ACCOUNT_NOTE, CONNECTING_REASON };
 
 /**
  * The home page's sign-in: the same InstagramButton as everywhere else, drawn in the page's style.
@@ -32,6 +31,7 @@ export function SignIn({
               : 'v3-btn v3-btn-lg'
         }
         onPhase={setPhase}
+        showReason={false}
       />
       {phase === 'connecting' ? (
         <p className="v3-reason" role="status">

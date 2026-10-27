@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Providers } from '@/app/providers';
+import { CONNECTING_REASON } from '@/components/public/signInCopy';
 import { InstagramButton } from '@/components/public/InstagramButton';
 import { WakeApi } from '@/components/WakeApi';
 import { instagramSignInUrl } from '@/lib/signIn';
@@ -117,6 +118,8 @@ describe('the sign-in button while the API wakes', () => {
     const connecting = await screen.findByRole('button', { name: 'Connecting...' });
     expect(connecting).toBeDisabled();
     expect(connecting).toHaveAttribute('aria-busy', 'true');
+    // The reason is shown wherever the button is, not only on the home page.
+    expect(screen.getByRole('status')).toHaveTextContent(CONNECTING_REASON);
     expect(assign).not.toHaveBeenCalled();
 
     await act(async () => health.resolve(json(200, { ok: true })));
