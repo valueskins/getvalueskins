@@ -12,7 +12,7 @@ import { brandBilling } from '../db/schema/index.js';
 import { normalizeEmail } from '../emailAuth/codes.js';
 import type { Env } from '../env/index.js';
 import { AppError } from '../errors/AppError.js';
-import { emailVerificationLimiter } from '../rateLimit/limiters.js';
+import { emailVerificationLimiter, emailVerifyLimiter } from '../rateLimit/limiters.js';
 import {
   findPendingEmail,
   issueEmailVerification,
@@ -80,11 +80,19 @@ export function onboardingRoutes(env: Env): Router {
     },
   );
 
-  router.post('/api/me/email/verify', requireUser, async (req, res, next) => {
+  // Public (SPEC 6.4): the emailed token alone proves the address, so the link works in a browser
+  // that is not signed in. The token decides which user is verified, never the session, and this
+  // route never creates a session. The onboarding state comes back only to that user's own session.
+  router.post('/api/me/email/verify', emailVerifyLimiter, async (req, res, next) => {
     try {
       const { token } = meEmailVerifySchema.parse(req.body);
-      await verifyEmailToken(req.user!.id, token);
-      res.json({ onboarding: await completeOnboardingIfReady(req.user!.id) });
+      const verified = await verifyEmailToken(token);
+      const onboarding = await completeOnboardingIfReady(verified.userId);
+      res.json({
+        verified: true,
+        email: verified.email,
+        onboarding: req.user?.id === verified.userId ? onboarding : null,
+      });
     } catch (error) {
       next(error);
     }

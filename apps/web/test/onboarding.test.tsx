@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { MeResponse } from '@valueskins/shared';
 import { NOT_A_UPI_ID_BANK_ACCOUNT } from '@valueskins/shared';
 import { OnboardingFlow, screenFor } from '@/components/onboarding/OnboardingFlow';
+import { noteLinkSent } from '@/components/onboarding/EmailStep';
 import { useMe } from '@/lib/api/queries';
 import { apiError, json, mockApi } from './helpers/api';
 import { CONFIG, makeMe } from './helpers/fixtures';
@@ -64,7 +65,7 @@ describe('onboarding', () => {
     expect(screen.getByText('waiting@example.test')).toBeInTheDocument();
   });
 
-  it('sends the email link, then shows the inbox state with resend and its limit', async () => {
+  it('sends the email link, then shows the inbox state with the resend wait and its limit', async () => {
     window.sessionStorage.setItem(`vs:ig-confirmed:${fresh.user.id}`, '1');
     const { api } = start(fresh, {
       'POST /me/email': json(200, { ok: true }),
@@ -79,11 +80,18 @@ describe('onboarding', () => {
     expect(api.called('POST /me/email')[0]!.body).toEqual({ email: 'Person@Example.test' });
     expect(screen.getByText('person@example.test')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send the link again' }));
+    // A new link waits 60 seconds, with the countdown shown as the reason.
+    const resend = screen.getByRole('button', { name: 'Send the link again' });
+    expect(resend).toBeDisabled();
+    expect(screen.getByText(/^You can send it again in \d+ seconds\.$/)).toBeInTheDocument();
+    noteLinkSent('person@example.test', Date.now() - 61_000);
+    await waitFor(() => expect(resend).toBeEnabled(), { timeout: 2500 });
+
+    fireEvent.click(resend);
     expect(await screen.findByText('Too many emails. Try again in an hour.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send the link again' })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use a different email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change email' }));
     expect(await screen.findByRole('heading', { name: 'Add your email' })).toBeInTheDocument();
   });
 

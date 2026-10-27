@@ -30,6 +30,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'POST /api/dev/login': 'development only: absent in production (startup guard)',
   'POST /api/auth/email/start': 'staging and tests only (AUTH_EMAIL_ENABLED); IP rate limited',
   'POST /api/auth/email/verify': 'staging and tests only (AUTH_EMAIL_ENABLED); IP rate limited',
+  'POST /api/me/email/verify':
+    'the emailed token proves the address; it never signs anyone in; IP rate limited',
 };
 
 /** Every route, with its guards and its dedicated rate limiter ("-" for none beyond the global one). */
@@ -81,7 +83,7 @@ const EXPECTED_ROUTES: string[] = [
   'POST /api/direct-payments/:id/not-received | role:CREATOR,requireOnboarded | rateLimit:direct-payment-decision',
   'POST /api/me/email | requireUser | rateLimit:email-verification',
   'POST /api/me/email/resend | requireUser | rateLimit:email-verification',
-  'POST /api/me/email/verify | requireUser | -',
+  'POST /api/me/email/verify | public | rateLimit:email-verify',
   'POST /api/meta/data-deletion | public | -',
   'POST /api/meta/deauthorize | public | -',
   'POST /api/payments/verify | role:BRAND,requireOnboarded | -',

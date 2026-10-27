@@ -39,6 +39,14 @@ export const emailVerificationLimiter = createRateLimiter({
   keyFn: (req: Request) => req.user?.id ?? `ip:${req.ip}`,
 });
 
+/** SPEC 13: opening an email verification link, 30 per hour per IP. The route is public. */
+export const emailVerifyLimiter = createRateLimiter({
+  points: 30,
+  duration: 60 * 60,
+  keyPrefix: 'email-verify',
+  keyFn: (req: Request) => `ip:${req.ip}`,
+});
+
 /** SPEC 13: publish deal, 10 per 24 hours per brand. Consumed by the handler once the draft is valid. */
 export const consumePublishDealLimit = createKeyedLimiter({
   points: 10,

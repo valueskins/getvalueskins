@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { meEmailSchema, type MeResponse } from '@valueskins/shared';
 import { queryKeys, useResendEmail, useStartEmail } from '@/lib/api/queries';
@@ -11,6 +11,45 @@ import { describedBy, Field, Input } from '@/components/ui/Field';
 
 export const EMAIL_LIMIT_REASON = 'Too many emails. Try again in an hour.';
 const INVALID_EMAIL = 'Enter an email address like name@example.com.';
+
+/** A new link can be asked for 60 seconds after the last one, so a slow inbox is not flooded. */
+export const RESEND_WAIT_MS = 60_000;
+const SENT_KEY = 'vs-email-link-sent:';
+
+/** Notes when a link went to `email`, in this tab, so the wait survives a reload. */
+export function noteLinkSent(email: string, at: number = Date.now()): void {
+  try {
+    sessionStorage.setItem(SENT_KEY + email.toLowerCase(), String(at));
+  } catch {
+    // Storage can be blocked; the wait then only lasts while the page is open.
+  }
+}
+
+function linkSentAt(email: string): number | null {
+  try {
+    const value = Number(sessionStorage.getItem(SENT_KEY + email.toLowerCase()));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whole seconds left before "Send the link again" can be used, counting down once a second. */
+export function useResendWait(email: string, sentAt: number | null): number {
+  const [now, setNow] = useState(() => Date.now());
+  const from = sentAt ?? linkSentAt(email);
+  const left = from === null ? 0 : Math.max(0, Math.ceil((from + RESEND_WAIT_MS - now) / 1000));
+  useEffect(() => {
+    if (left <= 0) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), 1000);
+    return () => window.clearTimeout(timer);
+  }, [left, now]);
+  return left;
+}
+
+export function resendWaitReason(seconds: number): string {
+  return `You can send it again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`;
+}
 
 interface EmailFlowState {
   sentTo: string | null;
@@ -62,7 +101,10 @@ export function EmailForm({
     }
     setError(null);
     start.mutate(parsed.data.email, {
-      onSuccess: () => onSent(parsed.data.email.toLowerCase()),
+      onSuccess: () => {
+        noteLinkSent(parsed.data.email);
+        onSent(parsed.data.email.toLowerCase());
+      },
       onError: (err) =>
         setError(
           errorText(err, { RATE_LIMITED: EMAIL_LIMIT_REASON, VALIDATION_ERROR: INVALID_EMAIL }),
@@ -93,7 +135,10 @@ export function EmailForm({
   );
 }
 
-/** After sending: resend, or start again with a different address. */
+/**
+ * After sending: the address, "Send the link again" (after a 60-second wait with a visible countdown,
+ * or the hourly limit), and "Change email" to start again with a different address.
+ */
 export function EmailSent({
   sentTo,
   onDifferent,
@@ -105,12 +150,19 @@ export function EmailSent({
 }) {
   const resend = useResendEmail();
   const [limited, setLimited] = useState(false);
+  const [resentAt, setResentAt] = useState<number | null>(null);
   const [note, setNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const wait = useResendWait(sentTo, resentAt);
 
   function again() {
     setNote(null);
     resend.mutate(undefined, {
-      onSuccess: () => setNote({ tone: 'ok', text: `We sent a new link to ${sentTo}.` }),
+      onSuccess: () => {
+        const at = Date.now();
+        noteLinkSent(sentTo, at);
+        setResentAt(at);
+        setNote({ tone: 'ok', text: `We sent a new link to ${sentTo}.` });
+      },
       onError: (err) => {
         if (isApiError(err, 'RATE_LIMITED')) setLimited(true);
         else if (isApiError(err, 'NO_PENDING_EMAIL')) onDifferent();
@@ -119,11 +171,13 @@ export function EmailSent({
     });
   }
 
+  const reason = limited ? EMAIL_LIMIT_REASON : wait > 0 ? resendWaitReason(wait) : null;
+
   return (
-    <div className="flex flex-col gap-4" role="status">
+    <div className="flex flex-col gap-4">
       {compact ? null : (
         <>
-          <p className="t-body">
+          <p className="t-body" role="status">
             We sent a link to <strong className="font-semibold">{sentTo}</strong>.
           </p>
           <p className="t-body c-ink-2">
@@ -148,13 +202,13 @@ export function EmailSent({
           variant="secondary"
           size={compact ? 'sm' : 'md'}
           loading={resend.isPending}
-          disabledReason={limited ? EMAIL_LIMIT_REASON : null}
+          disabledReason={reason}
           onClick={again}
         >
           Send the link again
         </Button>
         <Button variant="text" size={compact ? 'sm' : 'md'} onClick={onDifferent}>
-          Use a different email
+          Change email
         </Button>
       </div>
     </div>

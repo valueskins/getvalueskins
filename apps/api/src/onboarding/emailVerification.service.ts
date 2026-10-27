@@ -87,34 +87,41 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * Consumes the token and, in the same transaction, makes its address the
- * user's verified email. Every bad token (unknown, expired, used, someone
- * else's) is the same INVALID_TOKEN, so nothing can be probed.
+ * Consumes the token and, in the same transaction, makes its address the verified email of the user
+ * the token was issued to. The token alone decides that user (SPEC 6.4): it proves the person can
+ * read that inbox, so the link works in any browser, signed in or not, and never signs anyone in.
+ * Every bad token (unknown, expired, used) is the same INVALID_TOKEN, so nothing can be probed.
  */
-export async function verifyEmailToken(userId: string, token: string): Promise<void> {
+export async function verifyEmailToken(
+  token: string,
+  now: Date = new Date(),
+): Promise<{ userId: string; email: string }> {
   const invalid = () => new AppError('INVALID_TOKEN', 400, 'This link is invalid or has expired.');
 
   try {
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
       const [consumed] = await tx
         .update(emailVerificationTokens)
-        .set({ usedAt: new Date() })
+        .set({ usedAt: now })
         .where(
           and(
             eq(emailVerificationTokens.tokenHash, hashToken(token)),
-            eq(emailVerificationTokens.userId, userId),
             isNull(emailVerificationTokens.usedAt),
-            gt(emailVerificationTokens.expiresAt, new Date()),
+            gt(emailVerificationTokens.expiresAt, now),
           ),
         )
-        .returning({ email: emailVerificationTokens.email });
+        .returning({
+          userId: emailVerificationTokens.userId,
+          email: emailVerificationTokens.email,
+        });
 
       if (!consumed) throw invalid();
 
       await tx
         .update(users)
-        .set({ email: consumed.email, emailVerifiedAt: new Date() })
-        .where(eq(users.id, userId));
+        .set({ email: consumed.email, emailVerifiedAt: now })
+        .where(eq(users.id, consumed.userId));
+      return consumed;
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
