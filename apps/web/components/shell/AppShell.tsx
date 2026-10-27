@@ -10,7 +10,7 @@ import { cx } from '@/components/ui/cx';
 import { focusables, trapTab } from '@/components/ui/focus';
 import { LaunchBanner } from './LaunchBanner';
 import { SkipLink } from './SkipLink';
-import { useSignOut } from './useSignOut';
+import { SIGNING_OUT_REASON, useSignOut } from './useSignOut';
 import { Wordmark } from './Wordmark';
 
 export interface NavItem {
@@ -139,8 +139,13 @@ export function UserMenu({
             onClick={signOut}
           >
             <Icon name="signOut" size={16} />
-            Sign out
+            {pending ? 'Signing out...' : 'Sign out'}
           </button>
+          {pending ? (
+            <p className="reason px-3 pb-2" role="status">
+              {SIGNING_OUT_REASON}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -258,8 +263,13 @@ export function MobileMenu({
               disabled={pending}
               onClick={signOut}
             >
-              Sign out
+              {pending ? 'Signing out...' : 'Sign out'}
             </button>
+            {pending ? (
+              <p className="reason px-3" role="status">
+                {SIGNING_OUT_REASON}
+              </p>
+            ) : null}
           </div>
         </nav>
       ) : null}
