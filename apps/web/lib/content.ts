@@ -74,3 +74,50 @@ export function parseContent(markdown: string): ParsedContent {
 
   return { title, lede, sections, segments: splitMissing(body) };
 }
+
+export interface ContentPart {
+  id: string;
+  title: string;
+  /** The markdown under the `###` heading. */
+  body: string;
+}
+
+export interface ContentSection {
+  id: string;
+  title: string;
+  /** The markdown under the `##` heading, before its first `###`. */
+  intro: string;
+  parts: ContentPart[];
+}
+
+/**
+ * The page as `##` sections, each split into its `###` parts, for pages laid out by section rather
+ * than read top to bottom (How it works). The text itself stays exactly as written.
+ */
+export function parseSections(markdown: string): {
+  title: string;
+  lede: string | null;
+  sections: ContentSection[];
+} {
+  const { title, lede, segments } = parseContent(markdown);
+  const body = segments.map((s) => s.text).join('\n\n');
+  const sections: ContentSection[] = [];
+  for (const chunk of body.split(/^## /m).slice(1)) {
+    const [heading = '', ...rest] = chunk.split('\n');
+    const [intro = '', ...parts] = rest.join('\n').split(/^### /m);
+    sections.push({
+      id: slugify(heading.trim()),
+      title: heading.trim(),
+      intro: intro.trim(),
+      parts: parts.map((part) => {
+        const [partTitle = '', ...lines] = part.split('\n');
+        return {
+          id: slugify(partTitle.trim()),
+          title: partTitle.trim(),
+          body: lines.join('\n').trim(),
+        };
+      }),
+    });
+  }
+  return { title, lede, sections };
+}

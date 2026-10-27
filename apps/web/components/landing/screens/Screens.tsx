@@ -166,16 +166,23 @@ export function CreatorFeed({
   );
 }
 
-/** "30% received": the creator confirms the brand's UPI payment arrived. */
-export function ReceivedCard({ shown }: { shown: boolean }) {
-  const amount = useCountUp(shown ? STORY_BREAKDOWN.advancePaise : 0, 1100, 0);
+/** "30% received" (or the 70%): the creator confirms the brand's UPI payment arrived. */
+export function ReceivedCard({
+  shown,
+  part = 'advance',
+}: {
+  shown: boolean;
+  part?: 'advance' | 'final';
+}) {
+  const target = part === 'advance' ? STORY_BREAKDOWN.advancePaise : STORY_BREAKDOWN.finalPaise;
+  const amount = useCountUp(shown ? target : 0, 1100, 0);
   return (
     <div className={shown ? 'v3-received is-shown' : 'v3-received'}>
       <span className="v3-received-icon">
         <Icon name="checkCircle" size={20} />
       </span>
       <div>
-        <p className="v3-received-title">30% received</p>
+        <p className="v3-received-title">{part === 'advance' ? '30% received' : '70% received'}</p>
         <p className="v3-received-amount v3-num">{formatInr(amount)}</p>
         <p className="v3-small">By UPI from @{STORY_DEAL.handle}. Confirmed by you.</p>
       </div>
@@ -380,6 +387,105 @@ export function ProfileRecord() {
             </span>
           </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Sign-in: the Instagram account read back, to confirm before setting up. */
+export function SignInScreen() {
+  return (
+    <div className="v3-feed">
+      <p className="v3-screen-title">Is this you?</p>
+      <div className="v3-deal">
+        <div className="v3-deal-head">
+          <span className="v3-avatar" aria-hidden="true">
+            C
+          </span>
+          <div className="v3-deal-who">
+            <p className="v3-deal-title">{STORY_CREATOR.name}</p>
+            <p className="v3-small">@{STORY_CREATOR.handle}</p>
+          </div>
+        </div>
+        <div className="v3-deal-foot">
+          <span className="v3-chip">
+            <Icon name="instagram" size={16} />
+            Creator account
+          </span>
+          <span className="v3-mini-btn">This is me</span>
+        </div>
+      </div>
+      <p className="v3-small">Followers and engagement come from Instagram.</p>
+    </div>
+  );
+}
+
+/** A posted deal: the brief's essentials and its breakdown, fixed at publish. */
+export function PostedDeal() {
+  const b = STORY_BREAKDOWN;
+  return (
+    <div className="v3-progress">
+      <div className="v3-brand-head">
+        <Monogram initials={STORY_DEAL.initials} tone={STORY_DEAL.tone} size={36} />
+        <div>
+          <p className="v3-screen-title">{STORY_DEAL.title}</p>
+          <p className="v3-small">Apply by {STORY_DEAL.applyBy}. Content due 28 Nov.</p>
+        </div>
+        <span className="v3-chip v3-chip-ok">Open</span>
+      </div>
+      <ul className="v3-pays">
+        <li>
+          <span>Budget</span>
+          <span className="v3-num">{formatInr(b.budgetPaise)}</span>
+          <span className="v3-small">Fixed at publish</span>
+        </li>
+        <li>
+          <span>ValueSkins fee</span>
+          <span className="v3-num">{formatInr(b.commissionTotalPaise)}</span>
+          <span className="v3-small">₹750.00 plus 18% GST</span>
+        </li>
+        <li className="is-done">
+          <span>The creator gets</span>
+          <span className="v3-num">{formatInr(b.creatorAmountPaise)}</span>
+          <span className="v3-small">30% before work, 70% after approval</span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/** The fee paid through Razorpay, and its GST tax invoice. */
+export function FeeInvoice() {
+  const b = STORY_BREAKDOWN;
+  return (
+    <div className="v3-progress">
+      <div className="v3-brand-head">
+        <Monogram initials={STORY_DEAL.initials} tone={STORY_DEAL.tone} size={36} />
+        <div>
+          <p className="v3-screen-title">ValueSkins fee</p>
+          <p className="v3-small">Paid through Razorpay</p>
+        </div>
+        <span className="v3-chip v3-chip-ok">
+          <Icon name="check" size={16} />
+          Paid
+        </span>
+      </div>
+      <ul className="v3-pays">
+        <li>
+          <span>Fee</span>
+          <span className="v3-num">{formatInr(b.commissionBasePaise)}</span>
+          <span className="v3-small">Flat, on every deal</span>
+        </li>
+        <li>
+          <span>GST, 18%</span>
+          <span className="v3-num">{formatInr(b.commissionGstPaise)}</span>
+          <span className="v3-small">On the GST tax invoice</span>
+        </li>
+        <li className="is-done">
+          <span>Total</span>
+          <span className="v3-num">{formatInr(b.commissionTotalPaise)}</span>
+          <span className="v3-small">The only money ValueSkins receives</span>
+        </li>
       </ul>
     </div>
   );

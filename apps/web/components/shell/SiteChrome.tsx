@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useConfig } from '@/lib/api/queries';
 import { SkipLink } from './SkipLink';
+import { useSupportAddress } from './SupportEmail';
 import { Wordmark } from './Wordmark';
 
 /** The public pages' top bar: the home page's glass bar, with the wordmark and How it works. */
@@ -40,13 +40,10 @@ const FOOTER_LINKS = [
   { href: '/contact', label: 'Contact' },
 ];
 
-/** The address shown until /api/config answers; it is the support address on staging and production. */
-const SUPPORT_FALLBACK = 'founder@valueskins.com';
-
 /** The dark footer of the home page and every public page. */
 export function SiteFooter() {
   const pathname = usePathname();
-  const email = useConfig().data?.supportEmail ?? SUPPORT_FALLBACK;
+  const email = useSupportAddress();
   return (
     <footer className="site-footer">
       <div className="site-footer-in">
