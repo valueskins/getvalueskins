@@ -17,6 +17,7 @@
     "db:generate": "pnpm --filter @valueskins/api run db:generate",
     "db:migrate": "pnpm --filter @valueskins/api run db:migrate",
     "db:seed": "pnpm --filter @valueskins/api run db:seed",
+    "db:seed-demo": "pnpm --filter @valueskins/api run db:seed-demo",
     "job": "pnpm --filter @valueskins/api run job",
     "notify:launch": "pnpm --filter @valueskins/api run notify:launch"
   },

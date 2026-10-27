@@ -30,7 +30,7 @@ export interface Failed {
 function SectionError({ what, failed }: { what: string; failed: Failed }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-      <p className="t-small text-error" role="alert">
+      <p className="t-small text-danger" role="alert">
         We could not load the {what}. {errorText(failed.error)}
       </p>
       <Button variant="secondary" size="sm" onClick={failed.retry}>
@@ -107,7 +107,7 @@ export function FeedbackSection({ deal }: { deal: DealDetail }) {
         rounds.map((r, i) => (
           <div
             key={`${r.at}-${i}`}
-            className="flex flex-col gap-1.5 border-t border-rule px-6 py-3.5 first:border-t-0"
+            className="flex flex-col gap-1.5 border-t border-border px-6 py-3.5 first:border-t-0"
           >
             <p className="t-small c-ink-2">
               Round {i + 1}, from {at(deal.brand.username)}, {formatDayTime(r.at)}
@@ -158,7 +158,7 @@ export function PaymentsSection({ deal, viewer }: { deal: DealDetail; viewer: Vi
         <PaymentRecord key={r.id} record={r} viewer={viewer} />
       ))}
       {deal.directPayments.length === 0 ? (
-        <p className="sec-empty border-t border-rule">No UPI payments recorded yet.</p>
+        <p className="sec-empty border-t border-border">No UPI payments recorded yet.</p>
       ) : null}
     </Section>
   );
@@ -230,7 +230,7 @@ function EmailRow({ email }: { email: DealEmail }) {
             </span>
           ))}
           {email.status === 'FAILED' ? (
-            <span className="ml-2 text-error">Not delivered</span>
+            <span className="ml-2 text-danger">Not delivered</span>
           ) : null}
         </span>
         <span />

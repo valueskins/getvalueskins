@@ -29,7 +29,7 @@ export function InstagramButton({
   large?: boolean;
   block?: boolean;
   variant?: 'primary' | 'secondary';
-  /** Replaces the Receipt button classes, for a page with its own button style. */
+  /** Replaces the shared button classes, for a page with its own button style. */
   className?: string;
   /** Told each time the button moves between ready, connecting and failed. */
   onPhase?: (phase: Phase) => void;

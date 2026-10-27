@@ -111,7 +111,7 @@ function LoadingRows() {
   return (
     <div aria-busy="true" aria-label="Loading deals">
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-rule px-6 py-4">
+        <div key={i} className="flex items-center gap-4 border-b border-border px-6 py-4">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-3 flex-1" />
           <Skeleton className="h-5 w-24" />

@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/Button';
+import { Field, MoneyInput } from '@/components/ui/Field';
+import { StatusBadge } from '@/components/deal/StatusBadge';
 import { InstagramSummary } from '@/components/onboarding/InstagramSummary';
 import { makeMe } from './helpers/fixtures';
 
@@ -35,6 +37,30 @@ describe('Button', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(onClick).not.toHaveBeenCalled();
     expect(screen.getByRole('button')).toHaveAttribute('aria-busy', 'true');
+  });
+});
+
+describe('MoneyInput', () => {
+  it('is an ordinary labelled text field with the rupee sign outside its name', () => {
+    render(
+      <Field id="f-budget" label="Budget in rupees">
+        <MoneyInput id="f-budget" defaultValue="10,000" />
+      </Field>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Budget in rupees' });
+    expect(input).toHaveAttribute('id', 'f-budget');
+    expect(input).toHaveValue('10,000');
+    expect(screen.getByText('₹')).toHaveAttribute('aria-hidden', 'true');
+  });
+});
+
+describe('StatusBadge', () => {
+  it('marks a live status change, but not the first render', () => {
+    const { rerender } = render(<StatusBadge status="CONFIRMED" />);
+    expect(screen.getByText('Confirmed')).not.toHaveClass('is-changed');
+    rerender(<StatusBadge status="COMMISSION_PAID" />);
+    const badge = screen.getByText('Fee paid');
+    expect(badge).toHaveClass('is-changed');
   });
 });
 

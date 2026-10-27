@@ -126,6 +126,21 @@ export const Select = forwardRef<
   );
 });
 
+/** A whole-rupee amount: the ₹ sits inside the field, and the digits are set in tabular figures. */
+export const MoneyInput = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement> & Omit<ControlExtra, 'mono'>
+>(function MoneyInput({ className, ...rest }, ref) {
+  return (
+    <span className="input-wrap">
+      <span className="input-pre" aria-hidden="true">
+        ₹
+      </span>
+      <Input ref={ref} {...rest} className={cx('has-pre', className)} />
+    </span>
+  );
+});
+
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
   label: ReactNode;
   invalid?: boolean;

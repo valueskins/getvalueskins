@@ -85,7 +85,7 @@ function ActiveCard({ deal }: { deal: DealMineItem }) {
         {due && c ? (
           <p>
             Content due {shortDate(due)}{' '}
-            <span className={c.overdue ? 'text-error' : 'c-ink-3'}>{c.text}</span>
+            <span className={c.overdue ? 'text-danger' : 'c-ink-3'}>{c.text}</span>
           </p>
         ) : null}
         {deal.creatorAmountPaise !== null ? (
@@ -102,7 +102,7 @@ function DoneRow({ deal }: { deal: DealMineItem }) {
   const cancelled = deal.status === 'CANCELLED';
   const when = cancelled ? deal.cancelledAt : deal.completedAt;
   return (
-    <li className="grid gap-3 border-t border-rule px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_130px_130px_minmax(0,1.3fr)] md:items-center md:gap-5 md:px-6">
+    <li className="grid gap-3 border-t border-border px-4 py-4 first:border-t-0 md:grid-cols-[minmax(0,2fr)_130px_130px_minmax(0,1.3fr)] md:items-center md:gap-5 md:px-6">
       <div className="flex min-w-0 flex-col gap-1.5">
         <Link href={`/deals/${deal.id}`} className="t-body">
           {deal.title}

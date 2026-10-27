@@ -40,7 +40,7 @@ import { longDate, shortDate } from '@/lib/deadlines';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Badge, Callout, ErrorSummary } from '@/components/ui/Callout';
-import { describedBy, Field, Input, Textarea } from '@/components/ui/Field';
+import { describedBy, Field, Input, MoneyInput, Textarea } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { DateField } from './DateField';
@@ -565,27 +565,18 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
                 error={errors.budgetRupees}
                 className="max-w-[320px]"
               >
-                <span className="input-wrap">
-                  <span className="input-pre" aria-hidden="true">
-                    ₹
-                  </span>
-                  <Input
-                    id="f-budget"
-                    className="has-pre"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="10,000"
-                    value={groupRupees(f.budget)}
-                    invalid={Boolean(errors.budgetRupees)}
-                    aria-describedby={describedBy('f-budget', true, errors.budgetRupees)}
-                    onChange={(e) =>
-                      set(
-                        'budget',
-                        e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 11),
-                      )
-                    }
-                  />
-                </span>
+                <MoneyInput
+                  id="f-budget"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="10,000"
+                  value={groupRupees(f.budget)}
+                  invalid={Boolean(errors.budgetRupees)}
+                  aria-describedby={describedBy('f-budget', true, errors.budgetRupees)}
+                  onChange={(e) =>
+                    set('budget', e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 11))
+                  }
+                />
               </Field>
               <Breakdown paise={paise} gst={gst} min={min} />
             </div>

@@ -131,7 +131,7 @@ export function AdminDisputesPage() {
         ) : !list.data ? (
           <div aria-busy="true" aria-label="Loading disputes">
             {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="flex items-center gap-4 border-b border-rule px-6 py-4">
+              <div key={i} className="flex items-center gap-4 border-b border-border px-6 py-4">
                 <Skeleton className="h-3 flex-1" />
                 <Skeleton className="h-3 w-24" />
                 <Skeleton className="h-5 w-16" />

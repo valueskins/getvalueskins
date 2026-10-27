@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useConfig } from '@/lib/api/queries';
 import { SkipLink } from './SkipLink';
-import { SupportEmail } from './SupportEmail';
+import { Wordmark } from './Wordmark';
 
+/** The public pages' top bar: the home page's glass bar, with the wordmark and How it works. */
 export function SiteHeader() {
   const active = usePathname() === '/how-it-works' ? 'how-it-works' : undefined;
   return (
@@ -12,8 +14,8 @@ export function SiteHeader() {
       <SkipLink />
       <header className="site-header">
         <div className="site-header-in">
-          <Link href="/" className="wordmark">
-            ValueSkins
+          <Link href="/" className="wordmark-link" aria-label="ValueSkins, home">
+            <Wordmark />
           </Link>
           <nav aria-label="Site">
             <Link
@@ -38,18 +40,23 @@ const FOOTER_LINKS = [
   { href: '/contact', label: 'Contact' },
 ];
 
+/** The address shown until /api/config answers; it is the support address on staging and production. */
+const SUPPORT_FALLBACK = 'founder@valueskins.com';
+
+/** The dark footer of the home page and every public page. */
 export function SiteFooter() {
   const pathname = usePathname();
+  const email = useConfig().data?.supportEmail ?? SUPPORT_FALLBACK;
   return (
     <footer className="site-footer">
       <div className="site-footer-in">
-        <div className="flex flex-col gap-1">
-          <p className="wordmark" style={{ fontSize: 17 }}>
-            ValueSkins
-          </p>
-          <p className="footer-meta">© {new Date().getFullYear()} Valueskins Private Limited</p>
+        <div className="site-footer-brand">
+          <Wordmark className="wordmark-lg" />
+          <a href={`mailto:${email}`} className="site-footer-mail">
+            {email}
+          </a>
         </div>
-        <nav className="footer-links" aria-label="Footer">
+        <nav aria-label="Footer" className="footer-links">
           {FOOTER_LINKS.map((l) => (
             <Link
               key={l.href}
@@ -60,8 +67,8 @@ export function SiteFooter() {
             </Link>
           ))}
         </nav>
-        <SupportEmail className="t-small inline-flex min-h-[44px] items-center" />
       </div>
+      <p className="site-footer-legal">© {new Date().getFullYear()} Valueskins Private Limited</p>
     </footer>
   );
 }

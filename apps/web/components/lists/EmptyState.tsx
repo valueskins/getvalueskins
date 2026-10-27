@@ -12,7 +12,7 @@ export function EmptyState({
 }) {
   return (
     <div className="card flex flex-col items-start gap-3 px-6 py-12 md:px-12 md:py-16">
-      <span className="text-ink-3">
+      <span className="empty-icon">
         <Icon name="tray" size={24} />
       </span>
       <h2 className="t-h3">{title}</h2>

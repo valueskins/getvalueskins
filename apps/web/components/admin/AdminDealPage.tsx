@@ -131,7 +131,7 @@ function DisputesSection({ disputes }: { disputes: AdminDispute[] }) {
         disputes.map((d) => (
           <div
             key={d.id}
-            className="flex flex-col gap-2.5 border-t border-rule px-6 py-4 first:border-t-0"
+            className="flex flex-col gap-2.5 border-t border-border px-6 py-4 first:border-t-0"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="t-body font-semibold">{d.subject}</p>
@@ -196,7 +196,7 @@ function FeeSection({ payments }: { payments: AdminPayment[] }) {
           return (
             <div
               key={p.id}
-              className="flex flex-col gap-3.5 border-t border-rule px-6 py-4 first:border-t-0"
+              className="flex flex-col gap-3.5 border-t border-border px-6 py-4 first:border-t-0"
             >
               <div className="flex items-baseline justify-between gap-3">
                 <Money paise={p.amountPaise} size="m" />
@@ -321,7 +321,7 @@ function EmailRow({ email }: { email: AdminEmail }) {
           </p>
         ))}
         {failed && email.error ? (
-          <p className="t-small mt-1 text-error">Error: {email.error}</p>
+          <p className="t-small mt-1 text-danger">Error: {email.error}</p>
         ) : null}
         {open ? <p className="email-body !mx-0 mt-2">{email.bodyText}</p> : null}
       </td>

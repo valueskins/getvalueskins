@@ -624,6 +624,8 @@ These are staging's settings. Rows that say `render.yaml` mean the earlier file 
 
 Copy `apps/api/.env.example` to `apps/api/.env` and `apps/web/.env.example` to `apps/web/.env.local`. For the web app locally use `NEXT_PUBLIC_API_URL=http://localhost:4000`, and set both flags to `true`.
 
+**Demo data for design review.** `pnpm db:seed-demo` (`apps/api/scripts/seed-demo.ts`) empties the local database and fills it with one brand and three creators, a deal in every status, more applicants on the open deals, and UPI payments at every stage: recorded and waiting for the creator, marked not received, and confirmed. Run `pnpm db:migrate` first; it needs a complete `apps/api/.env`, like the API itself. It refuses to run when `NODE_ENV=production` or when `DATABASE_URL` is not on this machine (`localhost`, `127.0.0.1` or `::1`), so it can never touch staging or production. Then sign in at `/dev/login` with one of its usernames: `kurta.co.example` (the brand), or `meera.styles.example`, `rohan.eats.example` and `anaya.reels.example` (the creators). For the admin screens, tick **Admin** with a new username. `pnpm db:seed` (the smaller fixture set the tests use) is unchanged.
+
 ## 19. Known limitations
 
 - **Client IP behind Render.** The API trusts one proxy hop (`trust proxy` is 1). Render's docs do not state how many proxies sit in front of a service. If the real count is higher, per-IP rate limits (SPEC 13) could key on a shared address. Check this before production, for example by testing the login limit from two networks.

@@ -86,7 +86,7 @@ export function VerifyEmail() {
         <h1 className="t-h1">Email confirmed</h1>
         <div className="card flex flex-col gap-4 p-5 md:p-6" role="status">
           <p className="t-body flex items-center gap-2">
-            <span className="text-ok">
+            <span className="text-success">
               <Icon name="checkCircle" />
             </span>
             {signedIn?.user.email ? (

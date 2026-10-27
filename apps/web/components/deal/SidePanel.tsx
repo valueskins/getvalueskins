@@ -158,7 +158,7 @@ export function Amounts({ deal, viewer }: { deal: DealDetail; viewer: PanelViewe
         )}
       </div>
       {viewer === 'creator' && masked ? (
-        <p className="t-small c-ink-2 rounded-b border-t border-rule bg-page px-5 py-3">
+        <p className="t-small c-ink-2 rounded-b border-t border-border bg-sunken px-5 py-3">
           Paid straight to <span className="t-mono">{masked}</span> by UPI.
         </p>
       ) : null}
