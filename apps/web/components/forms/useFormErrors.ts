@@ -29,6 +29,14 @@ export function useFormErrors() {
     setFields,
     setForm,
     fromApi,
+    /** Removes one field's error, once the person starts correcting it. */
+    clearField: (key: string) =>
+      setFields((current) => {
+        if (!(key in current)) return current;
+        const next = { ...current };
+        delete next[key];
+        return next;
+      }),
     clear: () => {
       setFields({});
       setForm(null);
