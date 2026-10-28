@@ -228,8 +228,7 @@ a.stretched:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.resume-v.mono {
-  font-family: var(--font-mono);
+.resume-v.is-num {
   font-variant-numeric: tabular-nums;
 }
 .resume-deals {
