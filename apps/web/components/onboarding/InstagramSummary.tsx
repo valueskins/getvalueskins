@@ -48,8 +48,8 @@ export function InstagramStats({ profile }: { profile: MeProfile }) {
 export function InstagramSummary({ profile }: { profile: MeProfile }) {
   const type = accountTypeLabel(profile.accountType);
   return (
-    <div className="card flex flex-col">
-      <div className="flex items-center gap-4 p-5 md:p-6">
+    <div className="card ig-hello flex flex-col overflow-hidden">
+      <div className="ig-hello-head flex items-center gap-4 p-5 md:p-6">
         <Avatar name={profile.username} src={profile.profilePictureUrl} size={64} />
         <div className="flex min-w-0 flex-col gap-1">
           <p className="t-h3">{profile.name}</p>

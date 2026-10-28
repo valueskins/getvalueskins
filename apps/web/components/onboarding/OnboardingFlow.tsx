@@ -1,24 +1,28 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ACCOUNT_TYPE_UNSUPPORTED,
   CONNECT_INSTAGRAM_TO_CONTINUE,
   type MeResponse,
 } from '@valueskins/shared';
+import { previewResume, type ProfileDraft } from '@/lib/previewResume';
 import { instagramConfirmed } from '@/lib/sessionMemory';
 import { Button, LinkButton } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
+import { Icon } from '@/components/ui/Icon';
 import { Stepper, type StepperItem } from '@/components/ui/Stepper';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { BillingForm } from '@/components/forms/BillingForm';
 import { ProfileForm } from '@/components/forms/ProfileForm';
 import { UpiForm } from '@/components/forms/UpiForm';
 import { InstagramButton } from '@/components/public/InstagramButton';
+import { ResumeContent } from '@/components/resume/ResumeContent';
 import { SIGNING_OUT_REASON, useSignOut } from '@/components/shell/useSignOut';
 import { EmailForm, EmailSent, useEmailFlow } from './EmailStep';
 import { InstagramSummary } from './InstagramSummary';
+import { WhoSeesWhat } from './WhoSeesWhat';
 
 /** Why connecting Instagram failed, from the API's ?error= code (SPEC 6.1). */
 const CONNECT_ERRORS: Record<string, string> = {
@@ -89,8 +93,8 @@ function stepNote(me: MeResponse, screen: ScreenId): string {
 function Heading({ n, title, lede }: { n: number; title: string; lede?: string }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="t-label c-ink-2">Step {n} of 4</p>
-      <h1 id="step-title" className="t-h1">
+      <p className="t-label c-ink-2 onb-step-n">Step {n} of 4</p>
+      <h1 id="step-title" className="t-h1" tabIndex={-1}>
         {title}
       </h1>
       {lede ? <p className="t-body c-ink-2">{lede}</p> : null}
@@ -104,6 +108,10 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
   const userId = me.user.id;
   const [confirmed, setConfirmed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const onDraft = useCallback((d: ProfileDraft) => setDraft(d), []);
+  const stepRef = useRef<HTMLElement>(null);
   const email = useEmailFlow(me);
 
   // sessionStorage is read after mount, so the server and first render agree.
@@ -115,12 +123,25 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
   const screen = screenFor(me, confirmed);
 
   useEffect(() => {
-    if (ready && screen === 'done') router.replace('/home');
-  }, [ready, screen, router]);
+    if (ready && screen === 'done' && !finished) router.replace('/home');
+  }, [ready, screen, finished, router]);
 
+  // Each new step puts focus on its first field, or on its heading when it has none.
+  const sentTo = email.sentTo;
+  useEffect(() => {
+    if (!ready || finished) return;
+    const root = stepRef.current;
+    if (!root) return;
+    const target =
+      root.querySelector<HTMLElement>('input:not([type="hidden"]), select, textarea') ??
+      root.querySelector<HTMLElement>('h1');
+    target?.focus({ preventScroll: false });
+  }, [ready, finished, screen, sentTo]);
+
+  if (finished) return <Finished me={me} />;
   if (!ready || screen === 'done') return <PageSkeleton />;
 
-  const finish = () => router.replace('/home');
+  const finish = () => setFinished(true);
 
   let body: React.ReactNode;
   switch (screen) {
@@ -189,6 +210,10 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
             title="Add your email"
             lede="We send deal updates and documents here. It also shows on your profile as your contact email."
           />
+          <p className="t-small c-ink-2 onb-why">
+            <Icon name="info" size={16} />
+            Deal updates and documents go here. It is also your contact on your profile.
+          </p>
           <div className="card p-5 md:p-6">
             <EmailForm onSent={(address) => email.setSentTo(address)} />
           </div>
@@ -211,7 +236,11 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
               lede="Brands see these details on your profile when you apply to their deals."
             />
           )}
-          <ProfileForm role={me.user.role!} onSaved={() => email.setSentTo(null)} />
+          <ProfileForm
+            role={me.user.role!}
+            onSaved={() => email.setSentTo(null)}
+            onChange={onDraft}
+          />
         </>
       );
       break;
@@ -252,20 +281,119 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
       break;
   }
 
+  const index = SCREEN_INDEX[screen] ?? 0;
+  const items = stepperItems(me, screen);
+  const showPreview = screen !== 'connect' && screen !== 'instagram';
+  const role = me.user.role ?? 'CREATOR';
+  const preview = (
+    <>
+      <div className="onb-preview" inert aria-label="Preview of your profile" role="img">
+        <ResumeContent data={previewResume(me, draft)} />
+      </div>
+      <WhoSeesWhat role={role} />
+    </>
+  );
+
   return (
-    <main
-      id="main"
-      className="mx-auto grid max-w-[1040px] items-start gap-8 px-4 pb-20 pt-8 md:grid-cols-[260px_minmax(0,1fr)] md:gap-16 md:px-8 md:pt-14"
-    >
-      <nav aria-label="Setup steps" className="flex flex-col gap-4">
+    <div className="onb">
+      <div className="onb-progress" aria-hidden="true">
+        <p className="t-small">
+          <span className="font-semibold">Step {index + 1} of 4:</span> {items[index]?.label}
+        </p>
+        <div className="seg seg-4">
+          {items.map((item) => (
+            <span
+              key={item.label}
+              className={
+                item.state === 'done' ? 'done' : item.state === 'current' ? 'current' : undefined
+              }
+            />
+          ))}
+        </div>
+      </div>
+
+      <nav aria-label="Setup steps" className="onb-rail">
         <p className="t-small font-semibold">Set up your account</p>
-        <Stepper items={stepperItems(me, screen)} label="Steps" />
+        <Stepper items={items} label="Steps" />
         <p className="t-small c-ink-2">{stepNote(me, screen)}</p>
+        <p className="t-small c-ink-3">Signed in as @{me.user.username}</p>
       </nav>
-      <section aria-labelledby="step-title" className="flex max-w-[560px] flex-col gap-6">
+
+      <section
+        key={screen + (email.sentTo ? '-sent' : '')}
+        ref={stepRef}
+        aria-labelledby="step-title"
+        className="onb-step"
+      >
         {body}
+        {showPreview ? (
+          <details className="onb-preview-fold" open={screen === 'profile'}>
+            <summary>
+              Preview your profile
+              <Icon name="caretDown" size={16} />
+            </summary>
+            {preview}
+          </details>
+        ) : null}
       </section>
-    </main>
+
+      {showPreview ? (
+        <aside className="onb-side" aria-label="Your profile preview">
+          <p className="t-label c-ink-2">
+            {role === 'BRAND' ? 'How creators see you' : 'How brands see you'}
+          </p>
+          {preview}
+        </aside>
+      ) : null}
+    </div>
+  );
+}
+
+/** The last moment of setup: the profile as others see it, and the one next thing to do. */
+function Finished({ me }: { me: MeResponse }) {
+  const isBrand = me.user.role === 'BRAND';
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []);
+  return (
+    <div className="onb-done">
+      <span className="onb-done-check" aria-hidden="true">
+        <Icon name="check" size={24} />
+      </span>
+      <h1 ref={heading} tabIndex={-1} className="t-display">
+        You are set up
+      </h1>
+      <p className="t-body c-ink-2 onb-done-lede">
+        {isBrand
+          ? 'Creators can now see your brand profile. Post a deal and they can apply.'
+          : 'Brands can now see your profile when you apply. Every open deal is yours to apply to.'}
+      </p>
+      <div className="onb-preview onb-done-card" inert aria-label="Your profile" role="img">
+        <ResumeContent data={previewResume(me, null)} />
+      </div>
+      <div className="flex flex-wrap justify-center gap-3">
+        {isBrand ? (
+          <>
+            <LinkButton href="/campaigns/new">
+              <Icon name="plus" />
+              Post your first deal
+            </LinkButton>
+            <LinkButton href="/campaigns" variant="text">
+              Go to Campaigns
+            </LinkButton>
+          </>
+        ) : (
+          <>
+            <LinkButton href="/deals">
+              See open deals
+              <Icon name="arrowRight" />
+            </LinkButton>
+            <LinkButton href="/settings" variant="text">
+              Go to Settings
+            </LinkButton>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

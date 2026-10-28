@@ -73,13 +73,18 @@ export function BillingForm({
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
-      <Field id="billing-address" label="Billing address" error={f.billingAddress}>
+      <Field
+        id="billing-address"
+        label="Billing address"
+        help="Printed on your GST tax invoice."
+        error={f.billingAddress}
+      >
         <Textarea
           id="billing-address"
           value={billingAddress}
           autoComplete="street-address"
           invalid={Boolean(f.billingAddress)}
-          aria-describedby={describedBy('billing-address', null, f.billingAddress)}
+          aria-describedby={describedBy('billing-address', true, f.billingAddress)}
           onChange={(e) => setAddress(e.target.value)}
         />
       </Field>

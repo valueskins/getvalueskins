@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { MeResponse } from '@valueskins/shared';
 import { NOT_A_UPI_ID_BANK_ACCOUNT } from '@valueskins/shared';
@@ -127,6 +127,14 @@ describe('onboarding', () => {
 
     fireEvent.click(screen.getByLabelText('I am 18 or older.'));
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    // Saved once: a confirm lists what is about to be saved, and nothing is sent until it is accepted.
+    const confirm = await screen.findByRole('dialog', { name: 'Save your profile?' });
+    expect(confirm).toHaveTextContent(
+      'Your profile is saved once. To correct it later, write to us.',
+    );
+    expect(confirm).toHaveTextContent('Pune');
+    expect(api.called('PUT /me/profile')).toHaveLength(0);
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Yes, save it' }));
     expect(await screen.findByRole('heading', { name: 'Get paid by UPI' })).toBeInTheDocument();
     expect(api.called('PUT /me/profile')[0]!.body).toEqual({
       name: 'Test Creator',
@@ -158,18 +166,21 @@ describe('onboarding', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Brand name'), { target: { value: 'Test Brand' } });
+    // Correcting a field takes its error away straight away.
+    expect(screen.queryByRole('link', { name: /^Brand name:/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Mumbai' } });
     fireEvent.change(screen.getByLabelText('Website'), {
       target: { value: 'https://brand.example.test' },
     });
     fireEvent.click(screen.getByLabelText('I am 18 or older.'));
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, save it' }));
     expect(
       await screen.findByText('Your profile is saved and cannot be changed here.'),
     ).toBeInTheDocument();
   });
 
-  it('saves brand billing and then goes home', async () => {
+  it('saves brand billing, then shows the finish with the first deal to post', async () => {
     const before = makeMe({ role: 'BRAND', done: ['email', 'profile'] });
     const after = makeMe({ role: 'BRAND', done: ['email', 'profile', 'billing'] });
     const billing = {
@@ -194,7 +205,12 @@ describe('onboarding', () => {
       target: { value: 'Maharashtra' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save and finish' }));
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/home'));
+    expect(await screen.findByRole('heading', { name: 'You are set up' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Post your first deal/ })).toHaveAttribute(
+      'href',
+      '/campaigns/new',
+    );
+    expect(nav.replace).not.toHaveBeenCalled();
     expect(api.called('PUT /me/billing')[0]!.body).toEqual({
       billingName: 'Test Brand LLP',
       billingAddress: '1 Test Road',
@@ -234,13 +250,60 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByLabelText(/I agree my UPI ID and name are shown/));
     fireEvent.click(screen.getByRole('button', { name: 'Save UPI ID' }));
 
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/home'));
+    expect(await screen.findByRole('heading', { name: 'You are set up' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /See open deals/ })).toHaveAttribute('href', '/deals');
     expect(api.called('PUT /me/payout-upi')[0]!.body).toEqual({
       vpa: 'test.creator@okfakebank',
       name: 'Test Creator',
       consent: true,
     });
     expect(document.body.textContent).not.toContain('test.creator@okfakebank');
+  });
+
+  it('fills in the profile preview as the creator types, and says who sees what', async () => {
+    start(emailDoneCreator);
+    expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeInTheDocument();
+    const side = screen.getByRole('complementary', { name: 'Your profile preview' });
+    expect(within(side).getByText('How brands see you')).toBeInTheDocument();
+    expect(within(side).getByText('No completed deals yet.')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Asha Example' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Jaipur' } });
+    expect(within(side).getByText('Asha Example')).toBeInTheDocument();
+    expect(within(side).getByText('Jaipur')).toBeInTheDocument();
+    expect(
+      within(side).getByText(/Only the brand that confirms you on a deal sees it in full/),
+    ).toBeInTheDocument();
+    expect(within(side).getByText(/your verified email as the contact/)).toBeInTheDocument();
+  });
+
+  it('closes the saved-once confirm with Check again, without saving', async () => {
+    const { api } = start(emailDoneCreator);
+    expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Test Creator' } });
+    fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Pune' } });
+    fireEvent.change(screen.getByLabelText('Age'), { target: { value: '24' } });
+    fireEvent.change(screen.getByLabelText('Gender'), { target: { value: 'FEMALE' } });
+    fireEvent.click(screen.getByLabelText('I am 18 or older.'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check again' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.called('PUT /me/profile')).toHaveLength(0);
+    expect(screen.getByLabelText('Full name')).toHaveValue('Test Creator');
+  });
+
+  it('puts focus on the first field of the step', async () => {
+    start(emailDoneBrand);
+    expect(await screen.findByRole('heading', { name: 'Your brand profile' })).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Brand name')));
+  });
+
+  it('tells a brand its billing details are private', async () => {
+    start(makeMe({ role: 'BRAND', done: ['email', 'profile'] }));
+    const side = await screen.findByRole('complementary', { name: 'Your profile preview' });
+    expect(within(side).getByText('How creators see you')).toBeInTheDocument();
+    expect(
+      within(side).getByText(/your billing details\. They go only on the GST tax invoice/),
+    ).toBeInTheDocument();
   });
 
   it('lets a creator add the UPI ID later', async () => {

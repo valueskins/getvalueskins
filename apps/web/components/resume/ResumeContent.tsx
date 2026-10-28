@@ -10,11 +10,12 @@ import { GENDER_LABELS } from '@/components/forms/ProfileForm';
 
 const DELETED_USER = 'Deleted user';
 
-function Cell({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+/** One fact on the card. Numbers use tabular figures in the text face, so they line up. */
+function Cell({ k, v, num }: { k: string; v: string; num?: boolean }) {
   return (
     <div className="min-w-0">
       <p className="resume-k">{k}</p>
-      <p className={mono ? 'resume-v mono' : 'resume-v'}>{v}</p>
+      <p className={num ? 'resume-v is-num' : 'resume-v'}>{v}</p>
     </div>
   );
 }
@@ -32,14 +33,14 @@ export function ResumeContent({ data, titleId }: { data: ResumeResponse; titleId
   const u = data.user;
   const isBrand = u.role === 'BRAND';
   const type = accountTypeLabel(u.igAccountType);
-  const cells: Array<{ k: string; v: string; mono?: boolean }> = [];
+  const cells: Array<{ k: string; v: string; num?: boolean }> = [];
   if (u.city) cells.push({ k: 'City', v: u.city });
-  if (!isBrand && u.age !== null) cells.push({ k: 'Age', v: String(u.age), mono: true });
+  if (!isBrand && u.age !== null) cells.push({ k: 'Age', v: String(u.age), num: true });
   if (!isBrand && u.gender) cells.push({ k: 'Gender', v: GENDER_LABELS[u.gender] });
   if (u.followersCount !== null)
-    cells.push({ k: 'Followers', v: formatCount(u.followersCount), mono: true });
+    cells.push({ k: 'Followers', v: formatCount(u.followersCount), num: true });
   if (u.engagementRate !== null)
-    cells.push({ k: 'Engagement', v: formatPercent(u.engagementRate), mono: true });
+    cells.push({ k: 'Engagement', v: formatPercent(u.engagementRate), num: true });
 
   return (
     <>
@@ -109,7 +110,7 @@ export function ResumeContent({ data, titleId }: { data: ResumeResponse; titleId
       ) : null}
       <div className="resume-sec">
         <div className="resume-grid">
-          <Cell k="Completed deals" v={String(data.stats.completedDealsCount)} mono />
+          <Cell k="Completed deals" v={String(data.stats.completedDealsCount)} num />
           <div className="min-w-0">
             <p className="resume-k">Total deal value</p>
             <p className="resume-v">
