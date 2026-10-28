@@ -21,7 +21,7 @@ describe('content pages', () => {
   it('numbers legal sections and lists them', () => {
     render(<ContentPage markdown={readContent('terms')} numbered showMissing={false} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Terms of Service' })).toBeInTheDocument();
-    expect(screen.getByText('Last updated 8 Oct 2026')).toBeInTheDocument();
+    expect(screen.getByText('Last updated 23 Oct 2026')).toBeInTheDocument();
     const toc = screen.getByRole('navigation', { name: 'Sections' });
     expect(
       within(toc).getByRole('link', { name: /^1\s?Agreement to these terms$/ }),

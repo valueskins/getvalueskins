@@ -2,33 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { SkipLink } from './SkipLink';
+import { Nav } from '@/components/landing/Nav';
+import '@/app/landing.css';
 import { useSupportAddress } from './SupportEmail';
 import { Wordmark } from './Wordmark';
 
-/** The public pages' top bar: the home page's glass bar, with the wordmark and How it works. */
+/**
+ * The public pages' top bar: the home page's own navigation, with its Sign in button and wake
+ * states, linking back to the home page's sections. It brings the home page's styles with it.
+ */
 export function SiteHeader() {
-  const active = usePathname() === '/how-it-works' ? 'how-it-works' : undefined;
   return (
-    <>
-      <SkipLink />
-      <header className="site-header">
-        <div className="site-header-in">
-          <Link href="/" className="wordmark-link" aria-label="ValueSkins, home">
-            <Wordmark />
-          </Link>
-          <nav aria-label="Site">
-            <Link
-              href="/how-it-works"
-              className={active === 'how-it-works' ? 'site-link is-active' : 'site-link'}
-              aria-current={active === 'how-it-works' ? 'page' : undefined}
-            >
-              How it works
-            </Link>
-          </nav>
-        </div>
-      </header>
-    </>
+    <div className="v3 site-header-v3">
+      <Nav onHome={false} />
+    </div>
   );
 }
 

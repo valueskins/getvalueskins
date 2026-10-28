@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { SignIn } from './SignIn';
 import { Wordmark } from '@/components/shell/Wordmark';
@@ -12,8 +13,22 @@ const LINKS = [
   { href: '#faq', label: 'FAQ' },
 ];
 
-/** The top bar: the wordmark, four links (a menu on phones) and sign-in. */
-export function Nav() {
+/** The same places from any other page: the home page's sections, and the How it works page. */
+const PAGE_LINKS = [
+  { href: '/#brands', label: 'For brands' },
+  { href: '/#creators', label: 'For creators' },
+  { href: '/how-it-works', label: 'How it works' },
+  { href: '/#faq', label: 'FAQ' },
+];
+
+/**
+ * The top bar: the wordmark, four links (a menu on phones) and sign-in with its wake states. The
+ * home page links to its own sections; every other public page (`onHome={false}`, through
+ * SiteHeader) links back to them and to the How it works page.
+ */
+export function Nav({ onHome = true }: { onHome?: boolean }) {
+  const pathname = usePathname();
+  const links = onHome ? LINKS : PAGE_LINKS;
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
 
@@ -42,8 +57,13 @@ export function Nav() {
           className={open ? 'v3-nav-links is-open' : 'v3-nav-links'}
           id="site-links"
         >
-          {LINKS.map((l) => (
-            <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
+          {links.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              aria-current={pathname === l.href ? 'page' : undefined}
+              onClick={() => setOpen(false)}
+            >
               {l.label}
             </a>
           ))}

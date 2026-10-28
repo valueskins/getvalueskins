@@ -29,8 +29,7 @@ export function ContactPage() {
       <header className="contact-hero">
         <h1 className="t-display">Write to us</h1>
         <p className="contact-lede">
-          About a deal, your account or the website. A person reads every email and replies within
-          24 hours.
+          About a deal, your account or the website. A person reads every email.
         </p>
       </header>
 

@@ -32,10 +32,9 @@
   border-radius: var(--radius-sm);
 }
 
-/* The glass bar the home page uses, for the public pages and the signed-in app */
+/* The glass bar the home page uses, for the signed-in app */
 /* The blur sits on a pseudo-element: a backdrop-filter on the bar itself would make it the
  * containing block of the fixed phone sheet inside it, and the sheet would collapse. */
-.site-header,
 .topbar,
 .topbar-m {
   position: sticky;
@@ -44,7 +43,6 @@
   isolation: isolate;
   border-bottom: 1px solid rgb(26 22 18 / 0.07);
 }
-.site-header::before,
 .topbar::before,
 .topbar-m::before {
   content: '';
@@ -55,36 +53,13 @@
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
 }
-.site-header-in {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  max-width: var(--wrap);
-  min-height: 68px;
-  margin: 0 auto;
-  padding: 0 var(--gutter);
-}
-.site-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--tap);
-  padding: 0 14px;
-  border-radius: var(--radius-pill);
-  font-size: 15px;
-  line-height: 20px;
-  font-weight: 500;
-  color: var(--ink);
-  text-decoration: none;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-:where(body) .site-link:hover {
-  color: var(--ink);
-  background: rgb(26 22 18 / 0.05);
-}
-:where(body) .site-link.is-active {
-  background: rgb(26 22 18 / 0.07);
-  font-weight: 600;
+/* The public pages' header is the home page's own navigation (landing.css); the wrapper keeps it
+ * at the top while the page scrolls. */
+.v3.site-header-v3 {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: none;
 }
 
 /* The dark footer: the home page and every public page */
@@ -483,9 +458,5 @@
 @media (max-width: 767px) {
   .page {
     padding: 24px 16px 48px;
-  }
-  .site-header-in {
-    padding-left: 16px;
-    padding-right: 16px;
   }
 }

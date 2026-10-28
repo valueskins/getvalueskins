@@ -19,7 +19,7 @@ type State =
   | { kind: 'failed'; message: string; taken: boolean };
 
 export const SIGNED_OUT_CONFIRMED =
-  'Email confirmed. Go back to the browser where you started, or sign in here with the same Instagram account.';
+  'Go back to the browser where you started, or sign in here with the same Instagram account.';
 
 /** The page's one card: a tinted icon, a heading and what to do next. */
 function StatusCard({
