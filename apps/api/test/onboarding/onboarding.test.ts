@@ -30,11 +30,11 @@ async function userRow(id: string) {
 const post = (path: string, cookie: string, body: object) =>
   request(app).post(path).set('Origin', origin).set('Cookie', cookie).send(body);
 
+// POST /api/me/email/verify is public on purpose (SPEC 6.4): the emailed token is the proof.
 describe('every onboarding route needs a session', () => {
   it.each([
     ['post', '/api/me/email'],
     ['post', '/api/me/email/resend'],
-    ['post', '/api/me/email/verify'],
     ['put', '/api/me/billing'],
     ['put', '/api/me/profile'],
   ] as const)('%s %s answers 401 with no session', async (method, path) => {

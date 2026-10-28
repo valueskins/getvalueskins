@@ -14,7 +14,11 @@ export const SIGN_IN_ERROR_CODES = [
   'account_type_change_blocked',
   'must_be_logged_in',
   'account_linked_elsewhere',
+  'instagram_account_rejected',
 ] as const;
+
+export const ACCOUNT_REJECTED =
+  'Check which account Instagram is signed in to in this browser. It must be a Business or Creator account.';
 
 function Stopped() {
   return (
@@ -27,7 +31,7 @@ function Stopped() {
 
 function Actions({ primary = 'Sign in with Instagram' }: { primary?: string }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-start gap-3">
       <InstagramButton label={primary} />
       <Link href="/" className="btn btn-text">
         Back to home
@@ -36,12 +40,9 @@ function Actions({ primary = 'Sign in with Instagram' }: { primary?: string }) {
   );
 }
 
+/** The roomier layout, for errors that need steps or an explanation. */
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto flex max-w-[680px] flex-col gap-7 px-4 pb-[88px] pt-10 md:px-8 md:pt-16">
-      {children}
-    </div>
-  );
+  return <div className="signin-help">{children}</div>;
 }
 
 const HOW_TO_SWITCH = [
@@ -62,6 +63,55 @@ const HOW_TO_SWITCH = [
   <>Come back here and sign in again.</>,
 ];
 
+/** The five steps to switch to a professional account, and what happens to a private one. */
+function HowToSwitch({ title = 'How to switch' }: { title?: string }) {
+  return (
+    <section className="card flex flex-col gap-5 p-5 md:p-7" aria-labelledby="howto-title">
+      <h2 id="howto-title" className="t-h3">
+        {title}
+      </h2>
+      <ol className="switch-steps">
+        {HOW_TO_SWITCH.map((step, i) => (
+          <li key={i}>
+            <span className="switch-n" aria-hidden="true">
+              {i + 1}
+            </span>
+            <p className="t-body">{step}</p>
+          </li>
+        ))}
+      </ol>
+      <div className="callout callout-info">
+        <Icon name="info" />
+        <p>
+          If your account is private, switching makes it public. Instagram accepts any pending
+          follow requests when that happens.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function AccountRejected() {
+  return (
+    <Shell>
+      <div className="flex flex-col gap-3">
+        <Stopped />
+        <h1 className="t-h1">Instagram did not accept this account</h1>
+        <p className="t-body c-ink-2">{ACCOUNT_REJECTED}</p>
+        <p className="t-body c-ink-2">
+          If Instagram is signed in to another account here, switch to the right one in Instagram
+          first. If the account is a personal account, switch it to a professional one.
+        </p>
+      </div>
+      <HowToSwitch title="If it is a personal account" />
+      <Actions primary="Sign in again" />
+      <p className="t-small c-ink-2">
+        Still stuck? Write to <SupportEmail /> and say which account you used.
+      </p>
+    </Shell>
+  );
+}
+
 function PersonalAccount() {
   return (
     <Shell>
@@ -73,28 +123,7 @@ function PersonalAccount() {
           The account you used is a personal account. Switching takes about a minute and is free.
         </p>
       </div>
-      <section className="card flex flex-col gap-4 p-5 md:p-6" aria-labelledby="howto-title">
-        <h2 id="howto-title" className="t-h3">
-          How to switch
-        </h2>
-        <ol className="m-0 flex list-none flex-col gap-3 p-0">
-          {HOW_TO_SWITCH.map((step, i) => (
-            <li key={i} className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-3">
-              <span className="t-mono grid h-7 w-7 place-items-center rounded-sm bg-ink text-[13px] text-white">
-                {i + 1}
-              </span>
-              <p className="t-body">{step}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="callout callout-info">
-          <Icon name="info" />
-          <p>
-            If your account is private, switching makes it public. Instagram accepts any pending
-            follow requests when that happens.
-          </p>
-        </div>
-      </section>
+      <HowToSwitch />
       <Actions />
       <p className="t-small c-ink-2">
         Still stuck? Write to <SupportEmail />.
@@ -177,20 +206,30 @@ const FALLBACK = {
 function Generic({ code }: { code: string }) {
   const copy = (Object.hasOwn(GENERIC, code) ? GENERIC[code] : undefined) ?? FALLBACK;
   return (
-    <Shell>
-      <div className="flex flex-col gap-3">
-        <h1 className="t-h1">{copy.title}</h1>
+    <div className="status-page">
+      <section className="status-card" aria-labelledby="signin-error-title">
+        <span className="status-icon status-icon-wait" aria-hidden="true">
+          <Icon name="instagram" size={24} />
+        </span>
+        <h1 id="signin-error-title" className="t-h1">
+          {copy.title}
+        </h1>
         {copy.lines.map((line) => (
           <p key={line} className="t-body c-ink-2">
             {line}
           </p>
         ))}
-      </div>
-      <Actions />
-      <p className="t-small c-ink-2">
-        If it keeps happening, write to <SupportEmail /> and say what you see.
-      </p>
-    </Shell>
+        <div className="flex flex-col items-center gap-2">
+          <InstagramButton />
+          <Link href="/" className="btn btn-text">
+            Back to home
+          </Link>
+        </div>
+        <p className="t-small c-ink-2">
+          If it keeps happening, write to <SupportEmail /> and say what you see.
+        </p>
+      </section>
+    </div>
   );
 }
 
@@ -198,5 +237,6 @@ function Generic({ code }: { code: string }) {
 export function SignInError({ code }: { code: string }) {
   if (code === 'account_type_unsupported') return <PersonalAccount />;
   if (code === 'account_type_change_blocked') return <RoleChanged />;
+  if (code === 'instagram_account_rejected') return <AccountRejected />;
   return <Generic code={code} />;
 }

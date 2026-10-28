@@ -2,7 +2,7 @@
 
 import type { MeResponse } from '@valueskins/shared';
 import { Button } from '@/components/ui/Button';
-import { useSignOut } from './useSignOut';
+import { SIGNING_OUT_REASON, useSignOut } from './useSignOut';
 import { Wordmark } from './Wordmark';
 
 /** The plain top bar while setting up: no navigation yet. */
@@ -13,8 +13,16 @@ export function SetupTopbar({ me }: { me: MeResponse }) {
       <div className="topbar-in">
         <Wordmark />
         <div className="topbar-right">
-          <span className="t-small c-ink-2 hidden sm:inline">Signed in as @{me.user.username}</span>
-          <Button variant="text" size="sm" onClick={signOut} loading={pending}>
+          {pending ? (
+            <span className="t-small c-ink-2" role="status">
+              {SIGNING_OUT_REASON}
+            </span>
+          ) : (
+            <span className="t-small c-ink-2 hidden sm:inline">
+              Signed in as @{me.user.username}
+            </span>
+          )}
+          <Button variant="text" size="sm" onClick={signOut} disabled={pending}>
             Sign out
           </Button>
         </div>

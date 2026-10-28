@@ -1,6 +1,8 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DevComponentsPage from '@/app/dev/components/page';
+import DevErrorPage from '@/app/dev/error/page';
+import ErrorPage from '@/app/error';
 import { mockApi } from './helpers/api';
 import { CONFIG } from './helpers/fixtures';
 import { renderWithProviders } from './helpers/render';
@@ -35,5 +37,21 @@ describe('/dev/components', () => {
     const dialog = screen.getByRole('dialog', { name: 'Cancel this deal?' });
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(dialog).not.toBeInTheDocument();
+  });
+
+  it('/dev/error is a 404 unless dev login is on, and throws to show the error page when it is', () => {
+    expect(() => DevErrorPage()).toThrow('NEXT_NOT_FOUND');
+    vi.stubEnv('NEXT_PUBLIC_ENABLE_DEV_LOGIN', 'true');
+    expect(() => DevErrorPage()).toThrow('A test error for the error page.');
+  });
+
+  it('the error page offers Try again and a way home', () => {
+    mockApi({ 'GET /config': CONFIG });
+    const reset = vi.fn();
+    renderWithProviders(<ErrorPage error={new Error('boom')} reset={reset} />);
+    expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(reset).toHaveBeenCalledOnce();
+    expect(screen.getByRole('link', { name: 'Go to the home page' })).toHaveAttribute('href', '/');
   });
 });

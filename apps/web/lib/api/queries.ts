@@ -109,11 +109,20 @@ export function useResendEmail() {
   });
 }
 
+/**
+ * POST /me/email/verify (SPEC 6.4). Works signed in or not: the token decides whose email it is.
+ * `onboarding` comes back only when this browser is signed in as that person.
+ */
+export interface VerifyEmailResult {
+  verified: true;
+  email: string;
+  onboarding: MeOnboarding | null;
+}
+
 export function useVerifyEmail() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (token: string) =>
-      api<{ onboarding: MeOnboarding }>('POST', '/me/email/verify', { token }),
+    mutationFn: (token: string) => api<VerifyEmailResult>('POST', '/me/email/verify', { token }),
     // The verified address changes user.email too, so read GET /me again.
     onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.me }),
   });

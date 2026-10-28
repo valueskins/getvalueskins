@@ -24,3 +24,11 @@ export function SupportEmail({
 export function useSupportEmail(): string {
   return useConfig().data?.supportEmail ?? 'our support address';
 }
+
+/** The address shown until GET /config answers; it is the support address on staging and production. */
+export const SUPPORT_FALLBACK = 'founder@valueskins.com';
+
+/** The support address, shown straight away: the fallback until GET /config answers. */
+export function useSupportAddress(): string {
+  return useConfig().data?.supportEmail ?? SUPPORT_FALLBACK;
+}

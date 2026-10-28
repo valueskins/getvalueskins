@@ -145,6 +145,31 @@ describe('the signed-in shell', () => {
     expect(api.called('POST /auth/logout')).toHaveLength(1);
   });
 
+  it('sends one logout however many sign-out controls are clicked, and says why they are disabled', async () => {
+    let finish: (r: Response) => void = () => undefined;
+    const api = mockApi({
+      'GET /me': creator,
+      'GET /config': CONFIG,
+      'POST /auth/logout': () => new Promise<Response>((resolve) => (finish = resolve)),
+    });
+    renderPage(<DealsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /@test\.creator/ }));
+    const item = screen.getByRole('menuitem', { name: /Sign out/ });
+    fireEvent.click(item);
+    fireEvent.click(item);
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    const sheet = document.getElementById('app-sheet')!;
+    fireEvent.click(within(sheet).getByRole('button', { name: /Sign(ing)? out/ }));
+
+    await waitFor(() => expect(api.called('POST /auth/logout')).toHaveLength(1));
+    expect(screen.getByRole('menuitem', { name: 'Signing out...' })).toBeDisabled();
+    expect(screen.getAllByText('Signing you out.').length).toBeGreaterThan(0);
+
+    finish(json(200, { ok: true }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/'));
+    expect(api.called('POST /auth/logout')).toHaveLength(1);
+  });
+
   it('shows a plain error and a retry when GET /me fails', async () => {
     mockApi({ 'GET /me': apiError(500, 'INTERNAL_ERROR', 'db down') });
     renderPage(<DealsPage />);

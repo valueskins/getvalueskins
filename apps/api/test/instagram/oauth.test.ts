@@ -4,6 +4,10 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createApp } from '../../src/app.js';
+import { exchangeCodeForToken, exchangeForLongLivedToken } from '../../src/instagram/client.js';
+import { InstagramApiError } from '../../src/instagram/errors.js';
+import { instagramFailureLog } from '../../src/instagram/oauth.routes.js';
+import { buildLogger } from '../../src/logging/logger.js';
 import { db } from '../../src/db/client.js';
 import { users } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
@@ -305,5 +309,142 @@ describe('Instagram OAuth', () => {
     expect(after?.followersCount).toBe(9999);
     expect(after?.role).toBe('BRAND');
     expect(after?.onboardingCompletedAt).not.toBeNull();
+  });
+});
+
+describe('the callback says which step Meta refused (SPEC 6.1)', () => {
+  const unsupported = {
+    error: {
+      message: 'Unsupported request - method type: get',
+      type: 'IGApiException',
+      code: 100,
+      fbtrace_id: 'AbCdEfTrace1',
+    },
+  };
+
+  async function callback(env: ReturnType<typeof buildTestEnv>) {
+    const app = createApp(env);
+    const { cookie, state } = await startFlowWithState(app);
+    return request(app)
+      .get(`/api/auth/instagram/callback?code=abc&state=${state}`)
+      .set('Cookie', cookie);
+  }
+
+  it('sends code 100 at the long-lived exchange to instagram_account_rejected', async () => {
+    mockInstagramHandlers();
+    server.use(
+      http.get('https://graph.instagram.com/access_token', () =>
+        HttpResponse.json(unsupported, { status: 400 }),
+      ),
+    );
+    const env = buildTestEnv();
+    const response = await callback(env);
+    expect(response.headers.location).toBe(
+      `${env.WEB_ORIGIN}/login?error=instagram_account_rejected`,
+    );
+    expect(await db.select().from(users)).toHaveLength(0);
+  });
+
+  it('sends code 100 at the profile to instagram_account_rejected', async () => {
+    mockInstagramHandlers();
+    server.use(
+      http.get('https://graph.instagram.com/me', () =>
+        HttpResponse.json(unsupported, { status: 400 }),
+      ),
+    );
+    const env = buildTestEnv();
+    const response = await callback(env);
+    expect(response.headers.location).toBe(
+      `${env.WEB_ORIGIN}/login?error=instagram_account_rejected`,
+    );
+  });
+
+  it('keeps instagram_failed for code 100 at the code exchange, and for other errors after it', async () => {
+    mockInstagramHandlers();
+    server.use(
+      http.post('https://api.instagram.com/oauth/access_token', () =>
+        HttpResponse.json(
+          { error_type: 'OAuthException', code: 100, error_message: 'Invalid platform app' },
+          { status: 400 },
+        ),
+      ),
+    );
+    const env = buildTestEnv();
+    expect((await callback(env)).headers.location).toBe(
+      `${env.WEB_ORIGIN}/login?error=instagram_failed`,
+    );
+
+    server.resetHandlers();
+    mockInstagramHandlers();
+    server.use(
+      http.get('https://graph.instagram.com/me', () =>
+        HttpResponse.json(
+          { error: { message: 'Please retry', type: 'OAuthException', code: 2, fbtrace_id: 'x' } },
+          { status: 500 },
+        ),
+      ),
+    );
+    expect((await callback(env)).headers.location).toBe(
+      `${env.WEB_ORIGIN}/login?error=instagram_failed`,
+    );
+  });
+
+  it("reads Meta's code, type, subcode and trace id from both error shapes", async () => {
+    server.use(
+      http.post('https://api.instagram.com/oauth/access_token', () =>
+        HttpResponse.json(
+          { error_type: 'OAuthException', code: 400, error_message: 'Invalid code' },
+          { status: 400 },
+        ),
+      ),
+      http.get('https://graph.instagram.com/access_token', () =>
+        HttpResponse.json({ error: { ...unsupported.error, error_subcode: 33 } }, { status: 400 }),
+      ),
+    );
+    const env = buildTestEnv();
+    const flat = await exchangeCodeForToken('abc', env).catch((e: unknown) => e);
+    expect(flat).toMatchObject({ metaCode: 400, metaType: 'OAuthException', httpStatus: 400 });
+    const graph = await exchangeForLongLivedToken('short-lived-token', env).catch(
+      (e: unknown) => e,
+    );
+    expect(graph).toMatchObject({
+      metaCode: 100,
+      metaType: 'IGApiException',
+      metaSubcode: 33,
+      fbtraceId: 'AbCdEfTrace1',
+      httpStatus: 400,
+    });
+  });
+
+  it("logs the step and Meta's error fields, and never the token, the sign-in code or the secret", () => {
+    const lines: string[] = [];
+    const log = buildLogger({ write: (line: string) => lines.push(line) });
+    const error = new InstagramApiError('Unsupported request - method type: get', {
+      metaCode: 100,
+      metaType: 'IGApiException',
+      metaSubcode: 33,
+      fbtraceId: 'AbCdEfTrace1',
+      httpStatus: 400,
+    });
+    error.step = 'long_lived_exchange';
+
+    log.error(instagramFailureLog(error), 'instagram oauth callback failed');
+
+    const entry = JSON.parse(lines[0]!);
+    expect(entry).toMatchObject({
+      step: 'long_lived_exchange',
+      metaNumber: 100,
+      metaType: 'IGApiException',
+      metaSubnumber: 33,
+      fbtraceId: 'AbCdEfTrace1',
+      httpStatus: 400,
+    });
+    expect(Object.keys(instagramFailureLog(error)).sort()).toEqual(
+      ['fbtraceId', 'httpStatus', 'metaNumber', 'metaSubnumber', 'metaType', 'step'].sort(),
+    );
+    const env = buildTestEnv();
+    for (const secret of ['short-lived-token', 'long-lived-token', env.INSTAGRAM_APP_SECRET]) {
+      expect(lines[0]).not.toContain(secret);
+    }
   });
 });

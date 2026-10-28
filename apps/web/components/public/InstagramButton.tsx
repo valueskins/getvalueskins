@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
 import { instagramLinkUrl, instagramSignInUrl } from '@/lib/signIn';
 import { apiHasAnswered, waitForApi } from '@/lib/wake';
+import { CONNECTING_REASON } from './signInCopy';
 
 export type Phase = 'ready' | 'connecting' | 'failed';
 
@@ -23,6 +24,7 @@ export function InstagramButton({
   variant = 'primary',
   className: extraClassName,
   onPhase,
+  showReason = true,
 }: {
   label?: string;
   link?: boolean;
@@ -33,6 +35,8 @@ export function InstagramButton({
   className?: string;
   /** Told each time the button moves between ready, connecting and failed. */
   onPhase?: (phase: Phase) => void;
+  /** Says why it is waiting ("Waking up ValueSkins..."). Off where the page shows it itself. */
+  showReason?: boolean;
 }) {
   const href = link ? instagramLinkUrl() : instagramSignInUrl();
   const [phase, setPhase] = useState<Phase>('ready');
@@ -70,11 +74,21 @@ export function InstagramButton({
   }
 
   if (phase === 'connecting') {
-    return (
+    const button = (
       <button type="button" className={className} disabled aria-busy="true">
-        <Icon name="instagram" />
+        <span className="spinner" aria-hidden="true" />
         Connecting...
       </button>
+    );
+    if (!showReason) return button;
+    return (
+      <span className="signin-wait">
+        {button}
+        <span className="reason" role="status">
+          <Icon name="clock" size={16} />
+          {CONNECTING_REASON}
+        </span>
+      </span>
     );
   }
 

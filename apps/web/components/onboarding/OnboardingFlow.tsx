@@ -16,7 +16,7 @@ import { BillingForm } from '@/components/forms/BillingForm';
 import { ProfileForm } from '@/components/forms/ProfileForm';
 import { UpiForm } from '@/components/forms/UpiForm';
 import { InstagramButton } from '@/components/public/InstagramButton';
-import { useSignOut } from '@/components/shell/useSignOut';
+import { SIGNING_OUT_REASON, useSignOut } from '@/components/shell/useSignOut';
 import { EmailForm, EmailSent, useEmailFlow } from './EmailStep';
 import { InstagramSummary } from './InstagramSummary';
 
@@ -272,7 +272,7 @@ export function OnboardingFlow({ me }: { me: MeResponse }) {
 function SignOutLink() {
   const { signOut, pending } = useSignOut();
   return (
-    <Button variant="text" onClick={signOut} loading={pending}>
+    <Button variant="text" onClick={signOut} disabledReason={pending ? SIGNING_OUT_REASON : null}>
       Not you? Sign out
     </Button>
   );

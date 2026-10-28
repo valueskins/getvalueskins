@@ -1,6 +1,6 @@
 # Refund and Cancellation Policy
 
-Last updated 8 Oct 2026. Part of our [Terms of Service](/terms).
+Last updated 15 Oct 2026. Part of our [Terms of Service](/terms).
 
 **In short**
 

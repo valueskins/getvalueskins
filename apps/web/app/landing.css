@@ -1757,3 +1757,203 @@ body {
     display: none;
   }
 }
+
+/* How it works (/how-it-works): the same look, laid out step by step */
+.hiw-hero,
+.hiw-head,
+.hiw-band,
+.hiw-wrong-in {
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.hiw-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  padding-top: 72px;
+  padding-bottom: 40px;
+}
+.hiw-hero-lede {
+  max-width: 46ch;
+}
+.hiw-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding-top: 56px;
+}
+.hiw-lede {
+  max-width: 52ch;
+}
+.hiw-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+/* The step pictures hold one moment each, so the phone is shorter than the home page's */
+.hiw-show .v3-phone {
+  width: min(100%, 300px);
+  aspect-ratio: 9 / 15;
+}
+.hiw-step-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.v3 .hiw-step {
+  padding-top: 64px;
+  padding-bottom: 64px;
+}
+.hiw-step + .hiw-step {
+  border-top: 1px solid var(--border);
+}
+.hiw-n {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+}
+.v3 .hiw-step-title {
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+.hiw-md {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 56ch;
+  color: var(--ink-muted);
+}
+.hiw-md strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+.hiw-md a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hiw-md ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+}
+.hiw-show .v3-panel {
+  width: min(100%, 500px);
+}
+.hiw-band {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 72px;
+  padding-bottom: 24px;
+}
+.hiw-example {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--sand);
+  border: 1px solid var(--border);
+}
+.hiw-example .hiw-md {
+  max-width: 64ch;
+  font-size: 18px;
+}
+.hiw-example .hiw-md ul {
+  padding: 0;
+  list-style: none;
+  gap: 0;
+}
+.hiw-example .hiw-md li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--border-strong);
+  font-variant-numeric: tabular-nums;
+}
+.hiw-example .hiw-md li:first-child {
+  border-top: 0;
+}
+.hiw-rules .hiw-md {
+  max-width: none;
+}
+.hiw-rules .hiw-md ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+}
+.hiw-rules .hiw-md li,
+.hiw-card {
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.hiw-rules .hiw-md li strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 17px;
+}
+.hiw-notyet {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.hiw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+  box-shadow: none;
+}
+.hiw-card .hiw-md {
+  font-size: 15px;
+}
+.v3 .hiw-wrong {
+  margin-top: 88px;
+  padding-top: 96px;
+}
+.hiw-wrong-in {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.hiw-wrong .hiw-md {
+  max-width: 54ch;
+  color: var(--on-dark-muted);
+  text-align: center;
+}
+.hiw-wrong .hiw-md a {
+  color: var(--on-dark);
+}
+@media (max-width: 959px) {
+  .hiw-rules .hiw-md ul,
+  .hiw-notyet {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .v3 .hiw-step {
+    padding-top: 48px;
+    padding-bottom: 48px;
+  }
+}
+@media (max-width: 599px) {
+  .hiw-hero {
+    padding-top: 40px;
+  }
+  .hiw-example {
+    padding: 24px 20px;
+  }
+}

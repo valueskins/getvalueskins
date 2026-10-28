@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { meResponseSchema } from '@valueskins/shared';
 import { createApp } from '../../src/app.js';
 import { db } from '../../src/db/client.js';
-import { emailLog, emailVerificationTokens, users } from '../../src/db/schema/index.js';
+import { emailLog, emailVerificationTokens, sessions, users } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { emailUser, instagramUser } from '../helpers/auth.js';
 import { buildTestEnv } from '../testEnv.js';
@@ -165,19 +165,78 @@ describe('POST /api/me/email/verify', () => {
     expect(response.body.error.code).toBe('INVALID_TOKEN');
   });
 
-  it("rejects another signed-in user's token with the same error as an unknown one", async () => {
+  it('works with no session: the link opened in another browser verifies the owner, and signs nobody in', async () => {
+    const { user, cookie } = await instagramUser({
+      role: 'CREATOR',
+      roleLockedAt: new Date(),
+      profileLockedAt: new Date(),
+    });
+    await post('/api/me/email', cookie, { email: 'elsewhere@example.com' });
+    const token = await latestEmailedToken();
+    const sessionsBefore = (await db.select().from(sessions)).length;
+
+    const response = await request(app)
+      .post('/api/me/email/verify')
+      .set('Origin', origin)
+      .send({ token });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      verified: true,
+      email: 'elsewhere@example.com',
+      onboarding: null,
+    });
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect((await db.select().from(sessions)).length).toBe(sessionsBefore);
+    const [row] = await db.select().from(users).where(eq(users.id, user.id));
+    expect(row?.email).toBe('elsewhere@example.com');
+    expect(row?.emailVerifiedAt).not.toBeNull();
+    expect(row?.onboardingCompletedAt).not.toBeNull();
+  });
+
+  it('refuses a used, an expired and an unknown token with no session, all with the same error', async () => {
+    const { cookie } = await instagramUser();
+    await post('/api/me/email', cookie, { email: 'once@example.com' });
+    const used = await latestEmailedToken();
+    const noSession = (token: string) =>
+      request(app).post('/api/me/email/verify').set('Origin', origin).send({ token });
+    expect((await noSession(used)).status).toBe(200);
+
+    await post('/api/me/email', cookie, { email: 'later@example.com' });
+    const expired = await latestEmailedToken();
+    await db
+      .update(emailVerificationTokens)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(emailVerificationTokens.tokenHash, sha256(expired)));
+
+    const answers = await Promise.all([
+      noSession(used),
+      noSession(expired),
+      noSession('x'.repeat(43)),
+    ]);
+    for (const answer of answers) {
+      expect(answer.status).toBe(400);
+      expect(answer.body).toEqual(answers[0]!.body);
+      expect(answer.body.error.code).toBe('INVALID_TOKEN');
+    }
+  });
+
+  it("verifies the token's owner, never the user whose session opens the link", async () => {
     const owner = await instagramUser();
-    const other = await instagramUser();
+    const other = await instagramUser({ email: 'other@example.com', emailVerifiedAt: new Date() });
     await post('/api/me/email', owner.cookie, { email: 'owner@example.com' });
     const token = await latestEmailedToken();
 
-    const stolen = await post('/api/me/email/verify', other.cookie, { token });
-    const unknown = await post('/api/me/email/verify', other.cookie, { token: 'x'.repeat(43) });
+    const response = await post('/api/me/email/verify', other.cookie, { token });
 
-    expect(stolen.status).toBe(400);
-    expect(stolen.body).toEqual(unknown.body);
-    // The owner can still use it: the failed attempt did not consume the token.
-    expect((await post('/api/me/email/verify', owner.cookie, { token })).status).toBe(200);
+    expect(response.status).toBe(200);
+    // Another person's onboarding state is not shown to this session.
+    expect(response.body.onboarding).toBeNull();
+    const [ownerRow] = await db.select().from(users).where(eq(users.id, owner.user.id));
+    const [otherRow] = await db.select().from(users).where(eq(users.id, other.user.id));
+    expect(ownerRow?.email).toBe('owner@example.com');
+    expect(ownerRow?.emailVerifiedAt).not.toBeNull();
+    expect(otherRow?.email).toBe('other@example.com');
   });
 
   it('answers 409 EMAIL_TAKEN when another account verified the address meanwhile, and does not consume the token', async () => {

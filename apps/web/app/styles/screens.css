@@ -1055,3 +1055,265 @@ a.stretched:hover {
 .sheet-steps-compact .steps-compact {
   display: flex;
 }
+
+/* A page with one centred status card: email verification, sign-in errors, 404 and errors */
+.status-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 56px var(--gutter) 88px;
+}
+.status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 560px;
+  padding: 40px 32px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  animation: vs-rise var(--dur-slow) var(--ease);
+}
+.status-card > p {
+  max-width: 46ch;
+}
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+.status-icon-ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.status-icon-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.status-icon-wait {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+@media (max-width: 767px) {
+  .status-page {
+    padding: 32px 16px 56px;
+  }
+  .status-card {
+    padding: 32px 20px;
+  }
+}
+
+/* Sign-in errors that need room: steps to follow, or why it happened */
+.signin-help {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 56px var(--gutter) 88px;
+  animation: vs-rise var(--dur-slow) var(--ease);
+}
+.switch-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.switch-steps li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.switch-n {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 767px) {
+  .signin-help {
+    padding: 32px 16px 56px;
+  }
+}
+
+/* Legal reading pages */
+.doc {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 56px var(--gutter) 96px;
+}
+.doc-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 68ch;
+  margin-bottom: 40px;
+}
+.doc-title {
+  font-size: clamp(2.25rem, 1.6rem + 2vw, 3rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.doc-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--sunken);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.doc-meta a,
+.doc-lede a {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.doc-lede {
+  font-size: var(--text-lg);
+  line-height: 28px;
+  color: var(--ink-muted);
+}
+.doc-fold {
+  margin-bottom: 24px;
+}
+.doc-grid {
+  display: grid;
+  gap: 48px;
+}
+@media (min-width: 768px) {
+  .doc-grid {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+}
+.doc-toc {
+  position: sticky;
+  top: calc(68px + 24px);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.doc-body {
+  max-width: 68ch;
+  font-size: 17px;
+  line-height: 28px;
+}
+.doc-body h2 {
+  scroll-margin-top: 96px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 44px;
+}
+.doc-body h2:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.doc-body h3 {
+  scroll-margin-top: 96px;
+}
+@media (max-width: 767px) {
+  .doc {
+    padding: 32px 16px 64px;
+  }
+}
+
+/* Contact */
+.contact {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 56px var(--gutter) 96px;
+}
+.contact-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+.contact-lede {
+  max-width: 46ch;
+  font-size: var(--text-lg);
+  line-height: 28px;
+  color: var(--ink-muted);
+}
+.contact-grid {
+  display: grid;
+  gap: 24px;
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .contact-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+}
+.contact-mail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  background: var(--sand);
+  border: 1px solid var(--border);
+}
+:where(body) .contact-address {
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--accent-ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+:where(body) .contact-address:hover {
+  text-decoration: underline;
+  color: var(--accent-ink);
+}
+.contact-list li {
+  font-size: 15px;
+  line-height: 22px;
+}
+.contact-formal {
+  display: grid;
+  gap: 20px 40px;
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+.contact-formal > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (min-width: 960px) {
+  .contact-formal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .contact {
+    padding: 32px 16px 64px;
+  }
+  .contact-mail {
+    padding: 24px 20px;
+  }
+}

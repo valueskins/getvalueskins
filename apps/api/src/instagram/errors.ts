@@ -2,15 +2,33 @@ import { AppError } from '../errors/AppError.js';
 
 /** Meta's standard Graph API error envelope. */
 export interface MetaErrorEnvelope {
-  error?: { message?: string; type?: string; code?: number; fbtrace_id?: string };
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    fbtrace_id?: string;
+  };
 }
 
 /** What Meta says went wrong, kept so a caller can tell a dead token from a rate limit. */
 export interface MetaErrorInfo {
   /** Meta's own error code, for example 190 (invalid or expired token) or 4, 17, 32, 613 (rate limits). */
   metaCode?: number;
+  /** Meta's error type, for example OAuthException or IGApiException. */
+  metaType?: string;
+  metaSubcode?: number;
+  /** Meta's trace id for the failed request, which Meta support asks for. */
+  fbtraceId?: string;
   httpStatus?: number;
 }
+
+/** The sign-in call that failed, for the logs (SPEC 6.1). */
+export type InstagramStep = 'code_exchange' | 'long_lived_exchange' | 'profile' | 'media';
+
+/** Meta error code 100: "Unsupported request". Seen after a good code exchange when Instagram will
+ * not give a long-lived token or a profile for the account that signed in. */
+export const META_UNSUPPORTED_REQUEST_CODE = 100;
 
 /** Meta error codes that mean "slow down" (application, user, page and custom rate limits). */
 export const META_RATE_LIMIT_CODES: readonly number[] = [4, 17, 32, 613];
@@ -21,11 +39,19 @@ export const META_INVALID_TOKEN_CODE = 190;
  * response, then caught by the OAuth callback route and mapped to a redirect. */
 export class InstagramApiError extends AppError {
   readonly metaCode?: number;
+  readonly metaType?: string;
+  readonly metaSubcode?: number;
+  readonly fbtraceId?: string;
   readonly httpStatus?: number;
+  /** Set by the OAuth callback: which of its calls failed. */
+  step?: InstagramStep;
 
   constructor(message: string, info: MetaErrorInfo = {}) {
     super('INSTAGRAM_AUTH_FAILED', 502, message);
     this.metaCode = info.metaCode;
+    this.metaType = info.metaType;
+    this.metaSubcode = info.metaSubcode;
+    this.fbtraceId = info.fbtraceId;
     this.httpStatus = info.httpStatus;
   }
 
@@ -48,8 +74,12 @@ export class InstagramApiError extends AppError {
 export function throwIfMetaError<T>(body: T | MetaErrorEnvelope, httpStatus?: number): T {
   const maybeError = body as MetaErrorEnvelope;
   if (maybeError && typeof maybeError === 'object' && 'error' in maybeError && maybeError.error) {
-    throw new InstagramApiError(maybeError.error.message ?? 'Instagram API returned an error', {
-      metaCode: maybeError.error.code,
+    const { message, code, type, error_subcode, fbtrace_id } = maybeError.error;
+    throw new InstagramApiError(message ?? 'Instagram API returned an error', {
+      metaCode: code,
+      metaType: type,
+      metaSubcode: error_subcode,
+      fbtraceId: fbtrace_id,
       httpStatus,
     });
   }

@@ -49,8 +49,16 @@ export async function exchangeCodeForToken(code: string, env: Env): Promise<Shor
   const response = await fetch(CODE_EXCHANGE_URL, { method: 'POST', body });
   const json = await parseJson(response);
   if (!response.ok) {
+    // This endpoint answers errors flat ({ error_type, code, error_message }), unless it uses the
+    // Graph envelope; either way the caller learns Meta's code, type and status.
+    throwIfMetaError(json, response.status);
     throw new InstagramApiError(
       typeof json?.error_message === 'string' ? json.error_message : 'Code exchange failed',
+      {
+        metaCode: typeof json?.code === 'number' ? json.code : undefined,
+        metaType: typeof json?.error_type === 'string' ? json.error_type : undefined,
+        httpStatus: response.status,
+      },
     );
   }
   throwIfMetaError(json);

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ACCOUNT_TYPE_UNSUPPORTED } from '@valueskins/shared';
 import LoginPage from '@/app/(public)/login/page';
-import { SignInError } from '@/components/public/SignInError';
+import { ACCOUNT_REJECTED, SignInError } from '@/components/public/SignInError';
 import { mockApi } from './helpers/api';
 import { CONFIG } from './helpers/fixtures';
 import { nav, setSearch } from './helpers/nav';
@@ -25,6 +25,20 @@ describe('/login?error=', () => {
       'href',
       `mailto:${CONFIG.supportEmail}`,
     );
+  });
+
+  it('explains an account Instagram did not accept, with the switch steps and Sign in again', async () => {
+    show('instagram_account_rejected');
+    expect(
+      screen.getByRole('heading', { name: 'Instagram did not accept this account' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(ACCOUNT_REJECTED)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'If it is a personal account' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(5);
+    expect(screen.getByText(/switching makes it public/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in again' })).toBeInTheDocument();
   });
 
   it('explains a blocked account type change, with the support address', async () => {
