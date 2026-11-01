@@ -13,15 +13,15 @@ import { decideAccess } from '@/lib/access';
 import { useConfig, useMe } from '@/lib/api/queries';
 import { EXAMPLE_RUPEES } from './amount';
 import { Costs } from './Costs';
-import { DealBand } from './DealBand';
 import { Faq } from './Faq';
 import { FinalCta } from './FinalCta';
 import { Hero } from './Hero';
+import { HomeNav } from './HomeNav';
 import { HowItWorks } from './HowItWorks';
 import { useRiseIn } from './motion';
-import { Nav } from './Nav';
+import { Promises } from './Promises';
+import { RulesStrip } from './RulesStrip';
 import { Sides } from './Sides';
-import { Why } from './Why';
 
 /** Sends a signed-in visitor on to where they start. The page shows straight away for everyone else. */
 function SignedInRedirect() {
@@ -35,7 +35,7 @@ function SignedInRedirect() {
   return null;
 }
 
-/** The home page: the product, playing its own story, for brands and creators alike. */
+/** The home page: one deal, followed from posted to paid, for brands and creators alike. */
 export function Landing({ initialDigits }: { initialDigits: string }) {
   const config = useConfig();
   const gstRateBps = config.data?.gstRateBps ?? GST_RATE_BPS;
@@ -44,27 +44,27 @@ export function Landing({ initialDigits }: { initialDigits: string }) {
   const fee = computeBreakdown(rupeesToPaise(Number(EXAMPLE_RUPEES)), gstRateBps);
   const root = useRef<HTMLDivElement>(null);
   useRiseIn(root);
-  // Script is running: the calculator's no-script submit button can go.
+  // Script is running: the calculator's no-script submit button can go, and the entrances play.
   useEffect(() => {
     root.current?.classList.add('has-js');
   }, []);
 
   return (
-    <div ref={root} className="v3-root">
+    <div ref={root} className="hm">
       <SignedInRedirect />
-      <Nav />
+      <HomeNav />
       <main>
         <Hero emailSignIn={config.data?.authEmailEnabled === true} />
-        <DealBand />
+        <RulesStrip />
         <Sides />
         <HowItWorks />
-        <Why />
         <Costs
           initialDigits={initialDigits}
           minPaise={minPaise}
           gstRateBps={gstRateBps}
           fee={fee}
         />
+        <Promises fee={fee} />
         <Faq fee={fee} minPaise={minPaise} />
         <FinalCta />
       </main>

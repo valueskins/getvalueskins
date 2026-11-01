@@ -1,43 +1,55 @@
 'use client';
 
 import { useId, useState, type FormEvent } from 'react';
-import { formatInr } from '@valueskins/shared';
+import { formatInr, type MoneyBreakdown } from '@valueskins/shared';
 import { groupRupees } from '@/lib/draftStore';
 import { cleanDigits, quote } from './amount';
 import { useCountUp } from './motion';
 
-function Line({
-  label,
-  paise,
-  of,
-  tone,
-  strong = false,
-}: {
-  label: string;
-  paise: number;
-  /** The deal amount: the bar under the line shows this part of it. */
-  of: number;
-  tone: 'fee' | 'advance' | 'final' | 'total';
-  strong?: boolean;
-}) {
+type Tone = 'fee' | 'advance' | 'final' | 'total';
+
+function Figure({ label, paise, tone }: { label: string; paise: number; tone: Tone }) {
   const shown = useCountUp(paise, 500);
-  const share = of > 0 ? Math.min(1, paise / of) : 0;
   return (
-    <li className={strong ? 'v3-calc-line is-strong' : 'v3-calc-line'}>
+    <li className={`hm-figure hm-figure-${tone}`}>
       <span>{label}</span>
-      <span className="v3-num">{formatInr(shown)}</span>
-      <span className={`v3-calc-bar v3-calc-bar-${tone}`} aria-hidden="true">
-        <span style={{ transform: `scaleX(${share})` }} />
-      </span>
+      <span className="hm-num">{formatInr(shown)}</span>
     </li>
   );
 }
 
 /**
- * The live thing: type a deal amount and see the fee, what the creator receives and the two UPI
- * payments, worked out by computeBreakdown as a published deal is. The figures count to their new
- * values and each bar shows its share of the deal. It is a real GET form, so without script the
- * server works it out from `?amount=`.
+ * The deal amount as one bar, cut into the fee and the two UPI payments. Each part is a full-width
+ * layer moved and scaled into place, so a new amount animates with transforms only.
+ */
+function SplitBar({ b }: { b: MoneyBreakdown }) {
+  const total = b.budgetPaise;
+  const fee = b.commissionTotalPaise / total;
+  const advance = b.advancePaise / total;
+  const final = b.finalPaise / total;
+  const parts: Array<[Tone, number, number]> = [
+    ['fee', 0, fee],
+    ['advance', fee, advance],
+    ['final', fee + advance, final],
+  ];
+  return (
+    <div className="hm-calc-bar" aria-hidden="true">
+      {parts.map(([tone, at, size]) => (
+        <span
+          key={tone}
+          className={`hm-calc-seg hm-calc-seg-${tone}`}
+          style={{ transform: `translateX(${(at * 100).toFixed(3)}%) scaleX(${size.toFixed(5)})` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The live thing: type a deal amount and see the fee, the two UPI payments and what the creator
+ * receives, worked out by computeBreakdown as a published deal is. The figures count to their new
+ * values and the bar re-cuts itself. It is a real GET form, so without script the server works it
+ * out from `?amount=`.
  */
 export function DealCalculator({
   initialDigits,
@@ -74,12 +86,12 @@ export function DealCalculator({
         : 'Enter a deal amount.';
 
   return (
-    <form method="get" action="/" onSubmit={submit} className="v3-calc">
-      <label htmlFor={`${id}-amount`} className="v3-calc-label">
+    <form method="get" action="/" onSubmit={submit} className="hm-calc">
+      <label htmlFor={`${id}-amount`} className="hm-calc-label">
         Deal amount in rupees
       </label>
-      <div className="v3-calc-row">
-        <div className="v3-calc-input">
+      <div className="hm-calc-row">
+        <div className="hm-calc-input">
           <span aria-hidden="true">₹</span>
           <input
             id={`${id}-amount`}
@@ -93,53 +105,51 @@ export function DealCalculator({
             aria-describedby={`${id}-help`}
           />
         </div>
-        <button type="submit" className="v3-btn v3-calc-submit">
+        <button type="submit" className="hm-btn hm-calc-submit">
           Work it out
         </button>
       </div>
-      <p id={`${id}-help`} className="v3-small">
+      <p id={`${id}-help`} className="hm-calc-help">
         Whole rupees, {formatInr(q.kind === 'below' ? q.minPaise : minPaise)} or more.
       </p>
       <p className="sr-only" role="status" aria-atomic="true">
         {status}
       </p>
       {q.kind === 'ok' ? (
-        <ul className="v3-calc-lines" aria-label="Your deal">
-          <Line
-            label={`ValueSkins fee, ${gstRateBps / 100}% GST included`}
-            paise={q.breakdown.commissionTotalPaise}
-            of={q.breakdown.budgetPaise}
-            tone="fee"
-          />
-          <Line
-            label="30% by UPI, before work starts"
-            paise={q.breakdown.advancePaise}
-            of={q.breakdown.budgetPaise}
-            tone="advance"
-          />
-          <Line
-            label="70% by UPI, after approval"
-            paise={q.breakdown.finalPaise}
-            of={q.breakdown.budgetPaise}
-            tone="final"
-          />
-          <Line
-            label="The creator receives"
-            paise={q.breakdown.creatorAmountPaise}
-            of={q.breakdown.budgetPaise}
-            tone="total"
-            strong
-          />
-        </ul>
+        <div className="hm-calc-out">
+          <SplitBar b={q.breakdown} />
+          <ul className="hm-figures" aria-label="Your deal">
+            <Figure
+              label={`ValueSkins fee, ${gstRateBps / 100}% GST included`}
+              paise={q.breakdown.commissionTotalPaise}
+              tone="fee"
+            />
+            <Figure
+              label="30% by UPI, before work starts"
+              paise={q.breakdown.advancePaise}
+              tone="advance"
+            />
+            <Figure
+              label="70% by UPI, after approval"
+              paise={q.breakdown.finalPaise}
+              tone="final"
+            />
+            <Figure
+              label="The creator receives"
+              paise={q.breakdown.creatorAmountPaise}
+              tone="total"
+            />
+          </ul>
+        </div>
       ) : (
-        <div className="v3-calc-lines" aria-label="Your deal" role="group">
+        <div className="hm-calc-out hm-calc-empty" aria-label="Your deal" role="group">
           {q.kind === 'below' ? (
-            <p className="v3-calc-fee">
+            <p className="hm-calc-fee">
               ValueSkins fee, every deal{' '}
-              <span className="v3-num">{formatInr(q.fee.commissionTotalPaise)}</span>
+              <span className="hm-num">{formatInr(q.fee.commissionTotalPaise)}</span>
             </p>
           ) : null}
-          <p className="v3-strong">{status}</p>
+          <p className="hm-strong">{status}</p>
         </div>
       )}
     </form>

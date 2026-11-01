@@ -14,12 +14,18 @@ import Page from '@/app/(landing)/page';
 import { cleanDigits, initialDigits, quote } from '@/components/landing/amount';
 import { Landing } from '@/components/landing/Landing';
 import { useCountUp } from '@/components/landing/motion';
-import { ACCOUNT_NOTE, CONNECTING_REASON, SignIn } from '@/components/landing/SignIn';
+import { HomeSignIn } from '@/components/landing/HomeSignIn';
+import { ACCOUNT_NOTE, CONNECTING_REASON } from '@/components/public/signInCopy';
 import { resetWakeForTests } from '@/lib/wake';
 import { apiError, mockApi } from './helpers/api';
 import { CONFIG, makeMe } from './helpers/fixtures';
 import { nav } from './helpers/nav';
 import { renderWithProviders } from './helpers/render';
+
+// next/font only works inside a Next.js build; here the display cut is just a class name.
+vi.mock('next/font/google', () => ({
+  Bricolage_Grotesque: () => ({ variable: 'font-display-test', className: 'font-display-test' }),
+}));
 
 // jsdom has no matchMedia, so the page renders as it does under reduced motion: every part at its
 // final state, with nothing moving.
@@ -43,9 +49,7 @@ describe('Home', () => {
     vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api-staging.valueskins.com');
     mockApi(SIGNED_OUT);
     renderHome();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Where Indian brands and creators work together',
-    );
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Paid deals, no haggling.');
     const links = screen.getAllByRole('link', { name: /^Sign in/ });
     expect(links.map((a) => a.textContent)).toEqual([
       'Sign in',
@@ -112,34 +116,29 @@ describe('Home', () => {
   });
 });
 
-describe('the hero preview', () => {
-  it('switches between what creators and brands see, as a preview only', () => {
+describe('the hero picture', () => {
+  it('shows the end of the story without motion: picked, 70% received and on both profiles', () => {
     mockApi(SIGNED_OUT);
     const { container } = renderHome();
-    const group = screen.getByRole('group', { name: 'Preview the app' });
-    const creators = within(group).getByRole('button', { name: 'What creators see' });
-    const brands = within(group).getByRole('button', { name: 'What brands see' });
-    const stage = container.querySelector('.v3-stage')!;
-    expect(creators).toHaveAttribute('aria-pressed', 'true');
-    expect(stage).toHaveAttribute('data-view', 'creators');
-    fireEvent.click(brands);
-    expect(brands).toHaveAttribute('aria-pressed', 'true');
-    expect(creators).toHaveAttribute('aria-pressed', 'false');
-    expect(stage).toHaveAttribute('data-view', 'brands');
-    // Nothing on the page asks the visitor to choose a side.
-    expect(screen.queryAllByRole('radio')).toHaveLength(0);
-    expect(document.body.textContent).not.toMatch(/(choose|select) (your|a) (role|side)/i);
+    const stage = container.querySelector('.hm-stage')!;
+    expect(stage).toHaveAttribute('data-beat', '6');
+    expect(stage).toHaveTextContent('Picked');
+    expect(stage).toHaveTextContent('70% received by UPI₹6,380.50');
+    expect(stage).toHaveTextContent('Confirmed by the creator');
+    expect(stage).toHaveTextContent('Completed. On both profiles.');
+    // The ticket's parts are computeBreakdown's, for the example ₹10,000.00 deal.
+    expect(stage).toHaveTextContent('Fee₹885.00');
+    expect(stage).toHaveTextContent('30% by UPI₹2,734.50');
+    expect(screen.getByRole('img', { name: /a brand's deal moving from posted/ })).toBe(stage);
+    // Under reduced motion nothing plays, so there is nothing to pause.
+    expect(screen.queryByRole('button', { name: /the example/ })).not.toBeInTheDocument();
   });
 
-  it('shows the end of the story without motion: applied, picked, and 30% received', () => {
+  it('asks nobody to choose a side', () => {
     mockApi(SIGNED_OUT);
-    const { container } = renderHome();
-    const stage = container.querySelector('.v3-stage')!;
-    expect(stage).toHaveTextContent('Applied');
-    expect(stage).toHaveTextContent('Picked');
-    expect(stage).toHaveTextContent('30% received₹2,734.50');
-    expect(screen.getByRole('img', { name: /a creator's open deals/ })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /a brand's posted deal/ })).toBeInTheDocument();
+    renderHome();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(document.body.textContent).not.toMatch(/(choose|select) (your|a) (role|side)/i);
   });
 });
 
@@ -154,32 +153,55 @@ describe('the pictures', () => {
       // A handle starts a word; an email address has its name before the "@".
       handles.push(...(el.textContent!.match(/(?<![\w.])@[a-z0-9._]+/gi) ?? []));
     }
-    expect(handles.length).toBeGreaterThan(20);
+    expect(handles.length).toBeGreaterThan(8);
     for (const h of handles) expect(h).toMatch(/^@example\./);
   });
 
-  it('marks every screen and every band card as an example', () => {
+  it('marks every picture as an example, and keeps its insides out of the tab order', () => {
     mockApi(SIGNED_OUT);
     const { container } = renderHome();
-    for (const screenEl of container.querySelectorAll('.v3-phone, .v3-panel')) {
-      expect(screenEl.getAttribute('aria-label')).toMatch(/^Example/);
-      expect(screenEl).toHaveTextContent('Example');
-    }
-    for (const card of container.querySelectorAll('.v3-band-card')) {
-      expect(card).toHaveTextContent('Example');
+    const pictures = container.querySelectorAll('[role="img"]');
+    expect(pictures.length).toBe(4);
+    for (const picture of pictures) {
+      expect(picture.getAttribute('aria-label')).toMatch(/^Example/);
+      expect(picture).toHaveTextContent('Example');
+      expect(picture.querySelector('[inert]')).not.toBeNull();
     }
   });
 
-  it('closes the band loop with a copy hidden from assistive technology, and can pause it', () => {
+  it('shows the brand picking and the creator applied, at rest', () => {
+    mockApi(SIGNED_OUT);
+    renderHome();
+    const brands = screen.getByRole('region', { name: 'Post once. Pick from who applies.' });
+    expect(within(brands).getByRole('img')).toHaveTextContent(
+      '@example.creator48,250 followers, 3.40%Picked',
+    );
+    const creators = screen.getByRole('region', { name: 'Every open deal. Apply for free.' });
+    expect(within(creators).getByRole('img')).toHaveTextContent('Applied');
+    expect(within(creators).getByRole('img')).toHaveTextContent('₹15,000.00');
+  });
+});
+
+describe('the rules band', () => {
+  it('closes its loop with a copy hidden from assistive technology, and can pause', () => {
     mockApi(SIGNED_OUT);
     const { container } = renderHome();
-    const lists = container.querySelectorAll('.v3-band-list');
+    const rules = screen.getByRole('region', { name: 'The rules of every deal' });
+    const lists = rules.querySelectorAll('.hm-rules-list');
     expect(lists).toHaveLength(2);
     expect(lists[0]).not.toHaveAttribute('aria-hidden');
     expect(lists[1]).toHaveAttribute('aria-hidden', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-    expect(screen.getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'true');
-    expect(container.querySelector('.v3-band')).toHaveClass('is-paused');
+    expect(
+      within(rules)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toContain('The amount is final');
+    fireEvent.click(within(rules).getByRole('button', { name: 'Pause' }));
+    expect(within(rules).getByRole('button', { name: 'Play' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(container.querySelector('.hm-rules-band')).toHaveAttribute('data-paused', 'true');
   });
 });
 
@@ -196,9 +218,26 @@ describe('How it works', () => {
     expect(items[0]).toBe('Posted, done');
     expect(items[8]).toBe('Completed, current step');
     // The line shown under the bar on narrow screens.
-    expect(container.querySelector('.v3-how .v3-step-now')).toHaveTextContent(
+    expect(container.querySelector('.hm-how .hm-step-now')).toHaveTextContent(
       'Step 9 of 9: Completed',
     );
+    // Beside the steps: the fee paid and everything the creator was paid by UPI.
+    expect(container.querySelector('.hm-how-money')).toHaveTextContent(
+      'Fee to ValueSkins₹885.00Paid to the creator by UPI₹9,115.00',
+    );
+    expect(
+      within(screen.getByRole('region', { name: 'From posted to paid.' }))
+        .getAllByRole('heading', { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual([
+      'Post the deal',
+      'Apply for free',
+      'Pick one creator',
+      'Pay 30% by UPI',
+      'Share the content',
+      'Pay 70% by UPI',
+      'Keep the record',
+    ]);
   });
 });
 
@@ -206,7 +245,7 @@ describe('the FAQ', () => {
   it('answers in native details that open with the keyboard', () => {
     mockApi(SIGNED_OUT);
     renderHome();
-    const faq = screen.getByRole('region', { name: 'Good questions' });
+    const faq = screen.getByRole('region', { name: 'Questions, answered.' });
     const item = within(faq).getByText('What does it cost?').closest('details')!;
     expect(item.open).toBe(false);
     item.querySelector('summary')!.click();
@@ -228,6 +267,28 @@ describe('the deal calculator', () => {
     expect(
       screen.getByText('On a ₹10,000.00 deal, the creator receives ₹9,115.00.'),
     ).toHaveAttribute('role', 'status');
+  });
+
+  it('says what it costs, and cuts the bar into the fee and the two UPI payments', () => {
+    mockApi(SIGNED_OUT);
+    const { container } = renderHome();
+    const costs = screen.getByRole('region', { name: '₹885.00 a deal. Everything else is free.' });
+    expect(costs).toHaveTextContent(
+      'The brand pays ValueSkins ₹750.00 + 18% GST ₹135.00 per deal through Razorpay',
+    );
+    expect(
+      within(costs)
+        .getAllByRole('listitem')
+        .slice(0, 3)
+        .map((li) => li.textContent),
+    ).toEqual(['Signing up is free', 'Browsing deals is free', 'Applying is free']);
+    // ₹885.00, ₹2,734.50 and ₹6,380.50 of ₹10,000.00, laid end to end.
+    const segs = [...container.querySelectorAll<HTMLElement>('.hm-calc-seg')];
+    expect(segs.map((el) => el.style.transform)).toEqual([
+      'translateX(0.000%) scaleX(0.08850)',
+      'translateX(8.850%) scaleX(0.27345)',
+      'translateX(36.195%) scaleX(0.63805)',
+    ]);
   });
 
   it('works out a new amount as it is typed, keeping only whole-rupee digits', async () => {
@@ -344,7 +405,7 @@ describe('sign-in while the API wakes', () => {
   it('says why it is waiting, then offers "Try again" after 60 seconds', async () => {
     vi.useFakeTimers();
     mockApi({ 'GET /health': () => new Promise<Response>(() => {}) });
-    render(<SignIn />);
+    render(<HomeSignIn />);
     expect(screen.getByText(ACCOUNT_NOTE)).toBeInTheDocument();
     expect(screen.queryByText(CONNECTING_REASON)).not.toBeInTheDocument();
 
