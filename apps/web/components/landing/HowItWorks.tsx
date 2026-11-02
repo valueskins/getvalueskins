@@ -3,8 +3,8 @@ import { STORY_BREAKDOWN } from './screens/data';
 
 const fee = formatInr(STORY_BREAKDOWN.commissionTotalPaise);
 
-/** The seven steps of a deal, one line each. */
-const STEPS = [
+/** The seven steps of a deal, one line each; `upi` marks the two payments to the creator. */
+const STEPS: Array<{ title: string; text: string; upi?: boolean }> = [
   { title: 'Post the deal', text: 'The brand sets the work, the deadline and a final amount.' },
   { title: 'Apply for free', text: 'Every creator sees every open deal and can apply.' },
   {
@@ -14,6 +14,7 @@ const STEPS = [
   {
     title: 'Pay 30% by UPI',
     text: 'Before work starts, paid directly to the creator, who confirms it.',
+    upi: true,
   },
   {
     title: 'Share the content',
@@ -22,6 +23,7 @@ const STEPS = [
   {
     title: 'Pay 70% by UPI',
     text: 'After approval, paid directly to the creator, who confirms it.',
+    upi: true,
   },
   { title: 'Keep the record', text: 'The deal goes on both profiles, with a record to download.' },
 ];
@@ -69,7 +71,10 @@ export function HowItWorks() {
         <ol className="hm-how-steps">
           {STEPS.map((s, i) => (
             <li key={s.title}>
-              <span className="hm-how-n hm-num" aria-hidden="true">
+              <span
+                className={s.upi ? 'hm-how-n hm-how-n-upi hm-num' : 'hm-how-n hm-num'}
+                aria-hidden="true"
+              >
                 {i + 1}
               </span>
               <h3 className="hm-h3">{s.title}</h3>

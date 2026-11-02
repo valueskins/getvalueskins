@@ -120,7 +120,7 @@ export function DealTicket({ beat }: { beat: Beat }) {
 
         <div className="hm-sat hm-sat-upi hm-depth-3" data-on={beat >= 3 || undefined}>
           <p className="hm-small">{finalPaid ? '70% received by UPI' : '30% received by UPI'}</p>
-          <p className="hm-sat-amount hm-num">
+          <p className="hm-sat-amount hm-num" data-final={finalPaid || undefined}>
             {formatInr(finalPaid ? STORY_BREAKDOWN.finalPaise : STORY_BREAKDOWN.advancePaise)}
           </p>
           <p className="hm-confirmed">

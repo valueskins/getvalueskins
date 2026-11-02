@@ -2,8 +2,10 @@
  * The home page (components/landing), and only the home page: app/(landing)/page.tsx imports it.
  * Everything is scoped under .hm, so the app's tokens and every other route are untouched.
  *
- * The look: a cool off-white ground, ink type, and rani pink as the one accent. Light only, like
- * the rest of the site, whatever the visitor's setting. Headlines use the display cut of Bricolage
+ * The look: a cool off-white ground, ink type, rani pink for the brand and every action, and lime
+ * for one thing only, the creator's money (the two UPI payments and what the creator receives).
+ * Green is only for statuses, so lime is never one. Light only, like the rest of the site,
+ * whatever the visitor's setting. Headlines use the display cut of Bricolage
  * Grotesque (components/landing/fonts.ts), condensed and heavy. One shape rule: anything you press
  * is a pill; containers are 32px outside and 16px inside. Every text pairing meets WCAG AA. Motion
  * is transform and opacity only, and all of it stops under prefers-reduced-motion.
@@ -27,6 +29,11 @@
   --hm-on-accent: #fcfcfa;
   --hm-ok: #17733e;
   --hm-ok-soft: #e1f2e7;
+  /* Lime: the creator's money, as a fill under --hm-on-lime text. Never text, an icon or a border
+   * on a light ground, where it cannot be read. */
+  --hm-lime: #c6e043;
+  --hm-lime-soft: #e6f2a6;
+  --hm-on-lime: var(--hm-ink); /* 12.7:1 on --hm-lime, 15.8:1 on --hm-lime-soft */
   --hm-glyph: rgb(255 255 255 / 0.16);
   --hm-shadow: 0 1px 2px rgb(17 17 20 / 0.06), 0 24px 48px -24px rgb(17 17 20 / 0.28);
   --hm-shadow-lg: 0 2px 6px rgb(17 17 20 / 0.08), 0 40px 80px -32px rgb(17 17 20 / 0.42);
@@ -631,10 +638,10 @@ body:has(.hm) {
   --seg: var(--hm-ink-2);
 }
 .hm-split-advance {
-  --seg: var(--hm-accent-mid);
+  --seg: var(--hm-lime-soft);
 }
 .hm-split-final {
-  --seg: var(--hm-accent);
+  --seg: var(--hm-lime);
 }
 .hm-split-legend {
   display: grid;
@@ -720,11 +727,18 @@ body:has(.hm) {
   rotate: 3deg;
 }
 .hm-sat-amount {
+  padding: 5px 10px 4px;
+  border-radius: 10px;
+  background: var(--hm-lime-soft);
+  color: var(--hm-on-lime);
   font-family: var(--hm-display);
   font-size: 32px;
   font-weight: 800;
   font-stretch: 80%;
   line-height: 1;
+}
+.hm-sat-amount[data-final] {
+  background: var(--hm-lime);
 }
 .hm-confirmed {
   display: inline-flex;
@@ -1024,20 +1038,29 @@ body:has(.hm) {
 }
 .hm-how-steps li {
   display: grid;
-  grid-template-columns: 2ch minmax(0, 1fr);
-  column-gap: 16px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  column-gap: 14px;
   row-gap: 6px;
   padding-block: 18px;
   border-top: 1px solid var(--hm-line-strong);
 }
 .hm-how-n {
   grid-row: span 2;
+  justify-self: center;
   font-family: var(--hm-display);
   font-size: 28px;
   font-weight: 800;
   font-stretch: 80%;
   line-height: 1;
   color: var(--hm-accent-ink);
+}
+.hm-how-n-upi {
+  align-self: start;
+  margin-top: -4px;
+  padding: 4px 10px 3px;
+  border-radius: var(--hm-pill);
+  background: var(--hm-lime);
+  color: var(--hm-on-lime);
 }
 .hm-how-steps .hm-h3 {
   font-family: var(--hm-display);
@@ -1245,10 +1268,10 @@ body:has(.hm) {
   background: var(--hm-ink-2);
 }
 .hm-calc-seg-advance {
-  background: var(--hm-accent-mid);
+  background: var(--hm-lime-soft);
 }
 .hm-calc-seg-final {
-  background: var(--hm-accent);
+  background: var(--hm-lime);
 }
 .hm-figures {
   display: grid;
@@ -1292,14 +1315,14 @@ body:has(.hm) {
   --swatch: var(--hm-ink-2);
 }
 .hm-figure-advance {
-  --swatch: var(--hm-accent-mid);
+  --swatch: var(--hm-lime-soft);
 }
 .hm-figure-final {
-  --swatch: var(--hm-accent);
+  --swatch: var(--hm-lime);
 }
 .hm-figure-total {
-  background: var(--hm-ink);
-  color: var(--hm-bg);
+  background: var(--hm-lime);
+  color: var(--hm-on-lime);
 }
 .hm-figure-total > span:first-child {
   color: inherit;

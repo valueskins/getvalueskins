@@ -124,6 +124,8 @@ describe('the hero picture', () => {
     expect(stage).toHaveAttribute('data-beat', '6');
     expect(stage).toHaveTextContent('Picked');
     expect(stage).toHaveTextContent('70% received by UPI₹6,380.50');
+    // The 70% sits on solid lime; the 30%, earlier in the story, on the soft tint.
+    expect(stage.querySelector('.hm-sat-amount')).toHaveAttribute('data-final', 'true');
     expect(stage).toHaveTextContent('Confirmed by the creator');
     expect(stage).toHaveTextContent('Completed. On both profiles.');
     // The ticket's parts are computeBreakdown's, for the example ₹10,000.00 deal.
@@ -245,6 +247,24 @@ describe('How it works', () => {
     // No step is singled out and no line sticks to the screen as the page scrolls.
     expect(container.querySelector('.hm-how [data-active]')).toBeNull();
     expect(container.querySelector('.hm-how .hm-step-now')).toBeNull();
+  });
+
+  it('puts the two UPI payments to the creator, and only those, on lime', () => {
+    mockApi(SIGNED_OUT);
+    const { container } = renderHome();
+    const chips = [...container.querySelectorAll('.hm-how-n')].map((n) => [
+      n.textContent,
+      n.classList.contains('hm-how-n-upi'),
+    ]);
+    expect(chips).toEqual([
+      ['1', false],
+      ['2', false],
+      ['3', false],
+      ['4', true],
+      ['5', false],
+      ['6', true],
+      ['7', false],
+    ]);
   });
 });
 
