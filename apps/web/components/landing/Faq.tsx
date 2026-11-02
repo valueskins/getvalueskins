@@ -32,25 +32,22 @@ export function Faq({ fee, minPaise }: { fee: MoneyBreakdown; minPaise: number }
     ['What is the smallest deal?', `${formatInr(Math.max(minPaise, MIN_BUDGET_PAISE))}.`],
   ];
   return (
-    <section id="faq" className="v3-faq" aria-labelledby="faq-title">
-      <div className="v3-faq-head">
-        <p className="v3-pill" data-rise>
-          FAQ
-        </p>
-        <h2 id="faq-title" className="v3-h2" data-rise style={nth(1)}>
-          Good <em>questions</em>
+    <section id="faq" className="hm-faq" aria-labelledby="faq-title">
+      <div className="hm-wrap hm-faq-grid">
+        <h2 id="faq-title" className="hm-h2 hm-faq-title" data-rise>
+          Questions, answered.
         </h2>
-      </div>
-      <div className="v3-faq-list">
-        {items.map(([q, a], i) => (
-          <details key={q} className="v3-faq-item" data-rise style={nth(Math.min(i, 4))}>
-            <summary>
-              <span>{q}</span>
-              <span className="v3-faq-plus" aria-hidden="true" />
-            </summary>
-            <p>{a}</p>
-          </details>
-        ))}
+        <div className="hm-faq-list">
+          {items.map(([q, a], i) => (
+            <details key={q} className="hm-faq-item" data-rise style={nth(Math.min(i, 4))}>
+              <summary>
+                <span>{q}</span>
+                <span className="hm-faq-plus" aria-hidden="true" />
+              </summary>
+              <p>{a}</p>
+            </details>
+          ))}
+        </div>
       </div>
     </section>
   );

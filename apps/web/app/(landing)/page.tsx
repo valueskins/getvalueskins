@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { initialDigits } from '@/components/landing/amount';
+import { displayFont } from '@/components/landing/fonts';
 import { Landing } from '@/components/landing/Landing';
+import '../home.css';
 
 export const metadata: Metadata = {
   title: { absolute: 'ValueSkins: where Indian brands and Instagram creators work together' },
@@ -15,5 +17,9 @@ export default async function Page({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { amount } = await searchParams;
-  return <Landing initialDigits={initialDigits(amount)} />;
+  return (
+    <div className={displayFont}>
+      <Landing initialDigits={initialDigits(amount)} />
+    </div>
+  );
 }

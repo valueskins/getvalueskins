@@ -2,6 +2,11 @@
  * The page itself, text, and the type scale. Element rules use :where() so they weigh nothing and
  * any component class (or the home page's .v3 rules) wins over them.
  */
+/* Light only, whatever the visitor's setting: form controls and scrollbars too, and "only" keeps
+ * the browser's own forced dark theme off (with the meta tag from app/layout.tsx). */
+html {
+  color-scheme: only light;
+}
 body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
