@@ -1218,12 +1218,22 @@ body:has(.hm) {
   border-radius: var(--hm-r);
   background: var(--hm-bg);
   font-family: var(--hm-display);
-  font-size: clamp(32px, 2rem + 1vw, 44px);
   font-weight: 800;
   font-stretch: 80%;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
+  container-type: inline-size;
+}
+/* Full size, or smaller when a long amount needs it: --field-em is the digits' width in em (set by
+ * the calculator), 46px and 0.5em the input's padding around them, and 6px room for rounding. */
+.hm-calc-input > span,
+.hm-calc-input input {
+  font-size: clamp(
+    16px,
+    calc((100cqi - 52px) / (var(--field-em, 3) + 0.5)),
+    clamp(32px, 2rem + 1vw, 44px)
+  );
 }
 /* The ₹ lies over the input's left padding and lets clicks through, so the input fills the box and
  * a click anywhere in it lands in the field. */
@@ -1247,7 +1257,9 @@ body:has(.hm) {
   outline: none;
   background: transparent;
   color: var(--hm-ink);
-  font: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+  font-stretch: inherit;
   font-variant-numeric: tabular-nums;
 }
 .hm-calc-submit {
@@ -1266,6 +1278,10 @@ body:has(.hm) {
   margin-top: 28px;
 }
 .hm-calc-bar {
+  /* The fee always shows, at least 10px wide: past the bar's 9px rounded end, so it reads as a part
+   * and not as shading. The 70% gives up that width, so the bar stays full. --fee and --advance
+   * are the parts' shares of the deal amount (set by the calculator). */
+  --fee-end: max(var(--fee, 0%), 10px);
   position: relative;
   height: 18px;
   overflow: hidden;
@@ -1275,7 +1291,6 @@ body:has(.hm) {
 .hm-calc-seg {
   position: absolute;
   inset: 0;
-  transform-origin: left;
   transition: transform 0.6s var(--hm-ease);
 }
 .hm-calc-seg-fee {
@@ -1283,19 +1298,30 @@ body:has(.hm) {
 }
 .hm-calc-seg-advance {
   background: var(--hm-lime-soft);
+  transform: translateX(var(--fee-end));
 }
 .hm-calc-seg-final {
   background: var(--hm-lime);
+  transform: translateX(calc(var(--fee-end) + var(--advance, 0%)));
 }
 .hm-figures {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* The narrowest tile that holds the longest amount at 18px: --num-em is that amount's width in
+   * em (set by the calculator), 32px the tile's padding and 6px room for rounding. */
+  --fit: calc(var(--num-em, 5) * 18px + 38px);
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 20px 0 0;
   padding: 0;
   list-style: none;
 }
 .hm-figure {
+  /* Four in a row while four such tiles fit, else two by two while two fit, else one a row. The
+   * basis flips from nothing to the whole row at the four-tile width, and the cap from half the
+   * row to none at the two-tile width, so a row never holds three. */
+  flex: 1 1 calc((4 * var(--fit) + 30px - 100%) * 999);
+  max-width: max(calc(50% - 5px), calc((2 * var(--fit) + 10px - 100%) * 999));
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1322,9 +1348,16 @@ body:has(.hm) {
 }
 .hm-figure > .hm-num {
   margin-top: auto;
-  font-size: clamp(22px, 1.2rem + 0.6vw, 28px);
+  /* Full size, or smaller when the amount needs it, so it always fits its tile (100cqi, less 6px
+   * room for rounding). */
+  font-size: clamp(
+    12px,
+    calc((100cqi - 6px) / var(--num-em, 5)),
+    clamp(22px, 1.2rem + 0.6vw, 28px)
+  );
   font-weight: 700;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 .hm-figure-fee {
   --swatch: var(--hm-ink-2);
@@ -1356,11 +1389,6 @@ body:has(.hm) {
 }
 .hm-calc-fee {
   color: var(--hm-ink-2);
-}
-@media (min-width: 640px) {
-  .hm-figures {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 /* The rules bento */

@@ -1,46 +1,71 @@
 'use client';
 
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type CSSProperties, type FormEvent } from 'react';
 import { formatInr, type MoneyBreakdown } from '@valueskins/shared';
 import { groupRupees } from '@/lib/draftStore';
-import { cleanDigits, quote } from './amount';
+import { amountHint, cleanDigits, fieldEm, figureEm, quote } from './amount';
 import { useCountUp } from './motion';
 
-type Tone = 'fee' | 'advance' | 'final' | 'total';
+const COUNT_MS = 500;
 
-function Figure({ label, paise, tone }: { label: string; paise: number; tone: Tone }) {
-  const shown = useCountUp(paise, 500);
+/**
+ * The four figures. Each tile sizes its amount to its own width from --num-em, the width in em of
+ * the longest amount shown or on its way, so a figure never outgrows its tile, even mid-count; the
+ * row of four becomes two by two, or one, before an amount would drop under 18px (home.css).
+ */
+function Figures({ b }: { b: MoneyBreakdown }) {
+  const tiles = [
+    { tone: 'fee', label: 'Fee, GST included', paise: b.commissionTotalPaise },
+    { tone: 'advance', label: '30% by UPI, before work', paise: b.advancePaise },
+    { tone: 'final', label: '70% by UPI, after approval', paise: b.finalPaise },
+    { tone: 'total', label: 'The creator receives', paise: b.creatorAmountPaise },
+  ];
+  const shown = [
+    useCountUp(tiles[0]!.paise, COUNT_MS),
+    useCountUp(tiles[1]!.paise, COUNT_MS),
+    useCountUp(tiles[2]!.paise, COUNT_MS),
+    useCountUp(tiles[3]!.paise, COUNT_MS),
+  ];
+  const numEm = Math.max(
+    ...[...shown, ...tiles.map((t) => t.paise)].map((p) => figureEm(formatInr(p))),
+  );
   return (
-    <li className={`hm-figure hm-figure-${tone}`}>
-      <span>{label}</span>
-      <span className="hm-num">{formatInr(shown)}</span>
-    </li>
+    <ul
+      className="hm-figures"
+      aria-label="Your deal"
+      style={{ '--num-em': numEm } as CSSProperties}
+    >
+      {tiles.map((t, i) => (
+        <li key={t.tone} className={`hm-figure hm-figure-${t.tone}`}>
+          <span>{t.label}</span>
+          <span className="hm-num">{formatInr(shown[i]!)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
+/** One part of the bar, as a percentage of the deal amount. */
+function share(paise: number, b: MoneyBreakdown): string {
+  return `${((paise / b.budgetPaise) * 100).toFixed(3)}%`;
+}
+
 /**
- * The deal amount as one bar, cut into the fee and the two UPI payments. Each part is a full-width
- * layer moved and scaled into place, so a new amount animates with transforms only.
+ * The deal amount as one bar, cut into the fee and the two UPI payments. Each part is a layer from
+ * where it starts to the end of the bar, under the next one, moved into place with a transform, so
+ * a new amount animates with transforms only. The fee keeps a minimum width (home.css), so it shows
+ * on the largest deal, and the 70% gives up that width so the bar stays full.
  */
 function SplitBar({ b }: { b: MoneyBreakdown }) {
-  const total = b.budgetPaise;
-  const fee = b.commissionTotalPaise / total;
-  const advance = b.advancePaise / total;
-  const final = b.finalPaise / total;
-  const parts: Array<[Tone, number, number]> = [
-    ['fee', 0, fee],
-    ['advance', fee, advance],
-    ['final', fee + advance, final],
-  ];
+  const style = {
+    '--fee': share(b.commissionTotalPaise, b),
+    '--advance': share(b.advancePaise, b),
+  } as CSSProperties;
   return (
-    <div className="hm-calc-bar" aria-hidden="true">
-      {parts.map(([tone, at, size]) => (
-        <span
-          key={tone}
-          className={`hm-calc-seg hm-calc-seg-${tone}`}
-          style={{ transform: `translateX(${(at * 100).toFixed(3)}%) scaleX(${size.toFixed(5)})` }}
-        />
-      ))}
+    <div className="hm-calc-bar" aria-hidden="true" style={style}>
+      <span className="hm-calc-seg hm-calc-seg-fee" />
+      <span className="hm-calc-seg hm-calc-seg-advance" />
+      <span className="hm-calc-seg hm-calc-seg-final" />
     </div>
   );
 }
@@ -91,7 +116,11 @@ export function DealCalculator({
         Deal amount in rupees
       </label>
       <div className="hm-calc-row">
-        <div className="hm-calc-input" data-affix>
+        <div
+          className="hm-calc-input"
+          data-affix
+          style={{ '--field-em': fieldEm(groupRupees(digits)) } as CSSProperties}
+        >
           <span aria-hidden="true">₹</span>
           <input
             id={`${id}-amount`}
@@ -110,7 +139,7 @@ export function DealCalculator({
         </button>
       </div>
       <p id={`${id}-help`} className="hm-calc-help">
-        Whole rupees, {formatInr(q.kind === 'below' ? q.minPaise : minPaise)} or more.
+        {amountHint(minPaise)}
       </p>
       <p className="sr-only" role="status" aria-atomic="true">
         {status}
@@ -118,28 +147,7 @@ export function DealCalculator({
       {q.kind === 'ok' ? (
         <div className="hm-calc-out">
           <SplitBar b={q.breakdown} />
-          <ul className="hm-figures" aria-label="Your deal">
-            <Figure
-              label={`ValueSkins fee, ${gstRateBps / 100}% GST included`}
-              paise={q.breakdown.commissionTotalPaise}
-              tone="fee"
-            />
-            <Figure
-              label="30% by UPI, before work starts"
-              paise={q.breakdown.advancePaise}
-              tone="advance"
-            />
-            <Figure
-              label="70% by UPI, after approval"
-              paise={q.breakdown.finalPaise}
-              tone="final"
-            />
-            <Figure
-              label="The creator receives"
-              paise={q.breakdown.creatorAmountPaise}
-              tone="total"
-            />
-          </ul>
+          <Figures b={q.breakdown} />
         </div>
       ) : (
         <div className="hm-calc-out hm-calc-empty" aria-label="Your deal" role="group">

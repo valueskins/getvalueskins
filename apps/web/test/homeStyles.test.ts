@@ -128,3 +128,35 @@ describe('a field with a prefix inside its box', () => {
     );
   });
 });
+
+describe('the calculator at any amount', () => {
+  it('keeps the fee visible in the bar, taking its width from the 70%', () => {
+    const all = rules(CSS);
+    const bar = all.find((r) => r.selector === '.hm-calc-bar')!;
+    expect(bar.body).toContain('--fee-end: max(var(--fee, 0%), 10px)');
+    expect(all.find((r) => r.selector === '.hm-calc-seg-advance')!.body).toContain(
+      'transform: translateX(var(--fee-end))',
+    );
+    // The 70% starts after the fee and the true 30%, and runs to the end of the bar.
+    expect(all.find((r) => r.selector === '.hm-calc-seg-final')!.body).toContain(
+      'transform: translateX(calc(var(--fee-end) + var(--advance, 0%)))',
+    );
+  });
+
+  it('sizes each amount to its tile, and goes four, two or one a row before it would be tiny', () => {
+    const all = rules(CSS);
+    const tile = all.find((r) => r.selector === '.hm-figure')!.body;
+    expect(tile).toContain('container-type: inline-size');
+    expect(tile).toContain('flex: 1 1 calc((4 * var(--fit) + 30px - 100%) * 999)');
+    expect(tile).toContain(
+      'max-width: max(calc(50% - 5px), calc((2 * var(--fit) + 10px - 100%) * 999))',
+    );
+    // 18px is the smallest an amount is set at while a layout with more room is left.
+    expect(all.find((r) => r.selector === '.hm-figures')!.body).toContain(
+      '--fit: calc(var(--num-em, 5) * 18px + 38px)',
+    );
+    const num = all.find((r) => r.selector === '.hm-figure > .hm-num')!.body;
+    expect(num).toContain('calc((100cqi - 6px) / var(--num-em, 5))');
+    expect(num).toContain('white-space: nowrap');
+  });
+});

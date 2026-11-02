@@ -11,7 +11,13 @@ import {
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/(landing)/page';
-import { cleanDigits, initialDigits, quote } from '@/components/landing/amount';
+import {
+  amountHint,
+  cleanDigits,
+  figureEm,
+  initialDigits,
+  quote,
+} from '@/components/landing/amount';
 import { Landing } from '@/components/landing/Landing';
 import { useCountUp } from '@/components/landing/motion';
 import { HomeSignIn } from '@/components/landing/HomeSignIn';
@@ -93,7 +99,7 @@ describe('Home', () => {
   it('hides email sign-in unless /config allows it', async () => {
     mockApi(SIGNED_OUT);
     renderHome();
-    await screen.findByText('Whole rupees, ₹886.00 or more.');
+    await screen.findByText('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.');
     expect(screen.queryByRole('link', { name: 'Sign in with email' })).not.toBeInTheDocument();
   });
 
@@ -287,8 +293,8 @@ describe('the deal calculator', () => {
     mockApi(SIGNED_OUT);
     renderHome();
     expect(amountInput()).toHaveValue('10,000');
-    expect(result()).toHaveTextContent('ValueSkins fee, 18% GST included₹885.00');
-    expect(result()).toHaveTextContent('30% by UPI, before work starts₹2,734.50');
+    expect(result()).toHaveTextContent('Fee, GST included₹885.00');
+    expect(result()).toHaveTextContent('30% by UPI, before work₹2,734.50');
     expect(result()).toHaveTextContent('70% by UPI, after approval₹6,380.50');
     expect(result()).toHaveTextContent('The creator receives₹9,115.00');
     expect(
@@ -309,13 +315,11 @@ describe('the deal calculator', () => {
         .slice(0, 3)
         .map((li) => li.textContent),
     ).toEqual(['Signing up is free', 'Browsing deals is free', 'Applying is free']);
-    // ₹885.00, ₹2,734.50 and ₹6,380.50 of ₹10,000.00, laid end to end.
-    const segs = [...container.querySelectorAll<HTMLElement>('.hm-calc-seg')];
-    expect(segs.map((el) => el.style.transform)).toEqual([
-      'translateX(0.000%) scaleX(0.08850)',
-      'translateX(8.850%) scaleX(0.27345)',
-      'translateX(36.195%) scaleX(0.63805)',
-    ]);
+    // ₹885.00 and ₹2,734.50 of ₹10,000.00: the fee, then the 30%; the 70% runs on to the end.
+    const bar = container.querySelector<HTMLElement>('.hm-calc-bar')!;
+    expect(bar.style.getPropertyValue('--fee')).toBe('8.850%');
+    expect(bar.style.getPropertyValue('--advance')).toBe('27.345%');
+    expect(bar.querySelectorAll('.hm-calc-seg')).toHaveLength(3);
   });
 
   it('works out a new amount as it is typed, keeping only whole-rupee digits', async () => {
@@ -327,7 +331,7 @@ describe('the deal calculator', () => {
     expect(amountInput()).toHaveValue('25,000');
     // 25,000.00 - 885.00 = 24,115.00; 30% = 7,234.50; 70% = 16,880.50.
     await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹24,115.00'));
-    expect(result()).toHaveTextContent('30% by UPI, before work starts₹7,234.50');
+    expect(result()).toHaveTextContent('30% by UPI, before work₹7,234.50');
     expect(result()).toHaveTextContent('70% by UPI, after approval₹16,880.50');
     expect(window.location.search).toBe('?amount=25000');
   });
@@ -336,7 +340,7 @@ describe('the deal calculator', () => {
     mockApi({ ...SIGNED_OUT, 'GET /config': { ...CONFIG, minBudgetPaise: 1_000_00 } });
     renderHome();
     fireEvent.change(amountInput(), { target: { value: '999' } });
-    await screen.findByText('Whole rupees, ₹1,000.00 or more.');
+    await screen.findByText('Whole rupees, ₹1,000.00 to ₹1,00,00,00,00,000.00.');
     expect(result()).toHaveTextContent('Enter ₹1,000.00 or more.');
     expect(result()).toHaveTextContent('ValueSkins fee, every deal ₹885.00');
     fireEvent.change(amountInput(), { target: { value: '1000' } });
@@ -350,24 +354,93 @@ describe('the deal calculator', () => {
     expect(result()).toHaveTextContent('Enter ₹886.00 or more.');
     fireEvent.change(amountInput(), { target: { value: '886' } });
     await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹1.00'));
-    expect(result()).toHaveTextContent('30% by UPI, before work starts₹0.30');
+    expect(result()).toHaveTextContent('30% by UPI, before work₹0.30');
     expect(result()).toHaveTextContent('70% by UPI, after approval₹0.70');
   });
 
-  it('caps very long amounts at eleven digits, still safe integers in paise', () => {
-    expect(cleanDigits('1234567890123456789')).toBe('12345678901');
-    const q = quote(cleanDigits('99999999999999'), CONFIG.minBudgetPaise, CONFIG.gstRateBps);
+  it('stops at the largest deal, MAX_BUDGET_RUPEES, however much is typed or pasted', async () => {
+    mockApi(SIGNED_OUT);
+    renderHome();
+    fireEvent.change(amountInput(), { target: { value: '9'.repeat(30) } });
+    expect(amountInput()).toHaveValue('1,00,00,00,00,000');
+    expect(window.location.search).toBe('?amount=100000000000');
+    expect(screen.getByText('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.')).toBeInTheDocument();
+    // The full amounts, with paise, never shortened to lakh or crore.
+    await waitFor(() =>
+      expect(result()).toHaveTextContent('The creator receives₹99,99,99,99,115.00'),
+    );
+    expect(result()).toHaveTextContent('30% by UPI, before work₹29,99,99,99,734.50');
+    expect(result()).toHaveTextContent('70% by UPI, after approval₹69,99,99,99,380.50');
+  });
+
+  it('clamps typed digits to the max, and keeps them safe integers in paise', () => {
+    expect(cleanDigits('100000000000')).toBe('100000000000');
+    expect(cleanDigits('100000000001')).toBe('100000000000');
+    expect(cleanDigits('1'.repeat(40))).toBe('100000000000');
+    expect(cleanDigits('₹ 1,00,00,000')).toBe('10000000');
+    expect(cleanDigits('000123')).toBe('123');
+    // Below the minimum is left alone while typing: the calculator says what the minimum is.
+    expect(cleanDigits('5')).toBe('5');
+    const q = quote(cleanDigits('9'.repeat(30)), CONFIG.minBudgetPaise, CONFIG.gstRateBps);
     expect(q.kind).toBe('ok');
     if (q.kind !== 'ok') return;
     expect(Number.isSafeInteger(q.breakdown.budgetPaise)).toBe(true);
     expect(q.breakdown.advancePaise + q.breakdown.finalPaise).toBe(q.breakdown.creatorAmountPaise);
   });
 
-  it('reads ?amount= from the no-script form, and falls back to the worked example', () => {
-    expect(initialDigits(undefined)).toBe('10000');
+  it('reads ?amount=: whole rupees only, clamped to the range, else the worked example', () => {
+    // What the no-script form sends, and what someone shares.
+    expect(initialDigits('25000')).toBe('25000');
     expect(initialDigits('25,000')).toBe('25000');
+    expect(initialDigits('₹ 1,00,000')).toBe('100000');
     expect(initialDigits(['5000', '7000'])).toBe('5000');
-    expect(initialDigits('')).toBe('');
+    // Not whole rupees: the worked example.
+    for (const bad of [
+      undefined,
+      '',
+      ' ',
+      'abc',
+      '12abc',
+      '-5000',
+      '1000.50',
+      '1e6',
+      '0',
+      '0,00',
+    ]) {
+      expect(initialDigits(bad)).toBe('10000');
+    }
+    // Outside the range: clamped to it.
+    expect(initialDigits('500')).toBe('886');
+    expect(initialDigits('885')).toBe('886');
+    expect(initialDigits('886')).toBe('886');
+    expect(initialDigits('100000000000')).toBe('100000000000');
+    expect(initialDigits('999999999999999')).toBe('100000000000');
+    expect(initialDigits('999', 1_000_00)).toBe('1000');
+  });
+
+  it('says the range under the field, from the minimum to the largest deal', () => {
+    expect(amountHint(CONFIG.minBudgetPaise)).toBe(
+      'Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.',
+    );
+    expect(amountHint(1_000_00)).toBe('Whole rupees, ₹1,000.00 to ₹1,00,00,00,00,000.00.');
+    // Never under the shared minimum, whatever /config says.
+    expect(amountHint(100)).toBe('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.');
+  });
+
+  it('sizes the figures to the longest amount, and keeps the fee in the bar on a large deal', async () => {
+    mockApi(SIGNED_OUT);
+    const { container } = renderHome('1000000');
+    expect(result()).toHaveTextContent('Fee, GST included₹885.00');
+    expect(result()).toHaveTextContent('30% by UPI, before work₹2,99,734.50');
+    expect(result()).toHaveTextContent('70% by UPI, after approval₹6,99,380.50');
+    expect(result()).toHaveTextContent('The creator receives₹9,99,115.00');
+    const figures = container.querySelector<HTMLElement>('.hm-figures')!;
+    expect(figures.style.getPropertyValue('--num-em')).toBe(String(figureEm('₹9,99,115.00')));
+    expect(figureEm('₹99,99,99,99,115.00')).toBeGreaterThan(figureEm('₹9,99,115.00'));
+    // ₹885.00 is under a tenth of a percent of ₹10,00,000.00; home.css gives it a minimum width.
+    const bar = container.querySelector<HTMLElement>('.hm-calc-bar')!;
+    expect(bar.style.getPropertyValue('--fee')).toBe('0.089%');
+    expect(bar.style.getPropertyValue('--advance')).toBe('29.973%');
   });
 
   it('shows one focus ring, on the rounded box, and none on the input inside it', () => {
@@ -396,6 +469,20 @@ describe('the deal calculator', () => {
     expect(html).toContain('₹7,234.50');
     expect(html).toContain('₹16,880.50');
     expect(html).toContain('Work it out');
+  });
+});
+
+describe('the deal calculator without script', () => {
+  it('clamps or falls back on a bad ?amount= on the server too', async () => {
+    mockApi(SIGNED_OUT);
+    const render = async (amount: string) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const element = await Page({ searchParams: Promise.resolve({ amount }) });
+      return renderToString(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
+    };
+    expect(await render('9'.repeat(20))).toContain('value="1,00,00,00,00,000"');
+    expect(await render('lots')).toContain('value="10,000"');
+    expect(await render('100')).toContain('value="886"');
   });
 });
 
