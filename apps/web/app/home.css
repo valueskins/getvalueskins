@@ -998,7 +998,7 @@ body:has(.hm) {
   transform: scale(1.04);
 }
 
-/* How it works */
+/* How it works: the seven steps in one screen, beside the completed example deal */
 .hm-how {
   padding-block: var(--hm-section);
   background: var(--hm-bg-2);
@@ -1008,23 +1008,13 @@ body:has(.hm) {
   display: grid;
   gap: 32px;
 }
+.hm-how-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
 .hm-how-now {
   display: none;
-}
-.hm-step-now {
-  position: sticky;
-  top: 88px;
-  z-index: 2;
-  justify-self: start;
-  padding: 10px 16px;
-  border-radius: var(--hm-pill);
-  background: var(--hm-surface);
-  box-shadow: var(--hm-shadow);
-  font-size: 14px;
-  font-weight: 600;
-}
-.hm-how-aside {
-  display: contents;
 }
 .hm-how-steps {
   display: grid;
@@ -1033,44 +1023,32 @@ body:has(.hm) {
   list-style: none;
 }
 .hm-how-steps li {
-  position: relative;
   display: grid;
-  gap: 12px;
-  padding: clamp(36px, 6vh, 64px) 0 clamp(36px, 6vh, 64px) 28px;
+  grid-template-columns: 2ch minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 6px;
+  padding-block: 18px;
   border-top: 1px solid var(--hm-line-strong);
-  color: var(--hm-ink-3);
-  transition: color 0.4s ease;
 }
-.hm-how-steps li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: clamp(36px, 6vh, 64px);
-  width: 6px;
-  height: 1.6em;
-  border-radius: var(--hm-pill);
-  background: var(--hm-accent);
-  transform: scaleY(0);
-  transform-origin: top;
-  transition: transform 0.5s var(--hm-ease);
-}
-.hm-how-steps li[data-active] {
-  color: var(--hm-ink);
-}
-.hm-how-steps li[data-active]::before {
-  transform: scaleY(1);
+.hm-how-n {
+  grid-row: span 2;
+  font-family: var(--hm-display);
+  font-size: 28px;
+  font-weight: 800;
+  font-stretch: 80%;
+  line-height: 1;
+  color: var(--hm-accent-ink);
 }
 .hm-how-steps .hm-h3 {
   font-family: var(--hm-display);
-  font-size: clamp(30px, 1.2rem + 1.6vw, 44px);
+  font-size: 28px;
   font-weight: 800;
   font-stretch: 80%;
   line-height: 1;
   letter-spacing: -0.01em;
 }
 .hm-how-steps p {
-  max-width: 48ch;
-  font-size: 18px;
+  color: var(--hm-ink-2);
 }
 @media (min-width: 1024px) {
   .hm-how-grid {
@@ -1078,12 +1056,7 @@ body:has(.hm) {
     gap: 96px;
   }
   .hm-how-aside {
-    position: sticky;
-    top: 104px;
-    display: flex;
-    flex-direction: column;
-    gap: 40px;
-    align-self: start;
+    justify-content: space-between;
   }
   .hm-how-now {
     display: block;
@@ -1092,16 +1065,9 @@ body:has(.hm) {
     background: var(--hm-surface);
     box-shadow: var(--hm-shadow);
   }
-  .hm-step-now {
-    display: none;
-  }
   .hm-how-steps li {
-    min-height: 32vh;
-    align-content: center;
-  }
-  .hm-how-steps li::before {
-    top: 50%;
-    translate: 0 -2.4em;
+    row-gap: 4px;
+    padding-block: 12px;
   }
 }
 .hm-how-count {
@@ -1115,7 +1081,6 @@ body:has(.hm) {
   line-height: 0.95;
   letter-spacing: -0.01em;
   color: var(--hm-accent-ink);
-  animation: hm-swap 0.5s var(--hm-ease) both;
 }
 .hm-rail {
   display: grid;
@@ -1126,23 +1091,9 @@ body:has(.hm) {
   list-style: none;
 }
 .hm-rail li {
-  position: relative;
   height: 8px;
-  overflow: hidden;
   border-radius: var(--hm-pill);
-  background: repeating-linear-gradient(-45deg, var(--hm-line) 0 2px, transparent 2px 6px);
-}
-.hm-rail li::after {
-  content: '';
-  position: absolute;
-  inset: 0;
   background: var(--hm-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.5s var(--hm-ease);
-}
-.hm-rail li[data-done]::after {
-  transform: scaleX(1);
 }
 .hm-how-money {
   display: grid;

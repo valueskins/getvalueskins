@@ -206,38 +206,45 @@ describe('the rules band', () => {
 });
 
 describe('How it works', () => {
-  it('lists all nine steps for assistive technology, and names the current one', () => {
+  it('gives the seven steps one line each, with the fee, the UPI payments, Drive and the record', () => {
+    mockApi(SIGNED_OUT);
+    renderHome();
+    const how = screen.getByRole('region', { name: 'From posted to paid.' });
+    const steps = within(how)
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => [h.textContent, h.nextElementSibling?.textContent]);
+    expect(steps).toEqual([
+      ['Post the deal', 'The brand sets the work, the deadline and a final amount.'],
+      ['Apply for free', 'Every creator sees every open deal and can apply.'],
+      [
+        'Pick one creator',
+        'The brand pays ValueSkins ₹885.00 through Razorpay, with a GST invoice.',
+      ],
+      ['Pay 30% by UPI', 'Before work starts, paid directly to the creator, who confirms it.'],
+      ['Share the content', 'The creator shares a Google Drive link, and the brand approves it.'],
+      ['Pay 70% by UPI', 'After approval, paid directly to the creator, who confirms it.'],
+      ['Keep the record', 'The deal goes on both profiles, with a record to download.'],
+    ]);
+  });
+
+  it('shows the example deal completed beside the steps, with nothing following the scroll', () => {
     mockApi(SIGNED_OUT);
     const { container } = renderHome();
-    const steps = screen.getByRole('list', { name: 'The nine steps of a deal' });
-    const items = within(steps)
+    // The fee paid and everything the creator was paid by UPI, on the example ₹10,000.00 deal.
+    expect(container.querySelector('.hm-how-now')).toHaveTextContent(
+      'Step 9 of 9CompletedFee to ValueSkins₹885.00Paid to the creator by UPI₹9,115.00',
+    );
+    // The card is a picture; the nine steps are listed for assistive technology instead.
+    const nine = screen.getByRole('list', { name: 'The nine steps of a deal' });
+    const items = within(nine)
       .getAllByRole('listitem')
       .map((li) => li.textContent);
     expect(items).toHaveLength(9);
-    // At rest (no motion) the example deal is completed.
     expect(items[0]).toBe('Posted, done');
     expect(items[8]).toBe('Completed, current step');
-    // The line shown under the bar on narrow screens.
-    expect(container.querySelector('.hm-how .hm-step-now')).toHaveTextContent(
-      'Step 9 of 9: Completed',
-    );
-    // Beside the steps: the fee paid and everything the creator was paid by UPI.
-    expect(container.querySelector('.hm-how-money')).toHaveTextContent(
-      'Fee to ValueSkins₹885.00Paid to the creator by UPI₹9,115.00',
-    );
-    expect(
-      within(screen.getByRole('region', { name: 'From posted to paid.' }))
-        .getAllByRole('heading', { level: 3 })
-        .map((h) => h.textContent),
-    ).toEqual([
-      'Post the deal',
-      'Apply for free',
-      'Pick one creator',
-      'Pay 30% by UPI',
-      'Share the content',
-      'Pay 70% by UPI',
-      'Keep the record',
-    ]);
+    // No step is singled out and no line sticks to the screen as the page scrolls.
+    expect(container.querySelector('.hm-how [data-active]')).toBeNull();
+    expect(container.querySelector('.hm-how .hm-step-now')).toBeNull();
   });
 });
 
