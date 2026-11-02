@@ -370,6 +370,17 @@ describe('the deal calculator', () => {
     expect(initialDigits('')).toBe('');
   });
 
+  it('shows one focus ring, on the rounded box, and none on the input inside it', () => {
+    mockApi(SIGNED_OUT);
+    renderHome();
+    // The box holds the ₹ prefix and the input, so it is marked as a prefixed field.
+    const box = amountInput().parentElement!;
+    expect(box).toHaveClass('hm-calc-input');
+    expect(box).toHaveAttribute('data-affix');
+    expect(box.querySelector('span')).toHaveAttribute('aria-hidden', 'true');
+    // Its one ring is the box's; the CSS for that is checked in homeStyles.test.ts.
+  });
+
   it('works the figures out on the server, so they read without script', async () => {
     mockApi(SIGNED_OUT);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

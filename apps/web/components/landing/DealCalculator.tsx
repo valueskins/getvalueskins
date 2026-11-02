@@ -91,7 +91,7 @@ export function DealCalculator({
         Deal amount in rupees
       </label>
       <div className="hm-calc-row">
-        <div className="hm-calc-input">
+        <div className="hm-calc-input" data-affix>
           <span aria-hidden="true">₹</span>
           <input
             id={`${id}-amount`}

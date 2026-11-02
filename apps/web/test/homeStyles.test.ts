@@ -4,9 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The home page's lime means one thing, the creator's money: the two UPI payments and what the
- * creator receives. Magenta is the brand and every action, green only a status. Lime is a fill
- * under the dark ink, never text, an icon or a border on a light ground, where it cannot be read.
+ * Two rules of the home page's styles (app/home.css).
+ *
+ * Lime means one thing, the creator's money: the two UPI payments and what the creator receives.
+ * Magenta is the brand and every action, green only a status. Lime is a fill under the dark ink,
+ * never text, an icon or a border on a light ground, where it cannot be read.
+ *
+ * A field with a prefix or suffix inside its box shows one focus ring, the box's own.
  */
 
 const CSS = readFileSync(fileURLToPath(new URL('../app/home.css', import.meta.url)), 'utf8');
@@ -73,6 +77,14 @@ describe('lime, the creator money colour', () => {
     expect(new Set(props)).toEqual(new Set(['background', '--seg', '--swatch']));
   });
 
+  it('edges the pale 30% swatch in a darker lime that shows on the page, and nothing else', () => {
+    const used = rules(CSS)
+      .filter((r) => r.body.includes('var(--hm-lime-edge)'))
+      .map((r) => r.selector);
+    expect(used).toEqual(['.hm-figure-advance']);
+    expect(contrast(token('--hm-lime-edge'), token('--hm-bg'))).toBeGreaterThanOrEqual(3);
+  });
+
   it('has the dark ink on it, at AA or better', () => {
     const ink = token('--hm-on-lime');
     expect(contrast(ink, token('--hm-lime'))).toBeGreaterThanOrEqual(4.5);
@@ -83,5 +95,36 @@ describe('lime, the creator money colour', () => {
       if (r.selector.includes('-seg-') || r.selector.endsWith('[data-final]')) continue;
       expect(r.body, r.selector).toContain('color: var(--hm-on-lime)');
     }
+  });
+});
+
+describe('a field with a prefix inside its box', () => {
+  it('rings only the box: the control inside draws no outline, border, shadow or ground', () => {
+    // .hm :focus-visible rings every control on the page. Inside a [data-affix] box it would draw a
+    // square outline on the input next to the box's rounded ring, so a later, stronger rule clears
+    // the control's own focus styles there, and only there.
+    const all = rules(CSS);
+    const ring = all.findIndex((r) => r.selector === '.hm :focus-visible');
+    const exception = all.findIndex(
+      (r) => r.selector === '.hm [data-affix] :is(input, select, textarea):focus',
+    );
+    expect(ring).toBeGreaterThan(-1);
+    expect(exception).toBeGreaterThan(ring);
+    for (const reset of [
+      'outline: none',
+      'border: 0',
+      'box-shadow: none',
+      'background: transparent',
+    ]) {
+      expect(all[exception]!.body).toContain(reset);
+    }
+    // The ring stays on every other control.
+    expect(all[ring]!.body).toContain('outline: 3px solid var(--hm-accent)');
+    // The calculator's box draws the one ring, and lets clicks through its ₹ to the input.
+    const box = all.find((r) => r.selector === '.hm-calc-input:focus-within')!;
+    expect(box.body).toContain('box-shadow');
+    expect(all.find((r) => r.selector === '.hm-calc-input > span')!.body).toContain(
+      'pointer-events: none',
+    );
   });
 });
