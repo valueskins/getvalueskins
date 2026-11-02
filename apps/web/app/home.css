@@ -2,14 +2,14 @@
  * The home page (components/landing), and only the home page: app/(landing)/page.tsx imports it.
  * Everything is scoped under .hm, so the app's tokens and every other route are untouched.
  *
- * The look: a cool off-white ground (near-black in dark mode), ink type, and rani pink as the one
- * accent. Headlines use the display cut of Bricolage Grotesque (components/landing/fonts.ts),
- * condensed and heavy. One shape rule: anything you press is a pill; containers are 32px outside
- * and 16px inside. Every text pairing meets WCAG AA in both modes. Motion is transform and opacity
- * only, and all of it stops under prefers-reduced-motion.
+ * The look: a cool off-white ground, ink type, and rani pink as the one accent. Light only, like
+ * the rest of the site, whatever the visitor's setting. Headlines use the display cut of Bricolage
+ * Grotesque (components/landing/fonts.ts), condensed and heavy. One shape rule: anything you press
+ * is a pill; containers are 32px outside and 16px inside. Every text pairing meets WCAG AA. Motion
+ * is transform and opacity only, and all of it stops under prefers-reduced-motion.
  */
 
-/* Tokens: light */
+/* Tokens */
 .hm {
   --hm-bg: #f3f3f0;
   --hm-bg-2: #e9e9e4;
@@ -54,40 +54,9 @@
   --on-accent: var(--hm-on-accent);
 }
 
-/* Tokens: dark */
-@media (prefers-color-scheme: dark) {
-  .hm {
-    color-scheme: dark;
-    --hm-bg: #0e0e10;
-    --hm-bg-2: #161619;
-    --hm-surface: #1c1c20;
-    --hm-ink: #f2f1ed;
-    --hm-ink-2: #c4c3be;
-    --hm-ink-3: #9a9994; /* 6.8:1 on --hm-bg, 6.1:1 on --hm-surface */
-    --hm-line: #2d2d32;
-    --hm-line-strong: #5a5a62;
-    --hm-accent: #ff4f8b; /* --hm-on-accent on it is 6:1 */
-    --hm-accent-hover: #ff6d9f;
-    --hm-accent-mid: #9c2f57;
-    --hm-accent-ink: #ff7ba6;
-    --hm-accent-soft: #2e1019;
-    --hm-on-accent: #111114;
-    --hm-ok: #63d394;
-    --hm-ok-soft: #12301f;
-    --hm-glyph: rgb(17 17 20 / 0.14);
-    --hm-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 24px 48px -24px rgb(0 0 0 / 0.7);
-    --hm-shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 40px 80px -32px rgb(0 0 0 / 0.85);
-  }
-}
-
 /* The page behind the page, so overscroll matches. */
 body:has(.hm) {
   background: #f3f3f0;
-}
-@media (prefers-color-scheme: dark) {
-  body:has(.hm) {
-    background: #0e0e10;
-  }
 }
 
 /* Base */
