@@ -86,7 +86,7 @@ jobs:
             exit 1
           fi
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
         if: steps.changes.outputs.web == 'true'
 
       - uses: actions/setup-node@v4
