@@ -1,6 +1,6 @@
 # ValueSkins — Project Context
 
-> Purpose: give a new developer or coding agent the product and engineering model of this repository without repeating the discovery work.
+> Purpose: give a new developer the product and engineering model of this repository without repeating the discovery work.
 >
 > Snapshot: local `main` at merge commit `865820c` (“Merge pull request #45 from valueskins/feat/landing-final”), 2 Nov 2026. 180 commits, one contributor in the local history. Working tree was clean during this review.
 >
