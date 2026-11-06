@@ -1,7 +1,7 @@
 # ValueSkins
 
 A creator-brand deal marketplace. The product and technical spec lives at
-[docs/SPEC.md](docs/SPEC.md) — it is the source of truth for anything you build here.
+[docs/SPEC.md](docs/SPEC.md) - it is the source of truth for anything you build here.
 Working conventions for Claude Code are in [CLAUDE.md](CLAUDE.md).
 
 ## Prerequisites
@@ -12,10 +12,10 @@ Working conventions for Claude Code are in [CLAUDE.md](CLAUDE.md).
 
 ## Repo layout
 
-- `apps/api` — Express 5 + Socket.io backend, deployed on Render
-- `apps/web` — Next.js App Router frontend, deployed on Netlify (production, from GitHub Actions) and Vercel (staging)
-- `packages/shared` — money math, deal state machine, Zod schemas, copy constants, imported by both apps
-- `docs/` — spec and process notes
+- `apps/api` - Express 5 + Socket.io backend, deployed on Render
+- `apps/web` - Next.js App Router frontend, deployed on Netlify (production, from GitHub Actions) and Vercel (staging)
+- `packages/shared` - money math, deal state machine, Zod schemas, copy constants, imported by both apps
+- `docs/` - spec and process notes
 
 ## Running locally
 
@@ -42,7 +42,7 @@ pnpm dev
 
 ## Testing Instagram login locally
 
-Instagram login (SPEC 6.1) needs a real Meta app and a real Instagram tester account — there is no sandbox that fakes it. Use `POST /api/dev/login` (SPEC 6.2) for everyday local work instead; only set this up when you specifically need to exercise the real OAuth flow.
+Instagram login (SPEC 6.1) needs a real Meta app and a real Instagram tester account, there is no sandbox that fakes it. Use `POST /api/dev/login` (SPEC 6.2) for everyday local work instead; only set this up when you specifically need to exercise the real OAuth flow.
 
 1. Create a Meta app at [developers.facebook.com](https://developers.facebook.com) and add the **Instagram API with Instagram Login** product to it.
 2. Under the app's Instagram product settings, add your own Instagram account as an **Instagram Tester**, then accept the invite from inside the Instagram app (Settings → Apps and websites → Tester invites) — Instagram testers must accept before they can log in, and only Professional (Business or Creator) accounts can complete the flow.
