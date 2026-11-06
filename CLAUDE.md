@@ -216,7 +216,6 @@ This covers emails, PDFs and API error messages.
 
 ## 14. Git
 
-- Author all commits as **Melove Gupta <melovegupta0406@gmail.com>**. Commits are under this name only.
 - **Never add Co-Authored-By or any other trailer, and never mention an AI tool or assistant** in commit messages, PR titles or bodies, code comments or docs.
 - Conventional messages, for example `feat(payments): record direct UPI payments`. One task per branch, merged by PR after CI passes.
 - Never commit `.env` files or secrets. Never force-push `main`.
