@@ -16,7 +16,7 @@ import { sessionMiddleware } from './auth/sessionMiddleware.js';
 import { emailAuthRoutes } from './emailAuth/emailAuth.routes.js';
 import { errorMiddleware, notFoundHandler } from './errors/errorMiddleware.js';
 import type { Env } from './env/index.js';
-import { healthRoutes } from './health/health.routes.js';
+import { healthRoutes, healthzRoutes } from './health/health.routes.js';
 import { instagramAuthRoutes } from './instagram/oauth.routes.js';
 import { httpLogger } from './logging/httpLogger.js';
 import { metaRoutes } from './meta/meta.routes.js';
@@ -68,6 +68,10 @@ export function createApp(env: Env, options: AppOptions = {}): Express {
   // Meta posts signed_request as form-urlencoded, not JSON — same reasoning.
   app.use(META_CALLBACK_PATHS, metaUrlencodedBodyMiddleware);
   app.use(jsonBodyMiddleware);
+
+  // Render's health check: before the Origin check, the session lookup and the global rate limiter,
+  // which write to PostgreSQL. Nothing mounted above this line may query the database either.
+  app.use(healthzRoutes());
 
   app.use(originCheck(env));
   app.use(sessionMiddleware(env, ctx.now));

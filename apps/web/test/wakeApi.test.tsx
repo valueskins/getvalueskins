@@ -31,30 +31,30 @@ afterEach(() => {
 });
 
 describe('the wake-up call', () => {
-  it('asks GET /api/health once on the first load, without waiting for the answer', () => {
+  it('asks GET /healthz once on the first load, without waiting for the answer', () => {
     const health = pendingHealth();
-    const api = mockApi({ 'GET /health': () => health.answer });
+    const api = mockApi({ 'GET /healthz': () => health.answer });
 
     render(<WakeApi />);
 
     // The page is already rendered while the health call is still unanswered.
-    expect(api.called('GET /health')).toHaveLength(1);
-    expect(String(api.fetchMock.mock.calls[0]![0])).toMatch(/\/api\/health$/);
+    expect(api.called('GET /healthz')).toHaveLength(1);
+    expect(String(api.fetchMock.mock.calls[0]![0])).toMatch(/\/healthz$/);
     expect(apiHasAnswered()).toBe(false);
   });
 
   it('asks only once per page load, however many components mount', () => {
-    const api = mockApi({ 'GET /health': () => pendingHealth().answer });
+    const api = mockApi({ 'GET /healthz': () => pendingHealth().answer });
 
     const first = render(<WakeApi />);
     first.rerender(<WakeApi />);
     render(<WakeApi />);
 
-    expect(api.called('GET /health')).toHaveLength(1);
+    expect(api.called('GET /healthz')).toHaveLength(1);
   });
 
   it('is part of the app providers, so every page does it', () => {
-    const api = mockApi({ 'GET /health': () => pendingHealth().answer });
+    const api = mockApi({ 'GET /healthz': () => pendingHealth().answer });
 
     render(
       <Providers>
@@ -63,11 +63,11 @@ describe('the wake-up call', () => {
     );
 
     expect(screen.getByText('a page')).toBeInTheDocument();
-    expect(api.called('GET /health')).toHaveLength(1);
+    expect(api.called('GET /healthz')).toHaveLength(1);
   });
 
   it('remembers that the API answered', async () => {
-    mockApi({ 'GET /health': { ok: true } });
+    mockApi({ 'GET /healthz': { ok: true } });
     wakeApi();
     await vi.waitFor(() => expect(apiHasAnswered()).toBe(true));
   });
@@ -82,7 +82,7 @@ describe('the wake-up call', () => {
 
 describe('the sign-in button while the API wakes', () => {
   it('is an ordinary link once the API has answered', async () => {
-    mockApi({ 'GET /health': { ok: true } });
+    mockApi({ 'GET /healthz': { ok: true } });
     wakeApi();
     await vi.waitFor(() => expect(apiHasAnswered()).toBe(true));
     render(<InstagramButton />);
@@ -108,7 +108,7 @@ describe('the sign-in button while the API wakes', () => {
 
   it('shows "Connecting..." until the API answers, then goes to the sign-in address', async () => {
     const health = pendingHealth();
-    mockApi({ 'GET /health': () => health.answer });
+    mockApi({ 'GET /healthz': () => health.answer });
     render(<InstagramButton large />);
 
     // The click is cancelled: the link does not go to a sleeping API.
@@ -131,7 +131,7 @@ describe('the sign-in button while the API wakes', () => {
     vi.useFakeTimers();
     let calls = 0;
     mockApi({
-      'GET /health': () => {
+      'GET /healthz': () => {
         calls += 1;
         return calls < 3
           ? new Response('<html>Service waking up</html>', {
@@ -154,7 +154,7 @@ describe('the sign-in button while the API wakes', () => {
 
   it('says so, and offers "Try again", when the API has not answered after 60 seconds', async () => {
     vi.useFakeTimers();
-    mockApi({ 'GET /health': () => new Promise<Response>(() => {}) });
+    mockApi({ 'GET /healthz': () => new Promise<Response>(() => {}) });
     render(<InstagramButton />);
 
     fireEvent.click(screen.getByRole('link', { name: 'Sign in with Instagram' }));
@@ -180,7 +180,7 @@ describe('the sign-in button while the API wakes', () => {
     vi.useFakeTimers();
     let awake = false;
     mockApi({
-      'GET /health': () => (awake ? json(200, { ok: true }) : new Promise<Response>(() => {})),
+      'GET /healthz': () => (awake ? json(200, { ok: true }) : new Promise<Response>(() => {})),
     });
     render(<InstagramButton />);
     fireEvent.click(screen.getByRole('link', { name: 'Sign in with Instagram' }));
@@ -200,7 +200,7 @@ describe('the sign-in button while the API wakes', () => {
   });
 
   it('uses the link-mode address for "Connect Instagram"', async () => {
-    mockApi({ 'GET /health': { ok: true } });
+    mockApi({ 'GET /healthz': { ok: true } });
     wakeApi();
     await vi.waitFor(() => expect(apiHasAnswered()).toBe(true));
     render(<InstagramButton label="Connect Instagram" link />);
