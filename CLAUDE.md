@@ -132,7 +132,7 @@ Details are in the spec. These are the invariants.
 
 ## 7. API conventions
 
-- Every route is under `/api`. Every request body, query and param is validated with a Zod schema from `packages/shared`. Unknown fields are rejected.
+- Every route is under `/api`, except `GET /healthz`: Render's health check, which must never touch the database (`docs/DEPLOYMENT.md` section 21.8). Every request body, query and param is validated with a Zod schema from `packages/shared`. Unknown fields are rejected.
 - Errors: throw `AppError(code, httpStatus, message)`. One error middleware returns `{ error: { code, message } }`. Never put `err.message`, stack traces, SQL or provider responses in a response.
 - Authorization on **every** route, in the route itself: session guards (`requireUser`, `requireRole`, `requireOnboarded`, `requireAdmin`), then ownership (the deal's brand, its confirmed creator, or an admin).
   - Admin routes return **404** to everyone else.
