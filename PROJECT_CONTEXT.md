@@ -331,7 +331,7 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 - **Email/webhook durability:** no retry queue. Failing emails stay `FAILED` and can be resent by an admin; failing webhook handlers are recorded and alerted but not retried.
 - **Realtime scale-out:** single Node process, no Redis adapter; multi-instance deployment would not share rooms.
 - **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs are not backfilled.
-- **Production launch:** designed to start with payments/posting off; live Razorpay keys, GSTIN/SAC confirmation, Meta live approval and paid hosting are operational prerequisites.
+- **Production launch:** designed to start with payments/posting off; live Razorpay keys, GSTIN/SAC confirmation and Meta live approval are operational prerequisites. Paid hosting is not required (decision of 11 November 2026).
 - **Data import from the old app:** not implemented; cutover plan explicitly assumes no data import (only founders’ test accounts).
 - **Browser E2E / visual regression:** none in the repo; API has a full e2e test, web has jsdom unit/component tests.
 - **OpenAPI:** no generated spec; shared Zod schemas plus contract tests are the API contract.
@@ -876,7 +876,7 @@ pnpm dev
 - People: `ADMIN_INSTAGRAM_USER_IDS`, `SUPPORT_EMAIL`, `DISPUTE_EMAIL` (optional, defaults to support).
 - Auth gates: `ENABLE_DEV_LOGIN`, `AUTH_EMAIL_ENABLED`.
 - Company/tax: `COMPANY_LEGAL_NAME`, `COMPANY_ADDRESS`, `COMPANY_STATE`, `COMPANY_GSTIN`, `COMMISSION_SAC_CODE`, `GST_RATE_BPS`.
-- Launch gates: `HOSTING_TIER` (`free`/`paid`), `PAYMENTS_MODE`, `DEAL_POSTING_MODE` (`off`/`admins`/`on`).
+- Launch gates: `HOSTING_TIER` (`free`/`paid`; removed in Task 1), `PAYMENTS_MODE`, `DEAL_POSTING_MODE` (`off`/`admins`/`on`).
 - Observability: `SENTRY_DSN`.
 
 **Web:**
@@ -972,7 +972,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 1. **Free Render instance sleeps, so scheduled jobs do not run on time.**
    - `render.yaml` (`plan: free`), `apps/api/src/jobs/scheduler.ts`, `docs/CUTOVER.md`.
    - Fee/payment/review/content reminders can be delayed by hours; missed ticks are not backfilled.
-   - Mitigation: move to paid hosting before opening gates; current production gates are off.
+   - Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping. Current production gates are off.
 2. **Split deploy cadence between API and web.**
    - Web deploys automatically on merge (`.github/workflows/deploy-web-production.yml`); API is manual (`autoDeployTrigger: 'off'` in `render.yaml`).
    - A merge that changes API and web together can serve a new web build against an old API.
@@ -985,7 +985,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
    - Admin resend exists for email; webhook events require manual investigation.
    - Acceptable for v1 volume, but a real queue/outbox would be the next reliability step.
 5. **Production backups are short and restore is untested.**
-   - Neon Free restores only the last 6 hours; `docs/CUTOVER.md` explicitly defers the restore test to paid hosting.
+   - Neon Free restores only the last 6 hours; `docs/CUTOVER.md` defers the restore test; the founders accepted free hosting on 11 November 2026.
    - Financial/legal records make this a serious pre-launch item.
 
 ### Medium impact

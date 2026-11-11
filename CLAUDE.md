@@ -5,7 +5,7 @@ Read this whole file at the start of every session. It applies to every task in 
 ## 1. What this repo is
 
 - ValueSkins (Valueskins Private Limited) is a marketplace where brands hire Instagram creators for fixed-price content deals in India. One brand and one creator per deal. No chat, no negotiation.
-- This repo, `valueskins/getvalueskins`, is a rebuild. It will replace the live app in `valueskins/valueskins` (valueskins.com), which is maintained separately. Never change, push to, or depend on that repo. Its data is reached only through the import described in `docs/CUTOVER.md`, using a read-only copy.
+- This repo, `valueskins/getvalueskins`, is a rebuild. It will replace the live app in `valueskins/valueskins` (valueskins.com), which is maintained separately. Never change, push to, or depend on that repo. Its data is reached only through the import in `docs/REPLACEMENT_PLAN.md` (Prompt 18, history, kept for reference), using a read-only copy.
 - The web application in `apps/web` is the real application, not a temporary one. One task may change `apps/api`, `packages/shared` and `apps/web` together (section 15).
 
 ## 2. Sources of truth
@@ -40,7 +40,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 - Node 22, pnpm 9 workspaces, TypeScript `strict` everywhere, ESM.
 - `apps/api`: Express 5, Drizzle ORM on PostgreSQL 16 (node-postgres), Zod, pino, rate-limiter-flexible, PDFKit, Resend. Socket.io from Prompt 16. Deployed on Render, Singapore.
 - `packages/shared`: money math, the deal state machine and allowed actions, enums, Zod request and response schemas, and text constants. Both apps import it, so rules and numbers can never disagree. Any rule needed by both apps lives here.
-- `apps/web`: Next.js. Production is on Netlify's Free plan with no Git link (GitHub Actions builds it and deploys it with the Netlify CLI after CI passes); staging is on Vercel. Being rebuilt (section 15).
+- `apps/web`: Next.js. Production is on Netlify's Free plan with no Git link (GitHub Actions builds it and deploys it with the Netlify CLI after CI passes); staging is on Vercel. See section 15.
 - `docs/`: spec, replacement plan, deployment, runbook.
 
 Commands (from the repo root):
@@ -225,5 +225,5 @@ This covers emails, PDFs and API error messages.
 
 ## 15. The web application
 
-- `apps/web` is the real application. It is not temporary and it is not being rebuilt from a handoff. `docs/DESIGN_HANDOFF.md` and `docs/WEB_API_GAPS.md` are history.
+- `apps/web` is the real application. It is not temporary and it is not being rebuilt from a handoff.
 - One task may change `apps/api`, `packages/shared` and `apps/web` together, so rules and screens stay in step.

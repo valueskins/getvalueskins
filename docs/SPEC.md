@@ -783,7 +783,7 @@ The whole web app uses one design system, taken from the home page, the approved
 | -------------- | ----------------------- | ----------------------------------- | ------------------------------- |
 | Web            | localhost:3000          | staging.valueskins.com (Vercel)     | valueskins.com (Netlify)        |
 | API            | localhost:4000          | api-staging.valueskins.com (Render) | api.valueskins.com              |
-| DB             | docker compose Postgres | Render Postgres                     | Render Postgres (paid, backups) |
+| DB             | docker compose Postgres | Render Postgres                     | Neon (free)                     |
 | Razorpay       | test                    | test                                | live                            |
 | Email          | console                 | Resend                              | Resend                          |
 | Dev login      | on                      | on                                  | impossible                      |
@@ -804,7 +804,7 @@ API env (validated with Zod at startup, the process exits on any missing value):
 
 Web env: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SENTRY_DSN`, plus `NEXT_PUBLIC_ENABLE_DEV_LOGIN` (staging only, never set in production). On staging they are Vercel project variables. In production they are GitHub Actions variables, read by the `deploy-web-production` workflow, which also holds the secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`; the Netlify site itself has no variables. The workflow runs only after CI passes on a push to `main`, never for a pull request or a fork, deploys only when the merge changed something the web build uses, and refuses a `NEXT_PUBLIC_API_URL` other than `https://api.valueskins.com`. The Netlify Free plan has 300 credits a month and a production deploy costs 15 (`docs/DEPLOYMENT.md` section 21.6). There is no Razorpay variable on the web: Checkout uses the `keyId` the fee order returns, which always matches the server's key. `next build` always runs with `NODE_ENV=production`, so the web dev login page is gated by `NEXT_PUBLIC_ENABLE_DEV_LOGIN=true` instead, and a build with that flag true and `NEXT_PUBLIC_API_URL` set to `https://api.valueskins.com` fails. Whether "Sign in with email" shows comes from `GET /api/config` (`authEmailEnabled`), not from a web variable. A build whose `NEXT_PUBLIC_API_URL` is the production API leaves out the "Not in this version" notes on the legal pages (section 18).
 
-Staging runs on Render's free Postgres plan: it expires 30 days after creation and has no backups. Production must use a paid plan with backups (section 2). Setup steps are in `docs/DEPLOYMENT.md`.
+Staging runs on Render's free Postgres plan: it expires 30 days after creation and has no backups. Production runs on Neon's Free plan by the founders' decision of 11 November 2026 (section 2). Setup steps are in `docs/DEPLOYMENT.md`.
 
 ---
 
