@@ -533,7 +533,7 @@ Production starts closed: with `PAYMENTS_MODE` and `DEAL_POSTING_MODE` unset, bo
 | Staging      | `on` (`render.yaml`)                  | `on` (`render.yaml`)  |
 | Production   | unset, which is `off`, until you open | unset, until you open |
 
-**Step 0, before anything below: move to paid hosting (section 21.9), unless this is a closed test by admins only (section 21.11).** Production starts on free hosting, which sleeps and cannot run payments or reminders. The API refuses to start with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` unless `HOSTING_TIER=paid`. `admins` is allowed on free hosting. `HOSTING_TIER=paid` must only be set after the move is done.
+**Decision of 11 November 2026: paid hosting is no longer a step.** Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on` there. Task 1 removes the `HOSTING_TIER` variable and its guard; until that task is built, the API still refuses `on` in production unless `HOSTING_TIER=paid`, and `HOSTING_TIER=paid` must not be set to get around it. Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
 
 While payments are `off` in production, the Razorpay variables can be left out. To open payments:
 
@@ -605,7 +605,7 @@ These are staging's settings. Rows that say `render.yaml` mean the earlier file 
 | `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
 | `PAYMENTS_MODE`            | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
 | `DEAL_POSTING_MODE`        | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
-| `HOSTING_TIER`             | unset, which is `free`                                           | Optional. `free` or `paid`. A startup guard uses it only in production (section 21.2); staging ignores it                              |
+| `HOSTING_TIER`             | unset, which is `free`                                           | Removed in Task 1 (decision of 11 November 2026). Until then: optional, `free` or `paid`, used by a startup guard only in production                              |
 | `SENTRY_DSN`               | optional, blank turns it off                                     | Sentry project settings (RUNBOOK). Errors only; personal data is removed before sending                                                |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
 
@@ -890,7 +890,7 @@ The live app's legal pages are at `/legal/privacy`, `/legal/terms` and `/legal/r
 
 ### 21.8 What the free tier means
 
-Until payments open, production runs on free instances. They are fine for a closed launch and not for taking money.
+By the founders' decision of 11 November 2026, production stays on free instances, including after payments open. The limits below are accepted, not temporary. Production is awake only from 07:00 to 01:00 India Standard Time on purpose.
 
 - **The API sleeps.** Render spins a free web service down after 15 minutes without traffic, and it takes about a minute to wake. Render shows browsers a loading page meanwhile. The first request after a quiet spell is slow. The web app softens this: it calls `GET /api/health` on every first page load without waiting, the Instagram button shows "Connecting..." while it waits for the answer, and after 60 seconds without one it says "We could not reach ValueSkins. Try again." with a "Try again" button.
 - **Neon sleeps too.** Its compute scales to zero after 5 minutes without activity, and wakes on the next query, which takes a moment. `GET /api/health` runs a query, so one call wakes both.
@@ -900,11 +900,12 @@ Until payments open, production runs on free instances. They are fine for a clos
 - **No Shell** on a free instance (21.4), and **no pre-deploy command**.
 - **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
 - **The web app has a monthly credit limit.** Netlify's Free plan pauses every site on the account when its 300 credits are used (section 21.6). One production deploy is 15 of them.
-- **A startup guard keeps the gates from opening to everyone.** In production the API refuses to start with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` unless `HOSTING_TIER=paid`. `admins` is allowed (section 21.11).
+- **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (built in Task 5, which adds the Brevo variables to this document). The minimum deal budget becomes ₹2,000 (built in Task 2).
+- **The startup guard is going away.** Until Task 1 is built, the API refuses to start in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` unless `HOSTING_TIER=paid`. Task 1 removes the guard and the variable, by the founders' decision of 11 November 2026.
 
-### 21.9 Moving to paid
+### 21.9 Moving to paid (optional)
 
-Do all of this **before** `PAYMENTS_MODE` or `DEAL_POSTING_MODE` become `on` (a closed test by admins on free hosting is section 21.11), in this order. The guard checks only `HOSTING_TIER`: it does not check that the rest is done, so the Engineer ticks each item.
+Not required since 11 November 2026. If the founders later choose to move, do all of this **before** `PAYMENTS_MODE` or `DEAL_POSTING_MODE` become `on` (a closed test by admins on free hosting is section 21.11), in this order. Until Task 1 removes it, the guard checks only `HOSTING_TIER`: it does not check that the rest is done, so the Engineer ticks each item.
 
 1. **Render: a paid instance type** for `valueskins-api` (look for **Settings > Instance Type**, for example `0.5c-512mb`, the plan staging uses). The service no longer sleeps, and now has a Shell. Change `plan: free` in `render.yaml` to the same plan in the same pull request as step 2, so the next Blueprint sync does not set it back.
 2. **Restore the pre-deploy migration command.** In `render.yaml` add `preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy` back under the service, and merge it. From then on Render migrates before each deploy, and the manual command in 21.4 is only a fallback. Update the section 21.4 and `docs/CUTOVER.md` text in the same pull request. (The startup check stays on.)

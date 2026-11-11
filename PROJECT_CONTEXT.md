@@ -14,6 +14,18 @@
 
 ---
 
+## Founders' decisions of 11 November 2026
+
+These override any older statement in this document. The code changes are built in the tasks named; until then the code stands.
+
+- Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on`. The `HOSTING_TIER` variable and guard are removed in Task 1.
+- The minimum deal budget becomes ₹2,000 (Task 2).
+- Email: Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
+- Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
+- The web application in `apps/web` is the real application, and one task may change `apps/api`, `packages/shared` and `apps/web` together. `docs/REPLACEMENT_PLAN.md` is history.
+- The Revision 11 payment ledger will not be built.
+- Commits and pull requests are authored only by Melove Gupta, with no trailers and no abbreviations (`CLAUDE.md` section 14).
+
 ## 0. Inspection checklist
 
 Areas actually inspected (source, not only docs):
@@ -60,7 +72,7 @@ What makes it distinctive:
 - No escrow or payout holding.
 - No automatic refunds; fee refunds are manual in Razorpay.
 - No partial milestones or hourly work.
-- Minimum deal budget is currently **₹886.00**, just above the ₹885 fee, lowered for the founders’ test; it is an open business decision before public launch.
+- Minimum deal budget is currently **₹886.00** in the code, just above the ₹885 fee. It becomes **₹2,000** in Task 2 (decision of 11 November 2026).
 
 **Stage:** A full rebuild of the earlier live app at `valueskins.com`. The codebase is feature-complete for the documented v1 scope and has extensive tests, but production launch gates (`PAYMENTS_MODE`, `DEAL_POSTING_MODE`) are designed to start `off`, and the production host is the free tier. Whether the DNS cutover has already happened is **Unclear** from the repository alone.
 
@@ -1032,10 +1044,10 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 ### Before public launch
 
-1. Move production to paid hosting (`HOSTING_TIER=paid`), paid Render instance and a database with a useful restore window; test a restore.
+1. Paid hosting is no longer required (decision of 11 November 2026; Task 1 removes the `HOSTING_TIER` guard). Test a restore once, knowing Neon Free restores only 6 hours.
 2. Register live Razorpay keys and webhook (`payment.captured`, `payment.failed`, `order.paid`); run one real minimum-budget deal between founders.
 3. Get CA sign-off on invoice format, SAC code, GSTIN, and whether marketplace TDS (194-O) / GST TCS applies. If it applies, payout math and reporting change.
-4. Decide the long-term minimum budget (₹886 is a test value).
+4. Minimum budget: decided, ₹2,000 (Task 2).
 5. Verify Meta app live approval, redirect URI, deauthorize/data-deletion URLs, privacy/terms URLs.
 6. Verify Resend domain (SPF/DKIM) and deliverability to Gmail/Outlook.
 7. Confirm production DNS/cutover state, admin ids, Sentry projects, and the support mailbox.
@@ -1201,7 +1213,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 | Risk | Why it matters | Current mitigation | What to verify |
 |---|---|---|---|
-| Free-tier API sleep | Jobs late; first request slow; deploys restart | Gates off; docs warn | Move to paid before opening |
+| Free-tier API sleep | Jobs late; first request slow; deploys restart | Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping | Jobs catch up after waking |
 | Short backup window | Financial/legal data loss | Neon 6h restore | Restore test; paid plan |
 | Split API/web deploys | Version skew | Manual API deploy discipline | Release order / automation |
 | Single-instance realtime | Live updates break on scale-out | Single instance | Redis adapter before scaling |
@@ -1225,7 +1237,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 3. Is the Meta app approved/live for `instagram_business_basic`, and are the production redirect/deauthorize/deletion URLs registered?
 4. Are live Razorpay keys and the live webhook configured, or is production still fully closed?
 5. Has the CA approved the invoice format, SAC code, GSTIN, and confirmed whether marketplace TDS/TCS applies?
-6. What is the intended public-launch minimum budget (₹886 is explicitly a founders’ test value)?
+6. Minimum budget: decided, ₹2,000 (Task 2).
 7. What is the production data state: only founders’ test accounts, or real users/deals/payments?
 8. Who owns operational accounts (Cloudflare, Render, Netlify, Neon, Meta, Razorpay, Resend, Sentry), and is there a second maintainer?
 9. Is there a support/refund SLA or written dispute policy beyond the in-app flow?
