@@ -34,12 +34,16 @@ describe('GET /healthz (the Render health check)', () => {
   });
 
   it('runs no query, with or without a session cookie', async () => {
-    const app = createApp(buildTestEnv());
+    const env = buildTestEnv();
+    const app = createApp(env);
     const query = vi.spyOn(pool, 'query');
     const connect = vi.spyOn(pool, 'connect');
 
     await request(app).get('/healthz');
-    await request(app).get('/healthz').set('Cookie', 'session=not-a-real-session');
+    // The real session cookie name, so a session lookup would query the database.
+    await request(app)
+      .get('/healthz')
+      .set('Cookie', `${env.SESSION_COOKIE_NAME}=not-a-real-session`);
 
     expect(query).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();

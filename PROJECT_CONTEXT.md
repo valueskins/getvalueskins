@@ -627,7 +627,7 @@ Base: `/api`. JSON except webhooks/Meta. Auth by session cookie. Every route is 
 | Method | Path                               | Responsibility                                                                          |
 | ------ | ---------------------------------- | --------------------------------------------------------------------------------------- |
 | GET    | `/healthz`                         | No database, session or rate limiter. Render health check and the web wake-up call.     |
-| GET    | `/api/health`                      | DB ping, for checks by hand.                                                            |
+| GET    | `/api/health`                      | Database ping, for checks by hand.                                                      |
 | GET    | `/api/config`                      | Public config: min budget, GST, payments/posting gates, auth-email flag, support email. |
 | POST   | `/api/webhooks/razorpay`           | Raw-body HMAC, dedupe by event id, fast 200, async handler.                             |
 | POST   | `/api/meta/deauthorize`            | Signed request; revokes/clears Instagram data.                                          |
