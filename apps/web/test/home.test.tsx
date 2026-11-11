@@ -99,7 +99,7 @@ describe('Home', () => {
   it('hides email sign-in unless /config allows it', async () => {
     mockApi(SIGNED_OUT);
     renderHome();
-    await screen.findByText('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.');
+    await screen.findByText('Whole rupees, ₹2,000.00 to ₹1,00,00,00,00,000.00.');
     expect(screen.queryByRole('link', { name: 'Sign in with email' })).not.toBeInTheDocument();
   });
 
@@ -284,7 +284,7 @@ describe('the FAQ', () => {
     item.querySelector('summary')!.click();
     expect(item.open).toBe(true);
     expect(item).toHaveTextContent('₹885.00 per deal (₹750.00 + GST ₹135.00)');
-    expect(faq).toHaveTextContent('What is the smallest deal?₹886.00.');
+    expect(faq).toHaveTextContent('What is the smallest deal?₹2,000.00.');
   });
 });
 
@@ -337,25 +337,25 @@ describe('the deal calculator', () => {
   });
 
   it('takes the minimum from /config, and shows the fee below it', async () => {
-    mockApi({ ...SIGNED_OUT, 'GET /config': { ...CONFIG, minBudgetPaise: 1_000_00 } });
+    mockApi({ ...SIGNED_OUT, 'GET /config': { ...CONFIG, minBudgetPaise: 3_000_00 } });
     renderHome();
-    fireEvent.change(amountInput(), { target: { value: '999' } });
-    await screen.findByText('Whole rupees, ₹1,000.00 to ₹1,00,00,00,00,000.00.');
-    expect(result()).toHaveTextContent('Enter ₹1,000.00 or more.');
+    fireEvent.change(amountInput(), { target: { value: '2999' } });
+    await screen.findByText('Whole rupees, ₹3,000.00 to ₹1,00,00,00,00,000.00.');
+    expect(result()).toHaveTextContent('Enter ₹3,000.00 or more.');
     expect(result()).toHaveTextContent('ValueSkins fee, every deal ₹885.00');
-    fireEvent.change(amountInput(), { target: { value: '1000' } });
-    await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹115.00'));
+    fireEvent.change(amountInput(), { target: { value: '3000' } });
+    await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹2,115.00'));
   });
 
-  it('stops at ₹885 and starts at ₹886, the shared minimum', async () => {
+  it('stops at ₹1,999 and starts at ₹2,000, the shared minimum', async () => {
     mockApi(SIGNED_OUT);
     renderHome();
-    fireEvent.change(amountInput(), { target: { value: '885' } });
-    expect(result()).toHaveTextContent('Enter ₹886.00 or more.');
-    fireEvent.change(amountInput(), { target: { value: '886' } });
-    await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹1.00'));
-    expect(result()).toHaveTextContent('30% by UPI, before work₹0.30');
-    expect(result()).toHaveTextContent('70% by UPI, after approval₹0.70');
+    fireEvent.change(amountInput(), { target: { value: '1999' } });
+    expect(result()).toHaveTextContent('Enter ₹2,000.00 or more.');
+    fireEvent.change(amountInput(), { target: { value: '2000' } });
+    await waitFor(() => expect(result()).toHaveTextContent('The creator receives₹1,115.00'));
+    expect(result()).toHaveTextContent('30% by UPI, before work₹334.50');
+    expect(result()).toHaveTextContent('70% by UPI, after approval₹780.50');
   });
 
   it('stops at the largest deal, MAX_BUDGET_RUPEES, however much is typed or pasted', async () => {
@@ -364,7 +364,9 @@ describe('the deal calculator', () => {
     fireEvent.change(amountInput(), { target: { value: '9'.repeat(30) } });
     expect(amountInput()).toHaveValue('1,00,00,00,00,000');
     expect(window.location.search).toBe('?amount=100000000000');
-    expect(screen.getByText('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Whole rupees, ₹2,000.00 to ₹1,00,00,00,00,000.00.'),
+    ).toBeInTheDocument();
     // The full amounts, with paise, never shortened to lakh or crore.
     await waitFor(() =>
       expect(result()).toHaveTextContent('The creator receives₹99,99,99,99,115.00'),
@@ -410,21 +412,21 @@ describe('the deal calculator', () => {
       expect(initialDigits(bad)).toBe('10000');
     }
     // Outside the range: clamped to it.
-    expect(initialDigits('500')).toBe('886');
-    expect(initialDigits('885')).toBe('886');
-    expect(initialDigits('886')).toBe('886');
+    expect(initialDigits('500')).toBe('2000');
+    expect(initialDigits('1999')).toBe('2000');
+    expect(initialDigits('2000')).toBe('2000');
     expect(initialDigits('100000000000')).toBe('100000000000');
     expect(initialDigits('999999999999999')).toBe('100000000000');
-    expect(initialDigits('999', 1_000_00)).toBe('1000');
+    expect(initialDigits('2999', 3_000_00)).toBe('3000');
   });
 
   it('says the range under the field, from the minimum to the largest deal', () => {
     expect(amountHint(CONFIG.minBudgetPaise)).toBe(
-      'Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.',
+      'Whole rupees, ₹2,000.00 to ₹1,00,00,00,00,000.00.',
     );
-    expect(amountHint(1_000_00)).toBe('Whole rupees, ₹1,000.00 to ₹1,00,00,00,00,000.00.');
+    expect(amountHint(3_000_00)).toBe('Whole rupees, ₹3,000.00 to ₹1,00,00,00,00,000.00.');
     // Never under the shared minimum, whatever /config says.
-    expect(amountHint(100)).toBe('Whole rupees, ₹886.00 to ₹1,00,00,00,00,000.00.');
+    expect(amountHint(100)).toBe('Whole rupees, ₹2,000.00 to ₹1,00,00,00,00,000.00.');
   });
 
   it('sizes the figures to the longest amount, and keeps the fee in the bar on a large deal', async () => {
@@ -482,7 +484,7 @@ describe('the deal calculator without script', () => {
     };
     expect(await render('9'.repeat(20))).toContain('value="1,00,00,00,00,000"');
     expect(await render('lots')).toContain('value="10,000"');
-    expect(await render('100')).toContain('value="886"');
+    expect(await render('100')).toContain('value="2,000"');
   });
 });
 

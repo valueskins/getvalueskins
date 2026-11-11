@@ -11,8 +11,8 @@ describe('MIN_BUDGET_PAISE', () => {
     expect(MIN_BUDGET_PAISE).toBeGreaterThan(feeWithGst);
   });
 
-  it('is ₹886, in whole rupees', () => {
-    expect(MIN_BUDGET_PAISE).toBe(88_600);
+  it('is ₹2,000, in whole rupees', () => {
+    expect(MIN_BUDGET_PAISE).toBe(200_000);
     expect(MIN_BUDGET_PAISE % 100).toBe(0);
   });
 });

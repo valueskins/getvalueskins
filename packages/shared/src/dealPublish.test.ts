@@ -49,11 +49,11 @@ describe('validateDealForPublish', () => {
   });
 
   describe('budget', () => {
-    it('accepts exactly the minimum, ₹886', () => {
-      expect(paths({ budgetPaise: 886_00 })).toEqual([]);
+    it('accepts exactly the minimum, ₹2,000', () => {
+      expect(paths({ budgetPaise: 2000_00 })).toEqual([]);
     });
     it('rejects one rupee under the minimum', () => {
-      expect(paths({ budgetPaise: 885_00 })).toEqual(['budgetRupees']);
+      expect(paths({ budgetPaise: 1999_00 })).toEqual(['budgetRupees']);
     });
     it('uses the minimum it is given, as the web does from /api/config', () => {
       const issues = validateDealForPublish({ ...READY, budgetPaise: 5_000_00 }, NOW, 6_000_00);
@@ -61,8 +61,8 @@ describe('validateDealForPublish', () => {
         { path: 'budgetRupees', message: 'The budget must be at least ₹6,000.00' },
       ]);
       expect(
-        validateDealForPublish({ ...READY, budgetPaise: 885_00 }, NOW).map((i) => i.message),
-      ).toEqual(['The budget must be at least ₹886.00']);
+        validateDealForPublish({ ...READY, budgetPaise: 1999_00 }, NOW).map((i) => i.message),
+      ).toEqual(['The budget must be at least ₹2,000.00']);
     });
     it('rejects paise that are not whole rupees', () => {
       expect(paths({ budgetPaise: 10_000_50 })).toEqual(['budgetRupees']);

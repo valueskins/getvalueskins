@@ -13,6 +13,7 @@
  * rohan.eats.example or anaya.reels.example (creators).
  */
 import { existsSync } from 'node:fs';
+import { istDate } from './istDate.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 
@@ -102,7 +103,8 @@ const DEALS: Array<{
   rupees: number;
   creator: number;
   what: string;
-  applyBy: string;
+  /** Days from today in India Standard Time: positive is still open, negative has passed. */
+  applyByDays: number;
 }> = [
   {
     status: 'DRAFT',
@@ -110,7 +112,7 @@ const DEALS: Array<{
     rupees: 9_000,
     creator: 0,
     what: '1 reel, 30 to 45 seconds',
-    applyBy: '2026-11-10',
+    applyByDays: 14,
   },
   {
     status: 'OPEN',
@@ -118,7 +120,7 @@ const DEALS: Array<{
     rupees: 15_000,
     creator: 0,
     what: '1 reel, 30 to 45 seconds',
-    applyBy: '2026-10-29',
+    applyByDays: 7,
   },
   {
     status: 'CONFIRMED',
@@ -126,7 +128,7 @@ const DEALS: Array<{
     rupees: 25_000,
     creator: 2,
     what: '1 carousel of 8 photos',
-    applyBy: '2026-10-20',
+    applyByDays: -22,
   },
   {
     status: 'COMMISSION_PAID',
@@ -134,7 +136,7 @@ const DEALS: Array<{
     rupees: 12_000,
     creator: 0,
     what: '1 reel and 3 stories',
-    applyBy: '2026-10-18',
+    applyByDays: -24,
   },
   {
     status: 'ADVANCE_PAID',
@@ -142,7 +144,7 @@ const DEALS: Array<{
     rupees: 18_000,
     creator: 1,
     what: '5 stories with a link sticker',
-    applyBy: '2026-10-15',
+    applyByDays: -27,
   },
   {
     status: 'CONTENT_UPLOADED',
@@ -150,7 +152,7 @@ const DEALS: Array<{
     rupees: 9_000,
     creator: 2,
     what: '1 reel, 20 to 30 seconds',
-    applyBy: '2026-10-10',
+    applyByDays: -32,
   },
   {
     status: 'REVISION_REQUESTED',
@@ -158,7 +160,7 @@ const DEALS: Array<{
     rupees: 14_000,
     creator: 0,
     what: '1 reel with 4 outfits',
-    applyBy: '2026-10-08',
+    applyByDays: -34,
   },
   {
     status: 'APPROVED',
@@ -166,7 +168,7 @@ const DEALS: Array<{
     rupees: 8_000,
     creator: 1,
     what: '1 reel, 15 to 30 seconds',
-    applyBy: '2026-10-05',
+    applyByDays: -37,
   },
   {
     status: 'COMPLETED',
@@ -174,7 +176,7 @@ const DEALS: Array<{
     rupees: 10_000,
     creator: 2,
     what: '1 reel, 30 to 45 seconds',
-    applyBy: '2026-09-20',
+    applyByDays: -52,
   },
   {
     status: 'CANCELLED',
@@ -182,7 +184,7 @@ const DEALS: Array<{
     rupees: 20_000,
     creator: 0,
     what: '1 reel and 2 posts',
-    applyBy: '2026-10-01',
+    applyByDays: -41,
   },
   {
     status: 'COMMISSION_PAID',
@@ -190,7 +192,7 @@ const DEALS: Array<{
     rupees: 16_000,
     creator: 1,
     what: '1 transition reel',
-    applyBy: '2026-10-19',
+    applyByDays: -23,
   },
   {
     status: 'OPEN',
@@ -198,7 +200,7 @@ const DEALS: Array<{
     rupees: 7_500,
     creator: 0,
     what: '1 reel, 3 looks',
-    applyBy: '2026-11-04',
+    applyByDays: 14,
   },
   {
     status: 'OPEN',
@@ -206,7 +208,7 @@ const DEALS: Array<{
     rupees: 11_000,
     creator: 0,
     what: '1 reel and 2 stories',
-    applyBy: '2026-11-08',
+    applyByDays: 21,
   },
 ];
 
@@ -216,7 +218,7 @@ function brief(what: string): string {
     `Content type: ${what}`,
     'Shooting: At home or outdoors in daylight. No studio needed.',
     'Travel: Not provided',
-    'Timeline: Shoot by 12 Nov, post between 14 and 18 Nov',
+    'Timeline: Shoot within a week of confirming, post within ten days',
     'Approval: 1 round of changes, we reply within 2 days',
     'Rights: We may repost on our page for 6 months',
     'Deliverables: 1080x1920 MP4 with captions in English',
@@ -240,7 +242,7 @@ async function main(): Promise<void> {
   const onboarded = {
     roleLockedAt: now,
     igTokenEncrypted: 'seed-encrypted-token',
-    igTokenExpiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    igTokenExpiresAt: new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000),
     instagramSyncedAt: now,
     emailVerifiedAt: now,
     onboardingCompletedAt: now,
@@ -321,9 +323,9 @@ async function main(): Promise<void> {
       confirmedCreatorVpa: creator(d.creator).vpa,
       applicantCreatorId: creator(2).id,
       budgetRupees: d.rupees,
-      applicationDeadline: d.applyBy,
-      contentUploadDeadline: '2026-11-15',
-      dealDeadline: '2026-11-25',
+      applicationDeadline: istDate(d.applyByDays, now),
+      contentUploadDeadline: istDate(45, now),
+      dealDeadline: istDate(60, now),
       company,
     });
     // Realistic words in place of the matrix's placeholders. The status is never touched.

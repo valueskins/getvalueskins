@@ -225,11 +225,11 @@ export function ComponentSheet() {
             <Field
               id="s-money"
               label="Budget in rupees"
-              help="Whole rupees. The minimum is ₹886.00."
+              help="Whole rupees. The minimum is ₹2,000.00."
             >
               <MoneyInput id="s-money" inputMode="numeric" defaultValue="10,000" />
             </Field>
-            <Field id="s-money-err" label="Budget in rupees" error="The minimum is ₹886.00.">
+            <Field id="s-money-err" label="Budget in rupees" error="The minimum is ₹2,000.00.">
               <MoneyInput id="s-money-err" inputMode="numeric" invalid defaultValue="500" />
             </Field>
             <Field id="s-select" label="City">
@@ -273,7 +273,7 @@ export function ComponentSheet() {
           <ErrorSummary
             errors={[
               { id: 's-error', message: 'Enter an email address like name@example.com.' },
-              { id: 's-money-err', message: 'The minimum is ₹886.00.' },
+              { id: 's-money-err', message: 'The minimum is ₹2,000.00.' },
             ]}
           />
         </Section>
