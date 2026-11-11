@@ -5,16 +5,14 @@ Read this whole file at the start of every session. It applies to every task in 
 ## 1. What this repo is
 
 - ValueSkins (Valueskins Private Limited) is a marketplace where brands hire Instagram creators for fixed-price content deals in India. One brand and one creator per deal. No chat, no negotiation.
-- This repo, `valueskins/getvalueskins`, is a rebuild. It will replace the live app in `valueskins/valueskins` (valueskins.com), which is maintained separately. Never change, push to, or depend on that repo. Its data is reached only through the import in `docs/REPLACEMENT_PLAN.md` (Prompt 18), using a read-only copy.
-- The API is built through Prompt 11. The web app in `apps/web` is temporary and will be rebuilt from a design handoff (section 15).
+- This repo, `valueskins/getvalueskins`, is a rebuild. It will replace the live app in `valueskins/valueskins` (valueskins.com), which is maintained separately. Never change, push to, or depend on that repo. Its data is reached only through the import described in `docs/CUTOVER.md`, using a read-only copy.
+- The web application in `apps/web` is the real application, not a temporary one. One task may change `apps/api`, `packages/shared` and `apps/web` together (section 15).
 
 ## 2. Sources of truth
 
 Read the sections a task names before writing code.
 
-1. **`docs/REPLACEMENT_PLAN.md` section 2** defines the target rules until cutover. Where it differs from the spec, it wins.
-   - Implement a target rule only in the prompt that asks for it. Until then the existing code and spec stand.
-   - When you implement one, update `docs/SPEC.md` in the same change.
+1. **`docs/REPLACEMENT_PLAN.md`** is history, kept for reference only. It no longer overrides the spec. Where a task changes a rule, update `docs/SPEC.md` in the same change.
 2. **`docs/SPEC.md`** is the product and technical spec, and must always describe what the code does.
 3. **`docs/DEPLOYMENT.md`** covers environments and manual setup. Update it whenever env vars, URLs, webhooks or manual steps change.
 4. `docs/V0_LAUNCH.md` is retired. Do not follow it. Where it still disagrees with the spec, the spec wins.
@@ -24,7 +22,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 ## 3. How to work on a task
 
 - Work only on the current prompt. Do not build ahead, and do not add features, fields, endpoints, tables, env vars or dependencies the prompt and spec do not call for.
-- One task per branch, named `feat/...`, `fix/...` or `chore/...`. Small commits.
+- One task per branch, named `feature/...`, `fix/...` or `maintenance/...`, in full words with no abbreviations. Small commits.
 - For any external API detail (Instagram, Meta, Razorpay, Resend), check the current official docs. Do not rely on memory. Say in your summary what you verified, and where.
 - Never create, change or delete resources in any external account (Render, Vercel, Netlify, Razorpay, Meta, Resend, DNS). Write the config and the steps, and the human does it.
 - Ask before deleting anything you are not sure is unused.
@@ -60,14 +58,18 @@ Commands (from the repo root):
   - production has `ENABLE_DEV_LOGIN=true`
   - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else), checked whenever a key is set
   - production has `PAYMENTS_MODE` other than `off` without a live key id, key secret, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`
-  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` while `HOSTING_TIER` is not `paid` (the free tier sleeps; `off` and `admins` are allowed there)
+  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` while `HOSTING_TIER` is not `paid` (to be removed in Task 1, by the founders' decision above)
   - `DATABASE_URL` is a pooled host (`-pooler`), in any environment, or lacks `sslmode=require` in production
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
-  Never weaken a guard. Add new guards for any new dangerous combination.
+  Never weaken a guard, except the one removal named above. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
-- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy. `HOSTING_TIER` (`free` or `paid`, unset means `free`) must be `paid` before either becomes `on` in production. `admins` is allowed on the free tier for a closed test by admins.
+- `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
+- **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The `HOSTING_TIER` variable and its guard are removed in Task 1. That is the one guard that may be removed. Never weaken any other guard.
+- Production stays awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours). Scheduled jobs must tolerate sleeping and catch up when the service wakes (Task 4).
+- The minimum deal budget is 2,000 rupees (Task 2). Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
+- The Revision 11 payment ledger will not be built.
 - **Dev login** exists only when `NODE_ENV !== 'production'` and `ENABLE_DEV_LOGIN=true`. **Email-code sign-in** is for staging and tests only, never production.
 
 ## 6. Product rules the code must always enforce
@@ -212,16 +214,16 @@ This covers emails, PDFs and API error messages.
 - Edit a merged migration, or run migrations on app start.
 - Weaken a startup guard, a test or a database constraint to make something pass.
 - Touch external accounts, or the `valueskins/valueskins` repo.
-- Change `apps/web` in an API prompt (section 15).
 
 ## 14. Git
 
-- **Never add Co-Authored-By or any other trailer, and never mention an AI tool or assistant** in commit messages, PR titles or bodies, code comments or docs.
-- Conventional messages, for example `feat(payments): record direct UPI payments`. One task per branch, merged by PR after CI passes.
+- Melove Gupta is the only author of every commit and pull request. Never add Co-Authored-By or any other trailer, never add "Generated with Claude Code", and never mention an AI tool or assistant in commit messages, pull request titles or bodies, code comments or documentation. `.claude/settings.json` blanks the automatic attribution.
+- Commit messages follow `type(scope): summary`. The types are `feature`, `fix`, `maintenance`, `documentation`, `test` and `refactor`. Example: `feature(payments): record direct UPI payments`.
+- No abbreviations in commit messages, pull request titles and descriptions, branch names, code comments or documentation. Write full words: "pull request", "continuous integration", "environment variable", "India Standard Time". Code identifiers (file paths, function names, commands, environment variable names) and standard names such as UPI, GST, PDF, API, URL, HTTP, JSON and SQL keep their usual form.
+- One task per branch, merged by pull request after continuous integration passes.
 - Never commit `.env` files or secrets. Never force-push `main`.
 
-## 15. The web app
+## 15. The web application
 
-- `apps/web` is temporary and will be rebuilt from a Claude Design handoff in the W1 to W3 prompts. Until then there are no UI rules in this file. The design handoff and the web prompts define the UI.
-- In API prompts, only change `apps/web` when the prompt says so, and only the temporary pages in `apps/web/app/(temporary)` and `apps/web/lib/temporary`.
-- In web prompts, never change `apps/api` or `packages/shared`. Write missing API needs into `docs/WEB_API_GAPS.md` instead.
+- `apps/web` is the real application. It is not temporary and it is not being rebuilt from a handoff. `docs/DESIGN_HANDOFF.md` and `docs/WEB_API_GAPS.md` are history.
+- One task may change `apps/api`, `packages/shared` and `apps/web` together, so rules and screens stay in step.
