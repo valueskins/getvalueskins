@@ -156,7 +156,7 @@ describe('POST /api/deals/:id/publish', () => {
     });
 
     it.each([
-      ['a budget below the minimum', { budgetRupees: 885 }, 'budgetRupees'],
+      ['a budget below the minimum', { budgetRupees: 1999 }, 'budgetRupees'],
       [
         'an application deadline that has passed',
         { applicationDeadline: '2026-10-08' },
