@@ -13,6 +13,7 @@
  * rohan.eats.example or anaya.reels.example (creators).
  */
 import { existsSync } from 'node:fs';
+import { istDate } from './istDate.js';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 
@@ -94,14 +95,6 @@ const CREATORS = [
     media: 905,
   },
 ] as const;
-
-/** Today's date in India Standard Time plus a whole number of days, as YYYY-MM-DD. */
-function istDate(daysFromToday: number, now: Date = new Date()): string {
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
-  const date = new Date(`${today}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + daysFromToday);
-  return date.toISOString().slice(0, 10);
-}
 
 /** One deal per status, plus a second Fee paid deal and two more open ones. `creator` indexes CREATORS. */
 const DEALS: Array<{
@@ -225,7 +218,7 @@ function brief(what: string): string {
     `Content type: ${what}`,
     'Shooting: At home or outdoors in daylight. No studio needed.',
     'Travel: Not provided',
-    'Timeline: Shoot by 12 Nov, post between 14 and 18 Nov',
+    'Timeline: Shoot within a week of confirming, post within ten days',
     'Approval: 1 round of changes, we reply within 2 days',
     'Rights: We may repost on our page for 6 months',
     'Deliverables: 1080x1920 MP4 with captions in English',
@@ -330,9 +323,9 @@ async function main(): Promise<void> {
       confirmedCreatorVpa: creator(d.creator).vpa,
       applicantCreatorId: creator(2).id,
       budgetRupees: d.rupees,
-      applicationDeadline: istDate(d.applyByDays),
-      contentUploadDeadline: istDate(45),
-      dealDeadline: istDate(60),
+      applicationDeadline: istDate(d.applyByDays, now),
+      contentUploadDeadline: istDate(45, now),
+      dealDeadline: istDate(60, now),
       company,
     });
     // Realistic words in place of the matrix's placeholders. The status is never touched.

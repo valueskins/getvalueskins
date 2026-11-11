@@ -82,6 +82,32 @@ describe('GET /api/deals/feed', () => {
     expect(item).not.toHaveProperty('commissionTotalPaise');
   });
 
+  it('still lists and shows a deal published below the current minimum, with its frozen breakdown', async () => {
+    const brand = await brandWithBilling();
+    const creator = await creatorWithPayout();
+    // Published when the minimum was ₹886: 88,500 fee, then ₹1.00 to the creator as 30 and 70 paise.
+    const old = await insertDeal(brand.user.id, 'OPEN', {
+      budgetPaise: 88_600,
+      commissionBasePaise: 75_000,
+      commissionGstPaise: 13_500,
+      commissionTotalPaise: 88_500,
+      creatorAmountPaise: 100,
+      advancePaise: 30,
+      finalPaise: 70,
+    });
+
+    const [item] = (await api.get('/api/deals/feed', creator.cookie)).body.items;
+    expect(item).toMatchObject({ id: old.id, budgetPaise: 88_600, creatorAmountPaise: 100 });
+    const detail = await api.get(`/api/deals/${old.id}`, brand.cookie);
+    expect(detail.status).toBe(200);
+    expect(detail.body.deal).toMatchObject({
+      budgetPaise: 88_600,
+      commissionTotalPaise: 88_500,
+      advancePaise: 30,
+      finalPaise: 70,
+    });
+  });
+
   it('is newest published first and pages without gaps or repeats, including equal timestamps', async () => {
     const brand = await brandWithBilling();
     const creator = await creatorWithPayout();
