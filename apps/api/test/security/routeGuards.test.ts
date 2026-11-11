@@ -19,6 +19,7 @@ import { buildTestEnv } from '../testEnv.js';
 /** Public routes, each with the reason it needs no session. Nothing else may be public. */
 const PUBLIC_ROUTES: Record<string, string> = {
   'GET /api/health': 'Render health check',
+  'GET /healthz': 'Render health check; must never touch the database',
   'GET /api/config': 'public config for the sign-in page and the breakdown preview',
   'POST /api/webhooks/razorpay': 'HMAC signature on the raw body, deduped by event id',
   'POST /api/meta/deauthorize': 'Meta signed_request, verified',
@@ -55,6 +56,7 @@ const EXPECTED_ROUTES: string[] = [
   'GET /api/deals/feed | role:CREATOR,requireOnboarded | -',
   'GET /api/deals/mine | requireOnboarded | -',
   'GET /api/health | public | -',
+  'GET /healthz | public | -',
   'GET /api/me | requireUser | -',
   'GET /api/me/billing | role:BRAND | -',
   'GET /api/me/payout-upi | role:CREATOR | -',
@@ -176,8 +178,12 @@ describe('the route table', () => {
     expect(actual).toEqual([...EXPECTED_ROUTES].sort());
   });
 
-  it('every route is behind the global per-user rate limiter', () => {
-    expect(routes.filter((r) => !r.globallyLimited).map(key)).toEqual([]);
+  it('every route is behind the global per-user rate limiter, except the health check', () => {
+    // The global limiter writes to PostgreSQL. Render calls /healthz every few seconds, so a
+    // limiter in front of it would keep the free Neon database awake all day. Nothing else may skip it.
+    const exempt = new Set(['GET /healthz']);
+    expect(routes.filter((r) => !r.globallyLimited && !exempt.has(key(r))).map(key)).toEqual([]);
+    expect(routes.filter((r) => r.globallyLimited && exempt.has(key(r))).map(key)).toEqual([]);
   });
 
   it('every route that is not on the public allowlist has an auth guard', () => {

@@ -531,7 +531,7 @@ describe('sign-in while the API wakes', () => {
 
   it('says why it is waiting, then offers "Try again" after 60 seconds', async () => {
     vi.useFakeTimers();
-    mockApi({ 'GET /health': () => new Promise<Response>(() => {}) });
+    mockApi({ 'GET /healthz': () => new Promise<Response>(() => {}) });
     render(<HomeSignIn />);
     expect(screen.getByText(ACCOUNT_NOTE)).toBeInTheDocument();
     expect(screen.queryByText(CONNECTING_REASON)).not.toBeInTheDocument();

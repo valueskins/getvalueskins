@@ -52,7 +52,9 @@ services:
     # No preDeployCommand: free instances do not have one. The API never migrates on start or
     # in the build; it refuses to start when the code has a migration the database has not applied.
     startCommand: pnpm --filter @valueskins/api run start
-    healthCheckPath: /api/health
+    # Must never touch the database: Render calls it every few seconds, and a query would keep the
+    # free Neon database awake (docs/DEPLOYMENT.md section 21.8). /api/health is for checks by hand.
+    healthCheckPath: /healthz
     domains:
       - api.valueskins.com
     envVars:

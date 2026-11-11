@@ -2,9 +2,10 @@ import { apiBaseUrl } from './env';
 
 /**
  * The free Render instance sleeps after 15 minutes without traffic and takes about a minute to wake
- * (docs/DEPLOYMENT.md section 21.8). The web app asks `GET /api/health` once, on the first load of a
- * page and without waiting for it, so the API (and the free Neon database behind it) wakes while the
- * visitor reads. The sign-in button then waits for the same answer when it has to.
+ * (docs/DEPLOYMENT.md section 21.8). The web app asks `GET /healthz` once, on the first load of a
+ * page and without waiting for it, so the API wakes while the visitor reads. That check never
+ * touches the database, so a visitor who never signs in does not wake Neon (`GET /api/health`
+ * queries it). The sign-in button then waits for the same answer when it has to.
  */
 
 /** How long the sign-in button waits for the API before it gives up and offers "Try again". */
@@ -16,7 +17,7 @@ let started = false;
 let answered = false;
 
 function healthUrl(): string {
-  return `${apiBaseUrl()}/api/health`;
+  return `${apiBaseUrl()}/healthz`;
 }
 
 /**
