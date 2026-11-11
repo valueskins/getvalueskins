@@ -404,7 +404,7 @@ Production is closed at the end of this cutover. When the company bank account a
 Then:
 
 1. Follow `docs/DEPLOYMENT.md` section 16a, "Opening payments and posting": set the live Razorpay values and `COMPANY_GSTIN` in Render, register the live webhook (`payment.captured`, `payment.failed` and `order.paid` only), set `PAYMENTS_MODE=admins`, restart, and run one real deal as an admin. Then `on`.
-2. Do the remaining items in `docs/SPEC.md` section 22 that B13 left out: the Razorpay live account and webhook, the fee invoice format approved by the CA, and one real ₹2,000 deal (the minimum) between the two founders with a real ₹885.00 fee. The creator's share is ₹1,115.00, paid as ₹334.50 and ₹780.50.
+2. Do the remaining items in `docs/SPEC.md` section 22 that B13 left out: the Razorpay live account and webhook, the fee invoice format approved by the chartered accountant, and one real ₹2,000 deal (the minimum) between the two founders with a real ₹885.00 fee. The creator's share is ₹1,115.00, paid as ₹334.50 and ₹780.50.
 3. The first fee issues invoice `VS/2026-27/000001`. Before the first payment, `q "select count(*) from invoice_counters"` must still print `0`. After it, `q "select kind, financial_year, last_sequence from invoice_counters"` shows `COMMISSION_TAX_INVOICE`, `2026-27`, `1`. A new financial year (from 1 April 2027) starts again at `000001` by itself.
 4. Set `DEAL_POSTING_MODE` the same way (`admins`, then `on`). Then tell people with `pnpm notify:launch` as in section 16a.
 

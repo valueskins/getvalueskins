@@ -16,7 +16,7 @@ Last, a creator adds the UPI ID they want to be paid on, with the name on that a
 
 The brand writes a title and a full brief. A template helps it cover what matters: the type of content, where it is shot, travel, the timeline, how approval works, how the brand may use the content, the files it needs, anything that must not appear, and how to deliver it.
 
-The brand sets the budget in whole rupees, at least ₹2,000.00, and sees the breakdown as it types. It sets three dates: when applications close, when the content is due, and when the deal ends. Each date ends at 11:59 pm IST. Once published, a deal cannot be edited. The amount is final. There is no negotiation and no chat.
+The brand sets the budget in whole rupees, at least ₹2,000.00, and sees the breakdown as it types. It sets three dates: when applications close, when the content is due, and when the deal ends. Each date ends at 11:59 pm India Standard Time. Once published, a deal cannot be edited. The amount is final. There is no negotiation and no chat.
 
 ### Creators apply
 
