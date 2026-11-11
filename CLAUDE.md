@@ -62,7 +62,7 @@ Commands (from the repo root):
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
-  Never weaken a guard, except the one removal named above. Add new guards for any new dangerous combination.
+  Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
 - `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
 - **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The guard that tied both modes to a hosting tier is removed, so the API starts in production with both modes `on`. Never weaken any other guard.

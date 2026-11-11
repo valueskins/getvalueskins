@@ -898,7 +898,7 @@ By the founders' decision of 11 November 2026, production stays on free instance
 - **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
 - **The web app has a monthly credit limit.** Netlify's Free plan pauses every site on the account when its 300 credits are used (section 21.6). One production deploy is 15 of them.
 - **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (built in Task 5, which adds the Brevo variables to this document). The minimum deal budget becomes ₹2,000 (built in Task 2).
-- **No hosting tier guard.** The API starts in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` on free hosting, by the founders' decision of 11 November 2026. The payment values are still checked (section 16a).
+- **No hosting tier guard.** The API starts in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` on free hosting, by the founders' decision of 11 November 2026. The payment values are still checked (section 16a). If the production service still has the old hosting tier variable in the Render dashboard, delete it: it is ignored, but it is no longer used.
 
 ### 21.9 Moving to paid (optional)
 
