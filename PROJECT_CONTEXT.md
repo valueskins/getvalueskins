@@ -95,15 +95,15 @@ For a budget `B`:
 
 Example at ₹10,000 budget (from the API e2e test):
 
-| Item | Amount |
-|---|---:|
-| Budget | ₹10,000.00 |
-| Fee base | ₹750.00 |
-| GST | ₹135.00 |
-| Fee total | ₹885.00 |
-| Creator amount | ₹9,115.00 |
-| Advance (30%) | ₹2,734.50 |
-| Final (70%) | ₹6,380.50 |
+| Item           |     Amount |
+| -------------- | ---------: |
+| Budget         | ₹10,000.00 |
+| Fee base       |    ₹750.00 |
+| GST            |    ₹135.00 |
+| Fee total      |    ₹885.00 |
+| Creator amount |  ₹9,115.00 |
+| Advance (30%)  |  ₹2,734.50 |
+| Final (70%)    |  ₹6,380.50 |
 
 The breakdown is **frozen on publish**: `deals.commissionBasePaise`, `commissionGstPaise`, `commissionTotalPaise`, `creatorAmountPaise`, `advancePaise`, `finalPaise`. Later config changes never alter an existing deal.
 
@@ -200,13 +200,13 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 
 ### Roles
 
-| Role | How assigned | Can do |
-|---|---|---|
-| **Brand** | Instagram account type `BUSINESS` | Create/edit/publish deals, view applicants, confirm a creator, pay fee, record UPI payments, approve content, raise disputes, manage billing, cancel early. |
-| **Creator** | Instagram account type `MEDIA_CREATOR` | Browse feed, apply, upload content, confirm/deny direct payments, manage UPI details, raise disputes, view applications and deals. |
-| **Admin** | Instagram user id in `ADMIN_INSTAGRAM_USER_IDS`; `users.is_admin` set at sign-in | Everything an admin screen offers: all deals, all disputes, resend emails, cancel a deal from fee-paid onward, resolve disputes. Admin routes return 404 to everyone else. |
-| **Signed-in, not onboarded** | Has a session but incomplete setup | Only `/me`, onboarding/profile/email/billing/payout endpoints; marketplace endpoints reject with `ONBOARDING_INCOMPLETE`. |
-| **Public** | No session | Health, config, Instagram OAuth start/callback, logout, Razorpay webhook, Meta callbacks, email-verification token endpoint, and gated dev/email login routes. |
+| Role                         | How assigned                                                                     | Can do                                                                                                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Brand**                    | Instagram account type `BUSINESS`                                                | Create/edit/publish deals, view applicants, confirm a creator, pay fee, record UPI payments, approve content, raise disputes, manage billing, cancel early.                |
+| **Creator**                  | Instagram account type `MEDIA_CREATOR`                                           | Browse feed, apply, upload content, confirm/deny direct payments, manage UPI details, raise disputes, view applications and deals.                                         |
+| **Admin**                    | Instagram user id in `ADMIN_INSTAGRAM_USER_IDS`; `users.is_admin` set at sign-in | Everything an admin screen offers: all deals, all disputes, resend emails, cancel a deal from fee-paid onward, resolve disputes. Admin routes return 404 to everyone else. |
+| **Signed-in, not onboarded** | Has a session but incomplete setup                                               | Only `/me`, onboarding/profile/email/billing/payout endpoints; marketplace endpoints reject with `ONBOARDING_INCOMPLETE`.                                                  |
+| **Public**                   | No session                                                                       | Health, config, Instagram OAuth start/callback, logout, Razorpay webhook, Meta callbacks, email-verification token endpoint, and gated dev/email login routes.             |
 
 ### Authorization mechanics
 
@@ -353,33 +353,33 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 
 ## 5. Technology stack
 
-| Layer | Technology | Version / notes |
-|---|---|---|
-| Runtime | Node.js | 22 (`engines`, `.nvmrc`, CI) |
-| Package manager | pnpm workspaces | `pnpm@9.15.9`; `pnpm-workspace.yaml` |
-| Language | TypeScript | 5.7, strict ESM, `tsconfig.base.json` |
-| API framework | Express | 5.x |
-| ORM / DB | Drizzle ORM + `pg` | PostgreSQL 16 |
-| Validation | Zod | 4.x, shared schemas |
-| Auth | Custom sessions + Instagram OAuth | `sessions` table, HttpOnly cookie |
-| Realtime | Socket.io | 4.8 server + client |
-| Payments | Razorpay | Orders, Checkout, Payments API, webhooks |
-| Email | Resend | `EMAIL_TRANSPORT=console` for local |
-| PDFs | PDFKit + DejaVu fonts | server-side |
-| QR codes | `qrcode` (web) | loaded on the pay step |
-| Logging | pino + pino-http | redaction via shared scrubber |
-| Errors | Sentry | API `@sentry/node`, web `@sentry/nextjs`, errors only |
-| Rate limiting | `rate-limiter-flexible` | PostgreSQL store (`rate_limiter_points`) |
-| Jobs | `node-cron` | in-process, IST, advisory locks |
-| Web framework | Next.js | 15.5 App Router, React 19 |
-| Data fetching | TanStack Query | 5.x |
-| Styling | Tailwind CSS 3 + CSS variables | custom design tokens |
-| Content | `react-markdown` | legal/How it works markdown |
-| Testing | Vitest | API + shared + web (jsdom, Testing Library) |
-| API test utilities | Supertest, MSW | real Postgres test DB |
-| CI/CD | GitHub Actions | Postgres service; Netlify CLI deploy |
-| Hosting | Render (API), Neon (DB), Netlify (prod web), Vercel (staging web) | documented |
-| DNS | Cloudflare | operational only |
+| Layer              | Technology                                                        | Version / notes                                       |
+| ------------------ | ----------------------------------------------------------------- | ----------------------------------------------------- |
+| Runtime            | Node.js                                                           | 22 (`engines`, `.nvmrc`, CI)                          |
+| Package manager    | pnpm workspaces                                                   | `pnpm@9.15.9`; `pnpm-workspace.yaml`                  |
+| Language           | TypeScript                                                        | 5.7, strict ESM, `tsconfig.base.json`                 |
+| API framework      | Express                                                           | 5.x                                                   |
+| ORM / DB           | Drizzle ORM + `pg`                                                | PostgreSQL 16                                         |
+| Validation         | Zod                                                               | 4.x, shared schemas                                   |
+| Auth               | Custom sessions + Instagram OAuth                                 | `sessions` table, HttpOnly cookie                     |
+| Realtime           | Socket.io                                                         | 4.8 server + client                                   |
+| Payments           | Razorpay                                                          | Orders, Checkout, Payments API, webhooks              |
+| Email              | Resend                                                            | `EMAIL_TRANSPORT=console` for local                   |
+| PDFs               | PDFKit + DejaVu fonts                                             | server-side                                           |
+| QR codes           | `qrcode` (web)                                                    | loaded on the pay step                                |
+| Logging            | pino + pino-http                                                  | redaction via shared scrubber                         |
+| Errors             | Sentry                                                            | API `@sentry/node`, web `@sentry/nextjs`, errors only |
+| Rate limiting      | `rate-limiter-flexible`                                           | PostgreSQL store (`rate_limiter_points`)              |
+| Jobs               | `node-cron`                                                       | in-process, IST, advisory locks                       |
+| Web framework      | Next.js                                                           | 15.5 App Router, React 19                             |
+| Data fetching      | TanStack Query                                                    | 5.x                                                   |
+| Styling            | Tailwind CSS 3 + CSS variables                                    | custom design tokens                                  |
+| Content            | `react-markdown`                                                  | legal/How it works markdown                           |
+| Testing            | Vitest                                                            | API + shared + web (jsdom, Testing Library)           |
+| API test utilities | Supertest, MSW                                                    | real Postgres test DB                                 |
+| CI/CD              | GitHub Actions                                                    | Postgres service; Netlify CLI deploy                  |
+| Hosting            | Render (API), Neon (DB), Netlify (prod web), Vercel (staging web) | documented                                            |
+| DNS                | Cloudflare                                                        | operational only                                      |
 
 ---
 
@@ -624,81 +624,81 @@ Base: `/api`. JSON except webhooks/Meta. Auth by session cookie. Every route is 
 
 ### Public / infrastructure
 
-| Method | Path | Responsibility |
-|---|---|---|
-| GET | `/healthz` | No database, session or rate limiter. Render health check and the web wake-up call. |
-| GET | `/api/health` | DB ping, for checks by hand. |
-| GET | `/api/config` | Public config: min budget, GST, payments/posting gates, auth-email flag, support email. |
-| POST | `/api/webhooks/razorpay` | Raw-body HMAC, dedupe by event id, fast 200, async handler. |
-| POST | `/api/meta/deauthorize` | Signed request; revokes/clears Instagram data. |
-| POST | `/api/meta/data-deletion` | Signed request; schedules/records deletion, returns confirmation code. |
-| GET | `/api/meta/deletion-status/:code` | Status only, unguessable code. |
-| GET | `/api/auth/instagram/start` | Sets OAuth state cookie, redirects to Instagram. |
-| GET | `/api/auth/instagram/callback` | Verifies state, exchanges code, upserts user/session, redirects to web. |
-| POST | `/api/auth/logout` | Ends session, clears cookie. |
-| POST | `/api/dev/login` | Non-production only; role/admin selection. |
-| POST | `/api/auth/email/start`, `/verify` | Staging/tests only (`AUTH_EMAIL_ENABLED`), IP-limited. |
-| POST | `/api/me/email/verify` | Public token endpoint; proves address, never signs in. |
+| Method | Path                               | Responsibility                                                                          |
+| ------ | ---------------------------------- | --------------------------------------------------------------------------------------- |
+| GET    | `/healthz`                         | No database, session or rate limiter. Render health check and the web wake-up call.     |
+| GET    | `/api/health`                      | DB ping, for checks by hand.                                                            |
+| GET    | `/api/config`                      | Public config: min budget, GST, payments/posting gates, auth-email flag, support email. |
+| POST   | `/api/webhooks/razorpay`           | Raw-body HMAC, dedupe by event id, fast 200, async handler.                             |
+| POST   | `/api/meta/deauthorize`            | Signed request; revokes/clears Instagram data.                                          |
+| POST   | `/api/meta/data-deletion`          | Signed request; schedules/records deletion, returns confirmation code.                  |
+| GET    | `/api/meta/deletion-status/:code`  | Status only, unguessable code.                                                          |
+| GET    | `/api/auth/instagram/start`        | Sets OAuth state cookie, redirects to Instagram.                                        |
+| GET    | `/api/auth/instagram/callback`     | Verifies state, exchanges code, upserts user/session, redirects to web.                 |
+| POST   | `/api/auth/logout`                 | Ends session, clears cookie.                                                            |
+| POST   | `/api/dev/login`                   | Non-production only; role/admin selection.                                              |
+| POST   | `/api/auth/email/start`, `/verify` | Staging/tests only (`AUTH_EMAIL_ENABLED`), IP-limited.                                  |
+| POST   | `/api/me/email/verify`             | Public token endpoint; proves address, never signs in.                                  |
 
 ### Current user / onboarding / profile
 
-| Method | Path | Guard |
-|---|---|---|
-| GET | `/api/me` | `requireUser`; user, profile, onboarding steps, pending email. |
-| DELETE | `/api/me` | `requireUser`; account deletion/anonymization. |
-| POST | `/api/me/email` | `requireUser`, email limiter; send verification link. |
-| POST | `/api/me/email/resend` | `requireUser`, email limiter. |
-| PUT | `/api/me/profile` | `requireUser`, profile limiter; locked after first save. |
-| GET/PUT | `/api/me/billing` | `role:BRAND`. |
-| GET/PUT | `/api/me/payout-upi` | `role:CREATOR`, payout limiter; GET returns masked only. |
-| GET | `/api/users/:id/resume` | `requireUser`; public resume data, no UPI. |
+| Method  | Path                    | Guard                                                          |
+| ------- | ----------------------- | -------------------------------------------------------------- |
+| GET     | `/api/me`               | `requireUser`; user, profile, onboarding steps, pending email. |
+| DELETE  | `/api/me`               | `requireUser`; account deletion/anonymization.                 |
+| POST    | `/api/me/email`         | `requireUser`, email limiter; send verification link.          |
+| POST    | `/api/me/email/resend`  | `requireUser`, email limiter.                                  |
+| PUT     | `/api/me/profile`       | `requireUser`, profile limiter; locked after first save.       |
+| GET/PUT | `/api/me/billing`       | `role:BRAND`.                                                  |
+| GET/PUT | `/api/me/payout-upi`    | `role:CREATOR`, payout limiter; GET returns masked only.       |
+| GET     | `/api/users/:id/resume` | `requireUser`; public resume data, no UPI.                     |
 
 ### Deals / applications / content
 
-| Method | Path | Guard / notes |
-|---|---|---|
-| POST | `/api/deals` | `role:BRAND,requireOnboarded`; create draft. |
-| GET | `/api/deals/feed` | `role:CREATOR,requireOnboarded`; open deals, keyset cursor. |
-| GET | `/api/deals/mine` | `requireOnboarded`; role-specific list, status filter, turn/next step. |
-| GET | `/api/deals/:id` | `requireOnboarded`; viewer-specific detail, 404 for non-parties. |
-| PATCH | `/api/deals/:id` | `role:BRAND,requireOnboarded`; draft only. |
-| DELETE | `/api/deals/:id` | `role:BRAND,requireOnboarded`; draft only. |
-| POST | `/api/deals/:id/publish` | `role:BRAND,requireOnboarded`; validation + freeze + gate. |
-| POST | `/api/deals/:id/applications` | `role:CREATOR,requireOnboarded`; apply. |
-| GET | `/api/deals/:id/applications` | `role:BRAND,requireOnboarded`; applicants + confirm reason. |
-| GET | `/api/applications/mine` | `role:CREATOR,requireOnboarded`. |
-| POST | `/api/applications/:id/confirm` | `role:BRAND,requireOnboarded`; selects creator. |
-| POST | `/api/deals/:id/cancel` | `role:BRAND,requireOnboarded`; early cancel. |
-| POST | `/api/deals/:id/content` | `role:CREATOR,requireOnboarded`; content link. |
-| POST | `/api/deals/:id/feedback` | `role:BRAND,requireOnboarded`; revision request. |
-| POST | `/api/deals/:id/approve` | `role:BRAND,requireOnboarded`. |
-| GET | `/api/deals/:id/events` | `requireUser`; parties/admin only. |
-| GET | `/api/deals/:id/emails` | `requireUser`; parties/admin only. |
+| Method | Path                            | Guard / notes                                                          |
+| ------ | ------------------------------- | ---------------------------------------------------------------------- |
+| POST   | `/api/deals`                    | `role:BRAND,requireOnboarded`; create draft.                           |
+| GET    | `/api/deals/feed`               | `role:CREATOR,requireOnboarded`; open deals, keyset cursor.            |
+| GET    | `/api/deals/mine`               | `requireOnboarded`; role-specific list, status filter, turn/next step. |
+| GET    | `/api/deals/:id`                | `requireOnboarded`; viewer-specific detail, 404 for non-parties.       |
+| PATCH  | `/api/deals/:id`                | `role:BRAND,requireOnboarded`; draft only.                             |
+| DELETE | `/api/deals/:id`                | `role:BRAND,requireOnboarded`; draft only.                             |
+| POST   | `/api/deals/:id/publish`        | `role:BRAND,requireOnboarded`; validation + freeze + gate.             |
+| POST   | `/api/deals/:id/applications`   | `role:CREATOR,requireOnboarded`; apply.                                |
+| GET    | `/api/deals/:id/applications`   | `role:BRAND,requireOnboarded`; applicants + confirm reason.            |
+| GET    | `/api/applications/mine`        | `role:CREATOR,requireOnboarded`.                                       |
+| POST   | `/api/applications/:id/confirm` | `role:BRAND,requireOnboarded`; selects creator.                        |
+| POST   | `/api/deals/:id/cancel`         | `role:BRAND,requireOnboarded`; early cancel.                           |
+| POST   | `/api/deals/:id/content`        | `role:CREATOR,requireOnboarded`; content link.                         |
+| POST   | `/api/deals/:id/feedback`       | `role:BRAND,requireOnboarded`; revision request.                       |
+| POST   | `/api/deals/:id/approve`        | `role:BRAND,requireOnboarded`.                                         |
+| GET    | `/api/deals/:id/events`         | `requireUser`; parties/admin only.                                     |
+| GET    | `/api/deals/:id/emails`         | `requireUser`; parties/admin only.                                     |
 
 ### Payments / documents / disputes
 
-| Method | Path | Guard / notes |
-|---|---|---|
-| POST | `/api/deals/:id/payments/:type/order` | `role:BRAND,requireOnboarded`; commission order; advance/final return 409. |
-| POST | `/api/payments/verify` | `role:BRAND,requireOnboarded`; Checkout signature + Razorpay check. |
-| GET | `/api/deals/:id/direct-payment` | `role:BRAND`; full UPI only here. |
-| POST | `/api/deals/:id/direct-payment` | `role:BRAND`, direct-payment-record limiter. |
-| POST | `/api/direct-payments/:id/confirm` | `role:CREATOR`, decision limiter. |
-| POST | `/api/direct-payments/:id/not-received` | `role:CREATOR`, decision limiter. |
-| GET | `/api/deals/:id/documents/:kind` | `requireUser`; brand/creator/admin; PDF. |
-| POST | `/api/deals/:id/disputes` | `requireUser,requireOnboarded`; one open per deal. |
+| Method | Path                                    | Guard / notes                                                              |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------- |
+| POST   | `/api/deals/:id/payments/:type/order`   | `role:BRAND,requireOnboarded`; commission order; advance/final return 409. |
+| POST   | `/api/payments/verify`                  | `role:BRAND,requireOnboarded`; Checkout signature + Razorpay check.        |
+| GET    | `/api/deals/:id/direct-payment`         | `role:BRAND`; full UPI only here.                                          |
+| POST   | `/api/deals/:id/direct-payment`         | `role:BRAND`, direct-payment-record limiter.                               |
+| POST   | `/api/direct-payments/:id/confirm`      | `role:CREATOR`, decision limiter.                                          |
+| POST   | `/api/direct-payments/:id/not-received` | `role:CREATOR`, decision limiter.                                          |
+| GET    | `/api/deals/:id/documents/:kind`        | `requireUser`; brand/creator/admin; PDF.                                   |
+| POST   | `/api/deals/:id/disputes`               | `requireUser,requireOnboarded`; one open per deal.                         |
 
 ### Admin
 
-| Method | Path | Guard |
-|---|---|---|
-| GET | `/api/admin/deals` | `requireAdmin`; status, short-id prefix, cursor, total. |
-| GET | `/api/admin/deals/:id` | `requireAdmin`; parties, payments, UPI records, emails, disputes, events, adminActions. |
-| POST | `/api/admin/deals/:id/cancel` | `requireAdmin`; note + optional refund reference. |
-| GET | `/api/admin/disputes` | `requireAdmin`; status tabs, cursor, total. |
-| GET | `/api/admin/disputes/:id` | `requireAdmin`; dispute + deal + other disputes. |
-| POST | `/api/admin/disputes/:id/resolve` | `requireAdmin`. |
-| POST | `/api/admin/emails/:id/resend` | `requireAdmin`; rebuilds attachments. |
+| Method | Path                              | Guard                                                                                   |
+| ------ | --------------------------------- | --------------------------------------------------------------------------------------- |
+| GET    | `/api/admin/deals`                | `requireAdmin`; status, short-id prefix, cursor, total.                                 |
+| GET    | `/api/admin/deals/:id`            | `requireAdmin`; parties, payments, UPI records, emails, disputes, events, adminActions. |
+| POST   | `/api/admin/deals/:id/cancel`     | `requireAdmin`; note + optional refund reference.                                       |
+| GET    | `/api/admin/disputes`             | `requireAdmin`; status tabs, cursor, total.                                             |
+| GET    | `/api/admin/disputes/:id`         | `requireAdmin`; dispute + deal + other disputes.                                        |
+| POST   | `/api/admin/disputes/:id/resolve` | `requireAdmin`.                                                                         |
+| POST   | `/api/admin/emails/:id/resend`    | `requireAdmin`; rebuilds attachments.                                                   |
 
 The authoritative route table is asserted in `apps/api/test/security/routeGuards.test.ts`; adding a route requires updating that table.
 
@@ -849,20 +849,20 @@ pnpm dev
 
 ### Workspace commands
 
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Build shared, run API + web in watch mode. |
-| `pnpm build` | Build shared + both apps. |
-| `pnpm typecheck` | Build shared, then `tsc --noEmit` in every package. |
-| `pnpm lint` | ESLint over the repo. |
-| `pnpm format` / `pnpm format:check` | Prettier write/check. |
-| `pnpm test` | Build shared, then Vitest in every package. |
-| `pnpm db:generate` | Drizzle generate migration from schema. |
-| `pnpm db:migrate` | Apply migrations using `apps/api/src/db/migrate.ts`. |
-| `pnpm db:seed` | Seed fixture users/deals (CLI refuses production). |
-| `pnpm db:seed-demo` | Richer demo data via `apps/api/scripts/seed-demo.ts`. |
-| `pnpm job <name>` | Run one scheduled job manually. |
-| `pnpm notify:launch` | Launch announcement emails, dry-run first. |
+| Command                             | What it does                                          |
+| ----------------------------------- | ----------------------------------------------------- |
+| `pnpm dev`                          | Build shared, run API + web in watch mode.            |
+| `pnpm build`                        | Build shared + both apps.                             |
+| `pnpm typecheck`                    | Build shared, then `tsc --noEmit` in every package.   |
+| `pnpm lint`                         | ESLint over the repo.                                 |
+| `pnpm format` / `pnpm format:check` | Prettier write/check.                                 |
+| `pnpm test`                         | Build shared, then Vitest in every package.           |
+| `pnpm db:generate`                  | Drizzle generate migration from schema.               |
+| `pnpm db:migrate`                   | Apply migrations using `apps/api/src/db/migrate.ts`.  |
+| `pnpm db:seed`                      | Seed fixture users/deals (CLI refuses production).    |
+| `pnpm db:seed-demo`                 | Richer demo data via `apps/api/scripts/seed-demo.ts`. |
+| `pnpm job <name>`                   | Run one scheduled job manually.                       |
+| `pnpm notify:launch`                | Launch announcement emails, dry-run first.            |
 
 ### Environment variables (names and purposes only)
 
@@ -922,43 +922,43 @@ No secret values are in this document. `.env.example` lists names; real values b
 
 ## 13. Current implementation status
 
-| Area | Status | Evidence |
-|---|---|---|
-| Monorepo, shared domain, strict TS | Complete | package manifests, `packages/shared` |
-| Database schema + 12 migrations | Complete | `apps/api/drizzle`, schema tests |
-| Env validation + startup guards | Complete | `apps/api/src/env`, tests |
-| Instagram OAuth + role mapping | Complete | `apps/api/src/instagram`, e2e test |
-| Email-code auth (staging) | Complete, gated | `emailAuth`, tests |
-| Dev login | Complete, gated | `devLogin`, tests |
-| Sessions/cookies/logout | Complete | `auth`, tests |
-| Onboarding + email verification | Complete | `onboarding`, web onboarding tests |
-| Profiles + locking + resume | Complete | `profile`, `users/resume`, tests |
-| Deal drafts/publish/feed/lists | Complete | deals routes/services, e2e |
-| State machine + allowed actions | Complete, enforced | shared state machine, architecture test |
-| Applications + confirmation | Complete | applications service, e2e |
-| Razorpay fee flow | Complete | order/capture/verify/webhook tests |
-| Direct UPI record/confirm/dispute | Complete | directPayments tests, e2e |
-| Invoices + numbering + PDFs | Complete | invoice/document tests, e2e |
-| Emails (28 templates) | Complete | templates, e2e email assertions |
-| Disputes | Complete | disputes tests |
-| Admin deals/disputes/resend/cancel | Complete | admin tests |
-| Realtime | Complete for single instance | server/events/provider tests |
-| Scheduled jobs | Complete | registry/job tests |
-| Rate limiting | Complete | limiter factory tests |
-| Sentry + log scrubbing | Complete | sentry/logger tests |
-| Landing + public pages | Complete | landing tests |
-| Creator screens | Complete | creator screen tests |
-| Brand screens | Complete | brand screen tests |
-| Deal page | Complete | deal page/payments/realtime tests |
-| Settings | Complete | settings tests |
-| Admin screens | Complete | admin tests |
-| Admin analytics | Not built | `docs/WEB_API_GAPS.md` |
-| Refund automation | Not built (manual) | same |
-| Admin alert inbox | Not built (email only) | same |
-| Data import from old app | Not built (not needed per cutover) | scripts list, CUTOVER |
-| Browser E2E / visual regression | Not present | test inventory |
-| Production launch | Not open by default | `render.yaml`, gates |
-| Staging verification | Unknown | DNS/ops state not in repo |
+| Area                               | Status                             | Evidence                                |
+| ---------------------------------- | ---------------------------------- | --------------------------------------- |
+| Monorepo, shared domain, strict TS | Complete                           | package manifests, `packages/shared`    |
+| Database schema + 12 migrations    | Complete                           | `apps/api/drizzle`, schema tests        |
+| Env validation + startup guards    | Complete                           | `apps/api/src/env`, tests               |
+| Instagram OAuth + role mapping     | Complete                           | `apps/api/src/instagram`, e2e test      |
+| Email-code auth (staging)          | Complete, gated                    | `emailAuth`, tests                      |
+| Dev login                          | Complete, gated                    | `devLogin`, tests                       |
+| Sessions/cookies/logout            | Complete                           | `auth`, tests                           |
+| Onboarding + email verification    | Complete                           | `onboarding`, web onboarding tests      |
+| Profiles + locking + resume        | Complete                           | `profile`, `users/resume`, tests        |
+| Deal drafts/publish/feed/lists     | Complete                           | deals routes/services, e2e              |
+| State machine + allowed actions    | Complete, enforced                 | shared state machine, architecture test |
+| Applications + confirmation        | Complete                           | applications service, e2e               |
+| Razorpay fee flow                  | Complete                           | order/capture/verify/webhook tests      |
+| Direct UPI record/confirm/dispute  | Complete                           | directPayments tests, e2e               |
+| Invoices + numbering + PDFs        | Complete                           | invoice/document tests, e2e             |
+| Emails (28 templates)              | Complete                           | templates, e2e email assertions         |
+| Disputes                           | Complete                           | disputes tests                          |
+| Admin deals/disputes/resend/cancel | Complete                           | admin tests                             |
+| Realtime                           | Complete for single instance       | server/events/provider tests            |
+| Scheduled jobs                     | Complete                           | registry/job tests                      |
+| Rate limiting                      | Complete                           | limiter factory tests                   |
+| Sentry + log scrubbing             | Complete                           | sentry/logger tests                     |
+| Landing + public pages             | Complete                           | landing tests                           |
+| Creator screens                    | Complete                           | creator screen tests                    |
+| Brand screens                      | Complete                           | brand screen tests                      |
+| Deal page                          | Complete                           | deal page/payments/realtime tests       |
+| Settings                           | Complete                           | settings tests                          |
+| Admin screens                      | Complete                           | admin tests                             |
+| Admin analytics                    | Not built                          | `docs/WEB_API_GAPS.md`                  |
+| Refund automation                  | Not built (manual)                 | same                                    |
+| Admin alert inbox                  | Not built (email only)             | same                                    |
+| Data import from old app           | Not built (not needed per cutover) | scripts list, CUTOVER                   |
+| Browser E2E / visual regression    | Not present                        | test inventory                          |
+| Production launch                  | Not open by default                | `render.yaml`, gates                    |
+| Staging verification               | Unknown                            | DNS/ops state not in repo               |
 
 **Tests at a glance:** 175 `*.test.ts*` files in total, plus API helpers and harnesses; 31 of the test files are web tests. CI typechecks, lints, tests, builds and audits production dependencies. The test suite is unusually strong for a project this size, especially around money, races, route authorization, privacy and copy rules.
 
@@ -1212,24 +1212,24 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 ## 18. Potential risks and areas requiring further investigation
 
-| Risk | Why it matters | Current mitigation | What to verify |
-|---|---|---|---|
-| Free-tier API sleep | Jobs late; first request slow; deploys restart | Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping | Jobs catch up after waking |
-| Short backup window | Financial/legal data loss | Neon 6h restore | Restore test; paid plan |
-| Split API/web deploys | Version skew | Manual API deploy discipline | Release order / automation |
-| Single-instance realtime | Live updates break on scale-out | Single instance | Redis adapter before scaling |
-| No email/webhook retry | Lost notifications, stuck processing | Admin resend; event log/alert | Queue/outbox |
-| Honor-system UPI | Fake/incorrect references | Creator confirmation; immutable records | UTR verification or dispute policy |
-| Manual refunds | Missed refunds, reconciliation errors | Event/dispute reference | Refund process owner |
-| Admin flag staleness | Removed admin retains access | Sign-in refresh | Force re-evaluation or short session |
-| Postgres rate limiting | DB load/latency at scale | Shared limits, small pool | Load test; Redis option |
-| Long deal histories | Large payloads | UI truncation | Pagination/archival |
-| Docs drift | Wrong operator actions | Source-of-truth docs | Reconcile README/SPEC vs code |
-| Meta/Razorpay dashboard state | Sign-in/payments can fail despite code | Cutover checklist | Confirm live approval/keys |
-| TDS/TCS uncertainty | Payout math/reporting may change | Open decision | CA sign-off |
-| Account deletion vs. retention | Legal/privacy mismatch | Anonymization + snapshots | Counsel/privacy review |
-| No browser E2E | Checkout/CSP/realtime regressions | API e2e + component tests | Add Playwright smoke |
-| Bus factor | One maintainer, many branches | Docs/checklists | Review/ownership plan |
+| Risk                           | Why it matters                                 | Current mitigation                                                                | What to verify                       |
+| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------ |
+| Free-tier API sleep            | Jobs late; first request slow; deploys restart | Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping | Jobs catch up after waking           |
+| Short backup window            | Financial/legal data loss                      | Neon 6h restore                                                                   | Restore test; paid plan              |
+| Split API/web deploys          | Version skew                                   | Manual API deploy discipline                                                      | Release order / automation           |
+| Single-instance realtime       | Live updates break on scale-out                | Single instance                                                                   | Redis adapter before scaling         |
+| No email/webhook retry         | Lost notifications, stuck processing           | Admin resend; event log/alert                                                     | Queue/outbox                         |
+| Honor-system UPI               | Fake/incorrect references                      | Creator confirmation; immutable records                                           | UTR verification or dispute policy   |
+| Manual refunds                 | Missed refunds, reconciliation errors          | Event/dispute reference                                                           | Refund process owner                 |
+| Admin flag staleness           | Removed admin retains access                   | Sign-in refresh                                                                   | Force re-evaluation or short session |
+| Postgres rate limiting         | DB load/latency at scale                       | Shared limits, small pool                                                         | Load test; Redis option              |
+| Long deal histories            | Large payloads                                 | UI truncation                                                                     | Pagination/archival                  |
+| Docs drift                     | Wrong operator actions                         | Source-of-truth docs                                                              | Reconcile README/SPEC vs code        |
+| Meta/Razorpay dashboard state  | Sign-in/payments can fail despite code         | Cutover checklist                                                                 | Confirm live approval/keys           |
+| TDS/TCS uncertainty            | Payout math/reporting may change               | Open decision                                                                     | CA sign-off                          |
+| Account deletion vs. retention | Legal/privacy mismatch                         | Anonymization + snapshots                                                         | Counsel/privacy review               |
+| No browser E2E                 | Checkout/CSP/realtime regressions              | API e2e + component tests                                                         | Add Playwright smoke                 |
+| Bus factor                     | One maintainer, many branches                  | Docs/checklists                                                                   | Review/ownership plan                |
 
 ### Questions the repository cannot answer
 
@@ -1250,18 +1250,18 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 ## Appendix A — Deal status and action map (practical summary)
 
-| Status | Who acts next (normal path) | Main action |
-|---|---|---|
-| `DRAFT` | Brand | Edit, publish, delete |
-| `OPEN` | Creator | Apply; brand may cancel |
-| `CONFIRMED` | Brand | Pay ₹885 fee; brand may cancel |
-| `COMMISSION_PAID` | Brand | Pay 30% by UPI and record it |
-| `ADVANCE_PAID` | Creator | Upload content |
-| `CONTENT_UPLOADED` | Brand | Request changes or approve |
-| `REVISION_REQUESTED` | Creator | Upload revised content |
-| `APPROVED` | Brand | Pay 70% by UPI and record it |
-| `COMPLETED` | — | Deal record available; resume updated |
-| `CANCELLED` | — | Read-only history; fee may have been kept |
+| Status               | Who acts next (normal path) | Main action                               |
+| -------------------- | --------------------------- | ----------------------------------------- |
+| `DRAFT`              | Brand                       | Edit, publish, delete                     |
+| `OPEN`               | Creator                     | Apply; brand may cancel                   |
+| `CONFIRMED`          | Brand                       | Pay ₹885 fee; brand may cancel            |
+| `COMMISSION_PAID`    | Brand                       | Pay 30% by UPI and record it              |
+| `ADVANCE_PAID`       | Creator                     | Upload content                            |
+| `CONTENT_UPLOADED`   | Brand                       | Request changes or approve                |
+| `REVISION_REQUESTED` | Creator                     | Upload revised content                    |
+| `APPROVED`           | Brand                       | Pay 70% by UPI and record it              |
+| `COMPLETED`          | —                           | Deal record available; resume updated     |
+| `CANCELLED`          | —                           | Read-only history; fee may have been kept |
 
 Admin may cancel from `COMMISSION_PAID` through `APPROVED` (per the admin action rules), with a note and optional refund reference.
 

@@ -44,6 +44,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 - `docs/`: spec, replacement plan, deployment, runbook.
 
 Commands (from the repo root):
+
 - `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm format`
 - `pnpm db:generate` (new migration from the schema), `pnpm db:migrate`, `pnpm db:seed`
 - Local Postgres comes from `docker-compose.yml`. API tests use `TEST_DATABASE_URL`.
@@ -62,7 +63,7 @@ Commands (from the repo root):
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
-  Never weaken a guard. Add new guards for any new dangerous combination.
+- Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
 - `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
 - **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The guard that tied both modes to a hosting tier is removed, so the API starts in production with both modes `on`. Never weaken any other guard.
@@ -90,7 +91,7 @@ Details are in the spec. These are the invariants.
   - a `deal_events` row in the same transaction
   - zero rows updated means `409 INVALID_TRANSITION`
   - emails and socket events only in after-commit tasks
-  An architecture test checks that nothing else writes `deals.status`. Keep it passing.
+- An architecture test checks that nothing else writes `deals.status`. Keep it passing.
 - A published deal is immutable. Its money breakdown is frozen at publish.
 - Deadlines are calendar dates meaning 23:59:59 Asia/Kolkata on that day. "Applications open" and "content overdue" are derived from dates, never stored as statuses.
 - **Cancelling:** creators never cancel. Brands follow the transition table. Only an admin can cancel later stages, with a note.
