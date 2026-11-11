@@ -626,7 +626,8 @@ Base: `/api`. JSON except webhooks/Meta. Auth by session cookie. Every route is 
 
 | Method | Path | Responsibility |
 |---|---|---|
-| GET | `/api/health` | DB ping, Render health check. |
+| GET | `/healthz` | No database, session or rate limiter. Render health check and the web wake-up call. |
+| GET | `/api/health` | DB ping, for checks by hand. |
 | GET | `/api/config` | Public config: min budget, GST, payments/posting gates, auth-email flag, support email. |
 | POST | `/api/webhooks/razorpay` | Raw-body HMAC, dedupe by event id, fast 200, async handler. |
 | POST | `/api/meta/deauthorize` | Signed request; revokes/clears Instagram data. |
@@ -802,7 +803,7 @@ Error codes surface on `/login?error=`; onboarding link failures on `/onboarding
 
 ### Hosting / operations
 
-- **Render:** production API, Singapore, free instance, manual deploys, health check `/api/health`, no pre-deploy command.
+- **Render:** production API, Singapore, free instance, manual deploys, health check `/healthz` (never the database), no pre-deploy command.
 - **Neon:** production PostgreSQL 16, free plan, direct (non-pooled) connection required.
 - **Netlify:** production web, no Git link; deployed by GitHub Actions with pinned Netlify CLI; 300 credits/month.
 - **Vercel:** staging web.

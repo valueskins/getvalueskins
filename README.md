@@ -38,7 +38,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-`GET http://localhost:4000/api/health` should return `{ "ok": true }`.
+`GET http://localhost:4000/api/health` should return `{ "ok": true }` (it checks the database). `GET http://localhost:4000/healthz` returns the same without touching it.
 
 ## Testing Instagram login locally
 

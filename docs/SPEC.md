@@ -698,7 +698,8 @@ Admin (`/admin/*`, admin only)
 
 Health
 
-- `GET /health` (DB check, used by Render)
+- `GET /healthz` (answers `{ "ok": true }` with no database query, no session lookup and no rate limiter; used by Render and by the web app's wake-up call). It is mounted before the Origin check, the session middleware and the global rate limiter, and `apps/api/test/security/routeGuards.test.ts` lists it as public and as the one route exempt from that limiter.
+- `GET /api/health` (database check, for checks by hand; behind the global rate limiter). Render must not use it.
 
 ---
 
