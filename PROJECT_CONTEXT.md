@@ -18,7 +18,7 @@
 
 These override any older statement in this document. The code changes are built in the tasks named; until then the code stands.
 
-- Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on`. The `HOSTING_TIER` variable and guard are removed in Task 1.
+- Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on`. The hosting tier variable and its guard are removed.
 - The minimum deal budget becomes ₹2,000 (Task 2).
 - Email: Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
 - Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
@@ -876,7 +876,7 @@ pnpm dev
 - People: `ADMIN_INSTAGRAM_USER_IDS`, `SUPPORT_EMAIL`, `DISPUTE_EMAIL` (optional, defaults to support).
 - Auth gates: `ENABLE_DEV_LOGIN`, `AUTH_EMAIL_ENABLED`.
 - Company/tax: `COMPANY_LEGAL_NAME`, `COMPANY_ADDRESS`, `COMPANY_STATE`, `COMPANY_GSTIN`, `COMMISSION_SAC_CODE`, `GST_RATE_BPS`.
-- Launch gates: `HOSTING_TIER` (`free`/`paid`; removed in Task 1), `PAYMENTS_MODE`, `DEAL_POSTING_MODE` (`off`/`admins`/`on`).
+- Launch gates: `PAYMENTS_MODE`, `DEAL_POSTING_MODE` (`off`/`admins`/`on`).
 - Observability: `SENTRY_DSN`.
 
 **Web:**
@@ -1044,7 +1044,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 ### Before public launch
 
-1. Paid hosting is no longer required (decision of 11 November 2026; Task 1 removes the `HOSTING_TIER` guard). Test a restore once, knowing Neon Free restores only 6 hours.
+1. Paid hosting is no longer required (decision of 11 November 2026; the hosting tier guard is removed). Test a restore once, knowing Neon Free restores only 6 hours.
 2. Register live Razorpay keys and webhook (`payment.captured`, `payment.failed`, `order.paid`); run one real minimum-budget deal between founders.
 3. Get CA sign-off on invoice format, SAC code, GSTIN, and whether marketplace TDS (194-O) / GST TCS applies. If it applies, payout math and reporting change.
 4. Minimum budget: decided, ₹2,000 (Task 2).

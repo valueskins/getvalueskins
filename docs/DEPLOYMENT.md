@@ -2,7 +2,7 @@
 
 Every manual step to put staging on the internet, in order. **Production is section 21**, and the order of the switch from the live app is in `docs/CUTOVER.md`.
 
-**Staging is managed by hand.** The staging services on Render (`valueskins-api-staging` and its database) were created from an earlier `render.yaml`. They are now changed only in the Render dashboard, and `render.yaml` describes production only, so applying it creates production only. Render never deletes a resource because it left the file. Sections 1 to 20 describe staging, and section 18 lists its settings: use them to change staging, or to recreate it by hand, where "Blueprint" steps appear (create the web service and the database in the dashboard with the same settings). The one new variable, `HOSTING_TIER`, is optional on staging: unset means `free`, and the guard that uses it applies only in production. Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
+**Staging is managed by hand.** The staging services on Render (`valueskins-api-staging` and its database) were created from an earlier `render.yaml`. They are now changed only in the Render dashboard, and `render.yaml` describes production only, so applying it creates production only. Render never deletes a resource because it left the file. Sections 1 to 20 describe staging, and section 18 lists its settings: use them to change staging, or to recreate it by hand, where "Blueprint" steps appear (create the web service and the database in the dashboard with the same settings). Nothing here is done by code: `render.yaml` and `apps/web/vercel.json` describe the setup, and you click through the dashboards below.
 
 Dashboard menu names change often. Where a name below could not be checked against the current dashboard, it says "look for". The values and URLs are exact.
 
@@ -533,7 +533,7 @@ Production starts closed: with `PAYMENTS_MODE` and `DEAL_POSTING_MODE` unset, bo
 | Staging      | `on` (`render.yaml`)                  | `on` (`render.yaml`)  |
 | Production   | unset, which is `off`, until you open | unset, until you open |
 
-**Decision of 11 November 2026: paid hosting is no longer a step.** Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on` there. Task 1 removes the `HOSTING_TIER` variable and its guard; until that task is built, the API still refuses `on` in production unless `HOSTING_TIER=paid`. Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
+**Decision of 11 November 2026: paid hosting is no longer a step.** Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on` there. No startup guard ties the two modes to a hosting tier. Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
 
 While payments are `off` in production, the Razorpay variables can be left out. To open payments:
 
@@ -605,7 +605,6 @@ These are staging's settings. Rows that say `render.yaml` mean the earlier file 
 | `GST_RATE_BPS`             | `1800`                                                           | `render.yaml`; optional, defaults to 1800 (18%). The fee is a flat ₹750 plus this GST                                                  |
 | `PAYMENTS_MODE`            | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
 | `DEAL_POSTING_MODE`        | `on`                                                             | `render.yaml`; `off`, `admins` or `on`. Unset means `off` in production and `on` elsewhere (section 16a)                               |
-| `HOSTING_TIER`             | unset, which is `free`                                           | Removed in Task 1 (decision of 11 November 2026). Until then: optional, `free` or `paid`, used by a startup guard only in production   |
 | `SENTRY_DSN`               | optional, blank turns it off                                     | Sentry project settings (RUNBOOK). Errors only; personal data is removed before sending                                                |
 | `LOG_LEVEL`                | optional, default `info`                                         | set `debug` only while debugging                                                                                                       |
 
@@ -712,7 +711,6 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 | `NODE_VERSION`             | `22` (file)                                                      | `render.yaml`                                                                                                                                                                                | Engineer                                           |
 | `NODE_ENV`                 | `production` (file)                                              | `render.yaml`. Turns on the production startup guards                                                                                                                                        | Engineer                                           |
 | `DATABASE_URL`             | prompted: Neon's **direct** connection string                    | Neon console, **Connect**, with "Connection pooling" **off** (section 21.3). The host has no `-pooler` in it and the string ends in `?sslmode=require`. The API refuses to start otherwise   | Engineer (the Neon account holder)                 |
-| `HOSTING_TIER`             | prompted: `free`                                                 | SPEC 19. `free` or `paid`. While it is not `paid`, a startup guard refuses a launch gate set to `on`; `off` and `admins` are allowed. Removed in Task 1 (decision of 11 November 2026)       | Engineer; Founders decide when                     |
 | `WEB_ORIGIN`               | prompted: `https://next.valueskins.com`                          | The address people use for the web app, no trailing slash. It is the temporary check address until `docs/CUTOVER.md` step C2, then `https://valueskins.com`                                  | Engineer                                           |
 | `COOKIE_DOMAIN`            | `.valueskins.com` (file)                                         | SPEC 19                                                                                                                                                                                      | Engineer                                           |
 | `SESSION_COOKIE_NAME`      | `vs_session` (file)                                              | SPEC 19                                                                                                                                                                                      | Engineer                                           |
@@ -807,7 +805,6 @@ Prerequisites: this `render.yaml` is on `main` (section 3), Neon is set up (21.3
    | Prompt                                     | Enter                                        |
    | ------------------------------------------ | -------------------------------------------- |
    | `DATABASE_URL`                             | Neon's direct connection string (21.3)       |
-   | `HOSTING_TIER`                             | `free`                                       |
    | `WEB_ORIGIN`                               | `https://next.valueskins.com`                |
    | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | from the Meta app (21.2)                     |
    | `META_APP_SECRET`                          | from the Meta app                            |
@@ -823,7 +820,7 @@ Prerequisites: this `render.yaml` is on `main` (section 3), Neon is set up (21.3
 3. Apply. If Render rejects the free instance type in Singapore (its documentation does not say which instance types each region has), tell the Engineer: the choices are another Render region, with the Neon project created in the nearest AWS region, or a paid instance.
 4. The API has **manual deploys**. If it did not build when you applied, open the service and use **Manual Deploy > Deploy latest commit**. The build installs, builds `packages/shared` and the API, and starts it. A free instance has no pre-deploy step, so nothing migrates here.
 5. Open the service page and copy its default address, for example `https://valueskins-api.onrender.com`. `<that address>/api/health` must show `{"ok":true}`. The first request can take about a minute (section 21.8).
-6. In the service's **Logs** look for two lines: `"hostingTier":"free"` with the two launch modes `off` and `razorpayMode` `none`, and `database reachable, migrations match the code`. A line starting `Invalid environment configuration` names a missing or wrong variable. `Startup guard failed` is a safety rule stopping the API on purpose (a pooled database host, no `sslmode`, a launch gate opened on the free tier, and so on). `Could not connect to the database` and `migration(s) the database has not applied` are the startup check stopping the API (21.4). `migration(s) this code does not know` is only a warning: the database is ahead of the code, and the API starts.
+6. In the service's **Logs** look for two lines: the startup line with the two launch modes `off` and `razorpayMode` `none`, and `database reachable, migrations match the code`. A line starting `Invalid environment configuration` names a missing or wrong variable. `Startup guard failed` is a safety rule stopping the API on purpose (a pooled database host, no `sslmode`, a missing live payment value, and so on). `Could not connect to the database` and `migration(s) the database has not applied` are the startup check stopping the API (21.4). `migration(s) this code does not know` is only a warning: the database is ahead of the code, and the API starts.
 7. **Settings > Custom Domains** should list `api.valueskins.com`. Click **Verify** once the DNS record exists (section 10 and `docs/CUTOVER.md` step A7).
 
 ### 21.6 The Netlify site and the deploy workflow
@@ -901,20 +898,19 @@ By the founders' decision of 11 November 2026, production stays on free instance
 - **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
 - **The web app has a monthly credit limit.** Netlify's Free plan pauses every site on the account when its 300 credits are used (section 21.6). One production deploy is 15 of them.
 - **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (built in Task 5, which adds the Brevo variables to this document). The minimum deal budget becomes ₹2,000 (built in Task 2).
-- **The startup guard is going away.** Until Task 1 is built, the API refuses to start in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` unless `HOSTING_TIER=paid`. Task 1 removes the guard and the variable, by the founders' decision of 11 November 2026.
+- **No hosting tier guard.** The API starts in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` on free hosting, by the founders' decision of 11 November 2026. The payment values are still checked (section 16a).
 
 ### 21.9 Moving to paid (optional)
 
-Not required since 11 November 2026. If the founders later choose to move, do all of this **before** `PAYMENTS_MODE` or `DEAL_POSTING_MODE` become `on` (a closed test by admins on free hosting is section 21.11), in this order. Until Task 1 removes it, the guard checks only `HOSTING_TIER`: it does not check that the rest is done, so the Engineer ticks each item.
+Not required since 11 November 2026. If the founders later choose to move, do all of this **before** `PAYMENTS_MODE` or `DEAL_POSTING_MODE` become `on` (a closed test by admins on free hosting is section 21.11), in this order. No guard checks that the rest is done, so the Engineer ticks each item.
 
 1. **Render: a paid instance type** for `valueskins-api` (look for **Settings > Instance Type**, for example `0.5c-512mb`, the plan staging uses). The service no longer sleeps, and now has a Shell. Change `plan: free` in `render.yaml` to the same plan in the same pull request as step 2, so the next Blueprint sync does not set it back.
 2. **Restore the pre-deploy migration command.** In `render.yaml` add `preDeployCommand: pnpm --filter @valueskins/api run db:migrate:deploy` back under the service, and merge it. From then on Render migrates before each deploy, and the manual command in 21.4 is only a fallback. Update the section 21.4 and `docs/CUTOVER.md` text in the same pull request. (The startup check stays on.)
 3. **A database with a longer restore window.** Either a paid Neon plan (look at Neon's pricing page for the plan and its restore window), or a paid Render Postgres database (Render keeps point-in-time recovery for 3 days on the Hobby workspace plan and 7 on Pro and above). If you leave Neon, move the data first (a dump and restore into the new database), run the migration check against it, and change `DATABASE_URL` in the dashboard. Keep the direct connection and TLS rules from 21.3.
 4. **Check the Netlify credits.** Open the account's credit usage. If the month so far has used more than half of the 300 credits, or you expect a launch to bring real traffic, move the Netlify account to a paid plan first (look at Netlify's pricing page for the plan and its credits). Nothing in the app changes: the workflow keeps deploying to the same site. The startup guard does not check this.
-5. **Set `HOSTING_TIER` to `paid`** in the dashboard, and restart.
-6. **Practise the restore** once (`docs/RUNBOOK.md` section 7), and write down how long it took. SPEC 22 asks for it.
-7. **Check that the jobs run:** `pnpm --filter @valueskins/api run job:deploy -- --list` in the new Shell, then one job by hand, then look for `job finished` in the logs.
-8. **Then** section 16a: the live Razorpay values, `PAYMENTS_MODE=admins`, and the rest.
+5. **Practise the restore** once (`docs/RUNBOOK.md` section 7), and write down how long it took. SPEC 22 asks for it.
+6. **Check that the jobs run:** `pnpm --filter @valueskins/api run job:deploy -- --list` in the new Shell, then one job by hand, then look for `job finished` in the logs.
+7. **Then** section 16a: the live Razorpay values, `PAYMENTS_MODE=admins`, and the rest.
 
 ### 21.10 Deploying, rollback and backups
 
@@ -932,7 +928,7 @@ Not required since 11 November 2026. If the founders later choose to move, do al
 
 Section 21.9 first, then section 16a. These two gates are prompted variables on purpose, so no merge and no deploy is needed to change them.
 
-**Admin testing on the free tier.** The founders can test with real admin accounts before paid hosting: set `DEAL_POSTING_MODE=admins` and, if the fee is part of the test, `PAYMENTS_MODE=admins` with the live Razorpay values and `COMPANY_GSTIN` (section 16a, step 1; the payment checks are unchanged, so the fee is a real ₹885.00). `ADMIN_INSTAGRAM_USER_IDS` must list the founders, who sign in again after it changes. The guard still refuses `on` until `HOSTING_TIER=paid`. Know these limits before you start:
+**Admin testing on the free tier.** The founders can test with real admin accounts before paid hosting: set `DEAL_POSTING_MODE=admins` and, if the fee is part of the test, `PAYMENTS_MODE=admins` with the live Razorpay values and `COMPANY_GSTIN` (section 16a, step 1; the payment checks are unchanged, so the fee is a real ₹885.00). `ADMIN_INSTAGRAM_USER_IDS` must list the founders, who sign in again after it changes. Set a mode to `on` to open it to everyone. Know these limits before you start:
 
 - **Reminders and scheduled jobs run only while the API is awake.** The free instance sleeps after 15 minutes without traffic, and a job whose time passes while it sleeps is skipped (section 21.8). A test deal can therefore miss its reminders and the Instagram token refresh.
 - **Every test deal must be cancelled or completed before `docs/CUTOVER.md` section C (the switch).** An open deal is visible to every creator who signs in, not only to admins, and it stays visible after the switch. Before C0, check `select status, count(*) from deals group by status` and cancel or finish anything that is not `COMPLETED` or `CANCELLED`.
