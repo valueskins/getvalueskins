@@ -66,7 +66,9 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
   it('is Render free, in Singapore, with a health check and the production domain', () => {
     expect(productionApi).toMatch(/^\s+plan: free$/m);
     expect(productionApi).toMatch(/^\s+region: singapore$/m);
-    expect(productionApi).toMatch(/healthCheckPath: \/api\/health/);
+    // Never /api/health: that queries the database and sits behind the rate limiter, which would
+    // keep the free Neon database awake all day (docs/DEPLOYMENT.md section 21.8).
+    expect(productionApi).toMatch(/healthCheckPath: \/healthz$/m);
     expect(productionApi).toMatch(/domains:\n\s+- api\.valueskins\.com\n/);
     // Quoted: a bare `off` is the YAML boolean false.
     expect(productionApi).toMatch(/autoDeployTrigger: 'off'/);
