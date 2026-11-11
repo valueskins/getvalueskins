@@ -299,7 +299,7 @@ describe('paiseToDecimalString', () => {
     [100, '1.00'],
     [273450, '2734.50'],
     [88500, '885.00'],
-    [88650, '886.50'],
+    [200000, '2000.00'],
     [Number.MAX_SAFE_INTEGER, '90071992547409.91'],
   ])('%d paise is %s', (paise, expected) => {
     expect(paiseToDecimalString(paise)).toBe(expected);

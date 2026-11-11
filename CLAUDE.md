@@ -67,7 +67,7 @@ Commands (from the repo root):
 - `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
 - **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The guard that tied both modes to a hosting tier is removed, so the API starts in production with both modes `on`. Never weaken any other guard.
 - Production stays awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours). Scheduled jobs must tolerate sleeping and catch up when the service wakes (Task 4).
-- The minimum deal budget is 2,000 rupees (Task 2). Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
+- The minimum deal budget is 2,000 rupees. Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
 - The Revision 11 payment ledger will not be built.
 - **Dev login** exists only when `NODE_ENV !== 'production'` and `ENABLE_DEV_LOGIN=true`. **Email-code sign-in** is for staging and tests only, never production.
 
