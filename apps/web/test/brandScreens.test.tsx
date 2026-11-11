@@ -161,15 +161,15 @@ describe('post a deal', () => {
   });
 
   it('takes the minimum from /api/config, not from a number in the page', async () => {
-    renderForm({ 'GET /config': { ...CONFIG, minBudgetPaise: 1_200_00 } });
+    renderForm({ 'GET /config': { ...CONFIG, minBudgetPaise: 3_200_00 } });
     const budget = await screen.findByLabelText('Budget in rupees');
-    expect(await screen.findByText('Whole rupees. The minimum is ₹1,200.00.')).toBeInTheDocument();
-    fireEvent.change(budget, { target: { value: '1000' } });
+    expect(await screen.findByText('Whole rupees. The minimum is ₹3,200.00.')).toBeInTheDocument();
+    fireEvent.change(budget, { target: { value: '3000' } });
     expect(
-      screen.getByText('Enter ₹1,200.00 or more to see what the creator gets and when.'),
+      screen.getByText('Enter ₹3,200.00 or more to see what the creator gets and when.'),
     ).toBeInTheDocument();
-    fireEvent.change(budget, { target: { value: '1200' } });
-    expect(screen.getByLabelText('Payment breakdown')).toHaveTextContent('₹1,200.00');
+    fireEvent.change(budget, { target: { value: '3200' } });
+    expect(screen.getByLabelText('Payment breakdown')).toHaveTextContent('₹3,200.00');
   });
 
   it('inserts the deal template', async () => {
