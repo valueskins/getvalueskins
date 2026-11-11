@@ -141,12 +141,10 @@ describe('getStartupGuardViolations', () => {
   });
 
   describe('launch gates (SPEC 19)', () => {
-    // Paid hosting, so these cases are about the Razorpay values. The free tier is under 'hosting tier'.
     const production = {
       NODE_ENV: 'production',
       ENABLE_DEV_LOGIN: 'false',
       EMAIL_TRANSPORT: 'resend',
-      HOSTING_TIER: 'paid',
     } as const;
     const noRazorpay = {
       RAZORPAY_KEY_ID: '',
@@ -281,14 +279,11 @@ describe('getStartupGuardViolations', () => {
     });
   });
 
-  describe('hosting tier (the free tier cannot run payments or reminders)', () => {
+  describe('both launch gates on, on free hosting (decision of 11 November 2026)', () => {
     const production = {
       NODE_ENV: 'production',
       ENABLE_DEV_LOGIN: 'false',
       EMAIL_TRANSPORT: 'resend',
-      RAZORPAY_KEY_ID: '',
-      RAZORPAY_KEY_SECRET: '',
-      RAZORPAY_WEBHOOK_SECRET: '',
     } as const;
     const live = {
       RAZORPAY_KEY_ID: 'rzp_live_x',
@@ -297,122 +292,29 @@ describe('getStartupGuardViolations', () => {
       COMPANY_GSTIN: '29ABCDE1234F1Z5',
     };
 
-    it('defaults to free, and a blank value counts as unset', () => {
-      const raw = buildRawTestEnv();
-      delete raw.HOSTING_TIER;
-      expect(parseEnv(raw).HOSTING_TIER).toBe('free');
-      expect(buildTestEnv({ HOSTING_TIER: '' }).HOSTING_TIER).toBe('free');
-      expect(buildTestEnv({ HOSTING_TIER: 'paid' }).HOSTING_TIER).toBe('paid');
-    });
-
-    it.each(['Free', 'PAID', 'premium', 'yes'])('rejects "%s"', (value) => {
-      expect(() => buildTestEnv({ HOSTING_TIER: value })).toThrow(/HOSTING_TIER/);
-    });
-
-    it('production on the free tier starts closed', () => {
-      const env = buildTestEnv({
-        ...production,
-        HOSTING_TIER: 'free',
-        PAYMENTS_MODE: 'off',
-        DEAL_POSTING_MODE: 'off',
-      });
-      expect(getStartupGuardViolations(env)).toEqual([]);
-    });
-
-    it('production on the free tier starts closed when the modes are left at their default', () => {
-      expect(getStartupGuardViolations(buildTestEnv(production))).toEqual([]);
-    });
-
-    it('allows PAYMENTS_MODE=admins and DEAL_POSTING_MODE=admins on the free tier, with live Razorpay values', () => {
+    it('starts in production with both modes "on" and the live payment values', () => {
       const env = buildTestEnv({
         ...production,
         ...live,
-        HOSTING_TIER: 'free',
-        PAYMENTS_MODE: 'admins',
-        DEAL_POSTING_MODE: 'admins',
+        PAYMENTS_MODE: 'on',
+        DEAL_POSTING_MODE: 'on',
       });
       expect(getStartupGuardViolations(env)).toEqual([]);
     });
 
-    it('allows DEAL_POSTING_MODE=admins on the free tier with no Razorpay variable', () => {
+    it('still refuses PAYMENTS_MODE="on" in production without the live payment values', () => {
       const env = buildTestEnv({
         ...production,
-        HOSTING_TIER: 'free',
-        DEAL_POSTING_MODE: 'admins',
+        RAZORPAY_KEY_ID: '',
+        RAZORPAY_KEY_SECRET: '',
+        RAZORPAY_WEBHOOK_SECRET: '',
+        PAYMENTS_MODE: 'on',
       });
-      expect(getStartupGuardViolations(env)).toEqual([]);
-    });
-
-    it('still needs the live Razorpay values for PAYMENTS_MODE=admins on the free tier', () => {
-      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', PAYMENTS_MODE: 'admins' });
       expect(getStartupGuardViolations(env)).toEqual(
         expect.arrayContaining([
           'RAZORPAY_KEY_ID is required when PAYMENTS_MODE is not "off" in production',
         ]),
       );
-    });
-
-    it('refuses PAYMENTS_MODE=on on the free tier', () => {
-      const env = buildTestEnv({
-        ...production,
-        ...live,
-        HOSTING_TIER: 'free',
-        PAYMENTS_MODE: 'on',
-      });
-      expect(getStartupGuardViolations(env)).toEqual([
-        'PAYMENTS_MODE must be "off" or "admins" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders for everyone',
-      ]);
-    });
-
-    it('refuses DEAL_POSTING_MODE=on on the free tier', () => {
-      const env = buildTestEnv({ ...production, HOSTING_TIER: 'free', DEAL_POSTING_MODE: 'on' });
-      expect(getStartupGuardViolations(env)).toEqual([
-        'DEAL_POSTING_MODE must be "off" or "admins" when HOSTING_TIER is not "paid" in production: the free tier sleeps and cannot run payments or reminders for everyone',
-      ]);
-    });
-
-    it('names both when both are opened to everyone', () => {
-      const env = buildTestEnv({
-        ...production,
-        ...live,
-        HOSTING_TIER: 'free',
-        PAYMENTS_MODE: 'on',
-        DEAL_POSTING_MODE: 'on',
-      });
-      expect(getStartupGuardViolations(env)).toHaveLength(2);
-    });
-
-    it('the same unset tier counts as free', () => {
-      const raw = buildRawTestEnv({ ...production, ...live, PAYMENTS_MODE: 'on' });
-      delete raw.HOSTING_TIER;
-      expect(getStartupGuardViolations(parseEnv(raw))).toHaveLength(1);
-      const admins = buildRawTestEnv({ ...production, ...live, PAYMENTS_MODE: 'admins' });
-      delete admins.HOSTING_TIER;
-      expect(getStartupGuardViolations(parseEnv(admins))).toEqual([]);
-    });
-
-    it.each(['admins', 'on'] as const)(
-      'allows PAYMENTS_MODE=%s on the paid tier with live keys',
-      (mode) => {
-        const env = buildTestEnv({
-          ...production,
-          ...live,
-          HOSTING_TIER: 'paid',
-          PAYMENTS_MODE: mode,
-          DEAL_POSTING_MODE: mode,
-        });
-        expect(getStartupGuardViolations(env)).toEqual([]);
-      },
-    );
-
-    it.each(['staging', 'development', 'test'] as const)('does not apply in %s', (nodeEnv) => {
-      const env = buildTestEnv({
-        NODE_ENV: nodeEnv,
-        HOSTING_TIER: 'free',
-        PAYMENTS_MODE: 'on',
-        DEAL_POSTING_MODE: 'on',
-      });
-      expect(getStartupGuardViolations(env)).toEqual([]);
     });
   });
 
