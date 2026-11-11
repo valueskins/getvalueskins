@@ -30,11 +30,11 @@ describe('buildUpiPay', () => {
   });
 });
 
-describe('buildUpiPay for the minimum budget (₹886: ₹0.30 and ₹0.70 to the creator)', () => {
+describe('buildUpiPay for the minimum budget (₹2,000: ₹334.50 and ₹780.50 to the creator)', () => {
   it.each([
-    [30, 'ADVANCE', '0.30', 'advance'],
-    [70, 'FINAL', '0.70', 'final'],
-    [88650, 'FINAL', '886.50', 'final'],
+    [33450, 'ADVANCE', '334.50', 'advance'],
+    [78050, 'FINAL', '780.50', 'final'],
+    [200000, 'FINAL', '2000.00', 'final'],
   ] as const)('%d paise is am=%s', (amountPaise, stage, am, word) => {
     const fields = buildUpiPay({
       vpa: 'raj@okaxis',

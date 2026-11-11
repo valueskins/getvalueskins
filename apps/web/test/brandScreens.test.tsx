@@ -136,10 +136,10 @@ describe('post a deal', () => {
   it('adds commas to the budget and shows the breakdown only from the minimum', async () => {
     renderForm();
     const budget = await screen.findByLabelText('Budget in rupees');
-    fireEvent.change(budget, { target: { value: '885' } });
-    expect(budget).toHaveValue('885');
+    fireEvent.change(budget, { target: { value: '1999' } });
+    expect(budget).toHaveValue('1,999');
     expect(
-      screen.getByText('Enter ₹886.00 or more to see what the creator gets and when.'),
+      screen.getByText('Enter ₹2,000.00 or more to see what the creator gets and when.'),
     ).toBeInTheDocument();
     fireEvent.change(budget, { target: { value: '1000000' } });
     expect(budget).toHaveValue('10,00,000');
@@ -148,16 +148,16 @@ describe('post a deal', () => {
     expect(breakdown).toHaveTextContent('Creators see: You receive ₹9,99,115.00');
   });
 
-  it('shows the whole breakdown at the ₹886 minimum: ₹885.00 fee, ₹0.30 then ₹0.70 to the creator', async () => {
+  it('shows the whole breakdown at the ₹2,000 minimum: ₹885.00 fee, ₹334.50 then ₹780.50 to the creator', async () => {
     renderForm();
     fireEvent.change(await screen.findByLabelText('Budget in rupees'), {
-      target: { value: '886' },
+      target: { value: '2000' },
     });
     const breakdown = screen.getByLabelText('Payment breakdown');
     expect(breakdown).toHaveTextContent('₹885.00');
-    expect(breakdown).toHaveTextContent('₹0.30');
-    expect(breakdown).toHaveTextContent('₹0.70');
-    expect(breakdown).toHaveTextContent('₹886.00');
+    expect(breakdown).toHaveTextContent('₹334.50');
+    expect(breakdown).toHaveTextContent('₹780.50');
+    expect(breakdown).toHaveTextContent('₹2,000.00');
   });
 
   it('takes the minimum from /api/config, not from a number in the page', async () => {
@@ -190,7 +190,7 @@ describe('post a deal', () => {
       '#f-title',
     );
     expect(
-      within(summary).getByRole('link', { name: 'The budget must be at least ₹886.00' }),
+      within(summary).getByRole('link', { name: 'The budget must be at least ₹2,000.00' }),
     ).toHaveAttribute('href', '#f-budget');
     expect(
       within(summary).getByRole('link', { name: 'Add a date for "Apply by"' }),

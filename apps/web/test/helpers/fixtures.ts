@@ -94,7 +94,7 @@ export function makeMe(
 
 export const CONFIG = {
   gstRateBps: 1800,
-  minBudgetPaise: 88600,
+  minBudgetPaise: 200000,
   advancePercent: 30,
   authEmailEnabled: false,
   razorpayKeyId: 'rzp_test_fake',

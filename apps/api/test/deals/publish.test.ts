@@ -93,21 +93,21 @@ describe('POST /api/deals/:id/publish', () => {
     expect(emails[0]).toMatchObject({ toEmail: user.email, dealId: id, userId: user.id });
   });
 
-  it('publishes at the ₹886 minimum with the 30 / 70 paise split frozen on the deal', async () => {
+  it('publishes at the ₹2,000 minimum with the ₹334.50 / ₹780.50 split frozen on the deal', async () => {
     const gstEnv = buildTestEnv({ GST_RATE_BPS: '1800', COMPANY_GSTIN: '29ABCDE1234F1Z5' });
     const gstApi = http(createApp(gstEnv, { now: () => NOW }));
     const { cookie } = await brandWithBilling();
-    const id = await draft(cookie, { ...READY_DRAFT, budgetRupees: 886 });
+    const id = await draft(cookie, { ...READY_DRAFT, budgetRupees: 2000 });
 
     const res = await gstApi.send('post', `/api/deals/${id}/publish`, cookie, {});
     expect(res.status).toBe(200);
     expect(res.body.deal).toMatchObject({
       status: 'OPEN',
-      budgetPaise: 88_600,
+      budgetPaise: 200_000,
       commissionTotalPaise: 88_500,
-      creatorAmountPaise: 100,
-      advancePaise: 30,
-      finalPaise: 70,
+      creatorAmountPaise: 111_500,
+      advancePaise: 33_450,
+      finalPaise: 78_050,
     });
   });
 
