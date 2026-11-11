@@ -58,15 +58,14 @@ Commands (from the repo root):
   - production has `ENABLE_DEV_LOGIN=true`
   - the Razorpay key mode does not match the environment (`rzp_live_` only in production, `rzp_test_` everywhere else), checked whenever a key is set
   - production has `PAYMENTS_MODE` other than `off` without a live key id, key secret, `RAZORPAY_WEBHOOK_SECRET` and `COMPANY_GSTIN`
-  - production has `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` while `HOSTING_TIER` is not `paid` (to be removed in Task 1, by the founders' decision above)
   - `DATABASE_URL` is a pooled host (`-pooler`), in any environment, or lacks `sslmode=require` in production
   - `GST_RATE_BPS > 0` while `COMPANY_GSTIN` is empty
   - production has `EMAIL_TRANSPORT=console`
   - from Prompt 14: production has `AUTH_EMAIL_ENABLED=true`
-  Never weaken a guard, except the one removal named above. Add new guards for any new dangerous combination.
+  Never weaken a guard. Add new guards for any new dangerous combination.
 - Boolean env vars are the literal strings `true` or `false`. Never use `z.coerce.boolean()`.
 - `PAYMENTS_MODE` and `DEAL_POSTING_MODE` (`off`, `admins`, `on`) close the ValueSkins fee and publishing. Unset, they are `off` in production and `on` elsewhere. They change with a restart, not a deploy.
-- **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The `HOSTING_TIER` variable and its guard are removed in Task 1. That is the one guard that may be removed. Never weaken any other guard.
+- **Founders' decision of 11 November 2026:** production runs on free hosting (Render free, Neon free, Netlify free), and both modes may be `on` there. The guard that tied both modes to a hosting tier is removed, so the API starts in production with both modes `on`. Never weaken any other guard.
 - Production stays awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours). Scheduled jobs must tolerate sleeping and catch up when the service wakes (Task 4).
 - The minimum deal budget is 2,000 rupees (Task 2). Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
 - The Revision 11 payment ledger will not be built.

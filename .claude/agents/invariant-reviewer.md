@@ -11,7 +11,7 @@ Run git diff origin/main...HEAD and git log origin/main..HEAD --format="%an <%ae
 3. returns or logs a full UPI ID, a PAN, a bank account number, a token, a secret or an email body;
 4. adds a route without a guard or allowlist entry and an update to apps/api/test/security/routeGuards.test.ts, or adds a route that changes data without a rate limit;
 5. edits a merged migration, runs migrations on start, or changes the schema without a new migration;
-6. weakens a startup guard, a test or a database constraint (removing the HOSTING_TIER guard is the one allowed exception);
+6. weakens a startup guard, a test or a database constraint;
 7. sends email or socket events inside a database transaction, or lets a failed email fail the request;
 8. breaks idempotency of payment capture, webhooks or direct payments;
 9. adds behaviour without tests, or leaves docs/SPEC.md and docs/DEPLOYMENT.md out of step with the code;

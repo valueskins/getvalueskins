@@ -124,10 +124,6 @@ services:
         sync: false
       - key: GST_RATE_BPS
         value: '1800'
-      # The hosting tier (SPEC 19): enter `free`. A startup guard refuses any launch gate other
-      # than `off` while this is not `paid`. Set it to `paid` only after the move to paid hosting.
-      - key: HOSTING_TIER
-        sync: false
       # Launch gates (SPEC 19): enter `off` for both. Change them in the dashboard to open.
       - key: PAYMENTS_MODE
         sync: false

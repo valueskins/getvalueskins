@@ -18,9 +18,8 @@ logger.info(
     razorpayMode: env.RAZORPAY_KEY_ID === '' ? 'none' : razorpayModeFromKeyId(env.RAZORPAY_KEY_ID),
     paymentsMode: env.PAYMENTS_MODE,
     dealPostingMode: env.DEAL_POSTING_MODE,
-    hostingTier: env.HOSTING_TIER,
   },
-  'razorpay mode, launch modes and hosting tier',
+  'razorpay mode and launch modes',
 );
 
 // SPEC 19: the database answers and its migrations match the code, or the API does not start.

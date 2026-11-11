@@ -137,7 +137,6 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
   it('leaves the values that change after launch to the dashboard (a Blueprint sync resets any value in this file)', () => {
     for (const key of [
       'DATABASE_URL',
-      'HOSTING_TIER',
       'PAYMENTS_MODE',
       'DEAL_POSTING_MODE',
       'ADMIN_INSTAGRAM_USER_IDS',
@@ -152,7 +151,6 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
   function productionEnv(prompted: Record<string, string> = {}): Record<string, string> {
     const typed: Record<string, string> = {
       DATABASE_URL: NEON_DIRECT,
-      HOSTING_TIER: 'free',
       WEB_ORIGIN: 'https://next.valueskins.com',
       INSTAGRAM_APP_ID: 'ci-instagram-app-id',
       INSTAGRAM_APP_SECRET: 'ci-instagram-app-secret',
@@ -178,12 +176,11 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
     return env;
   }
 
-  it('starts: the real env parser and startup guards accept it, free, closed, with no Razorpay variable', () => {
+  it('starts: the real env parser and startup guards accept it, closed, with no Razorpay variable', () => {
     const env = parseEnv(productionEnv());
 
     expect(getStartupGuardViolations(env)).toEqual([]);
     expect(env.NODE_ENV).toBe('production');
-    expect(env.HOSTING_TIER).toBe('free');
     expect([env.PAYMENTS_MODE, env.DEAL_POSTING_MODE]).toEqual(['off', 'off']);
     expect([env.RAZORPAY_KEY_ID, env.RAZORPAY_KEY_SECRET, env.RAZORPAY_WEBHOOK_SECRET]).toEqual([
       '',
@@ -194,23 +191,22 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
     expect(env.AUTH_EMAIL_ENABLED).toBe(false);
   });
 
-  it('still starts closed and free if the tier and both mode prompts are left blank', () => {
-    const env = parseEnv(
-      productionEnv({ HOSTING_TIER: '', PAYMENTS_MODE: '', DEAL_POSTING_MODE: '' }),
-    );
+  it('still starts closed if both mode prompts are left blank', () => {
+    const env = parseEnv(productionEnv({ PAYMENTS_MODE: '', DEAL_POSTING_MODE: '' }));
 
-    expect(env.HOSTING_TIER).toBe('free');
     expect([env.PAYMENTS_MODE, env.DEAL_POSTING_MODE]).toEqual(['off', 'off']);
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
-  it('does not start with a launch gate opened to everyone while the hosting is free', () => {
-    for (const name of ['PAYMENTS_MODE', 'DEAL_POSTING_MODE']) {
-      const violations = getStartupGuardViolations(parseEnv(productionEnv({ [name]: 'on' })));
-      expect(
-        violations.some((v) => v.startsWith(`${name} must be "off" or "admins" when HOSTING_TIER`)),
-      ).toBe(true);
-    }
+  it('starts with both gates "on" on free hosting, once the live Razorpay values are set', () => {
+    const env = parseEnv({
+      ...productionEnv({ PAYMENTS_MODE: 'on', DEAL_POSTING_MODE: 'on' }),
+      RAZORPAY_KEY_ID: 'rzp_live_x',
+      RAZORPAY_KEY_SECRET: 'secret',
+      RAZORPAY_WEBHOOK_SECRET: 'whsec',
+    });
+
+    expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
   it('starts with the gates open to admins on free hosting, once the live Razorpay values are set', () => {
@@ -222,7 +218,6 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
       RAZORPAY_WEBHOOK_SECRET: 'whsec',
     });
 
-    expect(env.HOSTING_TIER).toBe('free');
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
 
@@ -238,8 +233,8 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
     ).toContain('sslmode=require');
   });
 
-  it('on paid hosting, payments still need the live Razorpay values', () => {
-    const env = parseEnv(productionEnv({ HOSTING_TIER: 'paid', PAYMENTS_MODE: 'on' }));
+  it('payments "on" still need the live Razorpay values', () => {
+    const env = parseEnv(productionEnv({ PAYMENTS_MODE: 'on' }));
 
     expect(getStartupGuardViolations(env)).toEqual(
       expect.arrayContaining([
@@ -248,8 +243,8 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
     );
   });
 
-  it('on paid hosting, opening deal posting needs no Razorpay variable', () => {
-    const env = parseEnv(productionEnv({ HOSTING_TIER: 'paid', DEAL_POSTING_MODE: 'on' }));
+  it('opening deal posting "on" needs no Razorpay variable', () => {
+    const env = parseEnv(productionEnv({ DEAL_POSTING_MODE: 'on' }));
 
     expect(getStartupGuardViolations(env)).toEqual([]);
   });
@@ -284,7 +279,6 @@ describe('docs/DEPLOYMENT.md', () => {
       'read -rs',
       'db:migrate',
       'Moving to paid',
-      'HOSTING_TIER',
       'sleeps',
     ]) {
       expect(section, text).toContain(text);

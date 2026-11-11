@@ -7,7 +7,7 @@ What this cutover assumes:
 - **No data is imported.** The live app's database holds only the two founders' test accounts: no deals, payments or invoices. Everyone signs in fresh with Instagram. Step C0 checks this again just before the switch.
 - **Fee invoice numbering starts at `VS/2026-27/000001`** for the current financial year (April to March). The counter row is created by the first invoice, so there is nothing to seed. No fee is taken during the cutover, so this stays untouched until payments open.
 - **Production starts with `PAYMENTS_MODE=off` and `DEAL_POSTING_MODE=off`.** Brands can set up their profile and billing and save drafts. Publishing and the fee are closed, with a reason on screen. Opening them later needs an env change and a restart, not a deploy (`docs/DEPLOYMENT.md` section 16a).
-- **Production runs free, and stays free (decision of 11 November 2026):** the web app on Netlify's Free plan (300 credits a month, 15 per deploy; at zero every site on the account is paused, `docs/DEPLOYMENT.md` section 21.6), the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. Task 1 removes the startup guard and `HOSTING_TIER`, so paid hosting is not needed before the launch gates open; until Task 1 is built, the guard still refuses `on` until `HOSTING_TIER=paid`. Production is awake only from 07:00 to 01:00 India Standard Time on purpose, and scheduled jobs must tolerate sleeping (Task 4).
+- **Production runs free, and stays free (decision of 11 November 2026):** the web app on Netlify's Free plan (300 credits a month, 15 per deploy; at zero every site on the account is paused, `docs/DEPLOYMENT.md` section 21.6), the API on Render's free instance type and the database on Neon's free plan (Postgres 16, Singapore, direct connection). The free API sleeps after 15 minutes without traffic, so the first request can take about a minute, scheduled jobs run only while it is awake, and there is no Render Shell. No startup guard ties the launch gates to a hosting tier, so paid hosting is not needed before they open. Production is awake only from 07:00 to 01:00 India Standard Time on purpose, and scheduled jobs must tolerate sleeping (Task 4).
 - **Admin testing on free hosting is optional.** The founders may set `DEAL_POSTING_MODE=admins` (and `PAYMENTS_MODE=admins`, with the live Razorpay values) before paid hosting to test with real admin accounts (`docs/DEPLOYMENT.md` section 21.11). While they do, reminders and scheduled jobs run only while the API is awake, and every test deal must be cancelled or completed before section C, because open deals are visible to all creators. Test deals also break the "no deals" assumption above.
 - **Migrations are run by hand.** A free instance has no pre-deploy step and the API never migrates on start, so step A6 runs them against Neon before the first deploy. The API checks at start that the database has every migration the code has, and refuses to start if it does not. A database that is ahead of the code only logs a warning and the API starts.
 - **Staging has been run through `docs/DEPLOYMENT.md` section 13.** When this was written, `staging.valueskins.com` and `api-staging.valueskins.com` had no DNS records, so check this first. If staging was never set up, do sections 5 to 13 there before you start, because production would otherwise be the first real run of this code.
@@ -131,7 +131,7 @@ Write the names next to the accounts they hold. A step names a role, so the pers
 
    Paste the Neon string when it waits and press Enter: it is not shown, not kept in your history and not written to a file. The API will not start against a database that has not been migrated.
 
-3. **Render.** Section 21.5: create the Blueprint (production only, on the free instance type), type the prompted values (`DATABASE_URL` is Neon's direct string, `HOSTING_TIER` is `free`, `WEB_ORIGIN` is `https://next.valueskins.com` for now, both modes are `off`, `ADMIN_INSTAGRAM_USER_IDS` is `none`), and deploy the API by hand: it does not deploy by itself.
+3. **Render.** Section 21.5: create the Blueprint (production only, on the free instance type), type the prompted values (`DATABASE_URL` is Neon's direct string, `WEB_ORIGIN` is `https://next.valueskins.com` for now, both modes are `off`, `ADMIN_INSTAGRAM_USER_IDS` is `none`), and deploy the API by hand: it does not deploy by itself.
 
 Leave the three `RAZORPAY_*` variables out: they are optional while payments are off, and there are no live keys. `ENABLE_DEV_LOGIN` is `false` as written in the file: the variable has to exist, and the API refuses `true` in production.
 
@@ -140,7 +140,7 @@ The Render address of the service (for example `https://valueskins-api.onrender.
 **Verify:**
 
 - The migration command printed `to apply:` with the migrations, then `migrations applied`. Running it again prints `no migrations to apply`.
-- In the Render **Logs** there is no `Invalid environment configuration`, `Startup guard failed`, `Could not connect to the database` or `migration(s) the database has not applied` line, and there are two lines: one with `"razorpayMode":"none"`, `"hostingTier":"free"`, `"paymentsMode":"off"` and `"dealPostingMode":"off"`, and one that says `database reachable, migrations match the code`.
+- In the Render **Logs** there is no `Invalid environment configuration`, `Startup guard failed`, `Could not connect to the database` or `migration(s) the database has not applied` line, and there are two lines: one with `"razorpayMode":"none"`, `"paymentsMode":"off"` and `"dealPostingMode":"off"`, and one that says `database reachable, migrations match the code`.
 - `curl -s https://<the Render address>/api/health` prints `{"ok":true}`. The first request can take about a minute while the free instance wakes. That is normal.
 
 ### A7. DNS for the API and the temporary web host
@@ -197,7 +197,7 @@ Use a clean browser profile for each founder, or one normal and one private wind
 
 The founders do the sign-in checks and the Engineer watches the Render **Logs** while they do.
 
-**B1. The API is up.** Engineer. `curl -s API/api/health` prints `{"ok":true}` (the first request after a quiet spell can take about a minute). `curl -s API/api/config` shows `"paymentsOpen":false` and `"postingOpen":false`. In the Render **Logs** the startup line shows `"hostingTier":"free"` and both modes `off`, and `database reachable, migrations match the code` appears.
+**B1. The API is up.** Engineer. `curl -s API/api/health` prints `{"ok":true}` (the first request after a quiet spell can take about a minute). `curl -s API/api/config` shows `"paymentsOpen":false` and `"postingOpen":false`. In the Render **Logs** the startup line shows both modes `off`, and `database reachable, migrations match the code` appears.
 
 **B2. The web home.** Founder A. Open `WEB`. It shows **Sign in with Instagram** and no email sign-in. `WEB/dev/login` shows the 404 page. `/how-it-works`, `/terms`, `/privacy`, `/refunds` and `/contact` load with no yellow "Not in this version" boxes (a build that talks to `api.valueskins.com` leaves them out).
 
@@ -256,7 +256,7 @@ fetch('https://api.valueskins.com/api/deals/PASTE-THE-DRAFT-ID/publish', {
 | Error alerts reach the admin email, and Sentry receives a test error      | Yes (B11)                                                                                                                                                  |
 | Razorpay live account, live webhook, one small real deal                  | **No.** Only when payments open (section G)                                                                                                                |
 | Fee invoice format approved by the CA                                     | **No.** Only when payments open                                                                                                                            |
-| Moved to paid hosting (`HOSTING_TIER=paid`)                               | **Not required.** Dropped by the decision of 11 November 2026 (Task 1 removes the guard)                                                                   |
+| Moved to paid hosting                                                     | **Not required.** Dropped by the decision of 11 November 2026                                                                                              |
 
 **B14. The free instance wakes.** Founder A with the Engineer. Leave production untouched for 20 minutes (Render sleeps the API after 15 minutes without traffic). In a clean browser open `WEB`, with the developer tools **Network** tab open. The page appears at once, and the Network tab shows one request to `API/api/health` that the page did not wait for. Click **Sign in with Instagram** straight away: the button reads "Connecting..." and is disabled, and within about a minute the Instagram sign-in opens. In the Render **Logs** the service starts and shows `database reachable, migrations match the code`. (The "Try again" message after 60 seconds is covered by the web tests; you only see it if the API stays down.)
 
@@ -399,7 +399,7 @@ If the problem is only with the new web app, rolling back the web deploy is fast
 
 Production is closed at the end of this cutover. When the company bank account and the Razorpay live account are ready:
 
-**Paid hosting is not required** (decision of 11 November 2026). Production stays on free hosting. Task 1 removes the startup guard that refuses a launch gate set to `on` until `HOSTING_TIER` is `paid`; until that task is built, the guard still applies. Practise a database restore once anyway (`docs/RUNBOOK.md` section 7), knowing Neon Free restores only the last 6 hours.
+**Paid hosting is not required** (decision of 11 November 2026). Production stays on free hosting. No startup guard refuses a launch gate set to `on` on free hosting. Practise a database restore once anyway (`docs/RUNBOOK.md` section 7), knowing Neon Free restores only the last 6 hours.
 
 Then:
 
