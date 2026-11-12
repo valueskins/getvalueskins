@@ -92,6 +92,13 @@
       "when": 1794456741540,
       "tag": "0012_curious_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794458235529,
+      "tag": "0013_fancy_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

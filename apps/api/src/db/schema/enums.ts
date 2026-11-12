@@ -11,6 +11,7 @@ import {
   INVOICE_KINDS,
   DEAL_EVENT_ACTOR_TYPES,
   EMAIL_LOG_STATUSES,
+  EMAIL_PROVIDERS,
   DISPUTE_STATUSES,
 } from '@valueskins/shared';
 
@@ -25,4 +26,5 @@ export const directPaymentStageEnum = pgEnum('direct_payment_stage', DIRECT_PAYM
 export const invoiceKindEnum = pgEnum('invoice_kind', INVOICE_KINDS);
 export const dealEventActorTypeEnum = pgEnum('deal_event_actor_type', DEAL_EVENT_ACTOR_TYPES);
 export const emailLogStatusEnum = pgEnum('email_log_status', EMAIL_LOG_STATUSES);
+export const emailProviderEnum = pgEnum('email_provider', EMAIL_PROVIDERS);
 export const disputeStatusEnum = pgEnum('dispute_status', DISPUTE_STATUSES);

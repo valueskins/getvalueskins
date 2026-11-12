@@ -125,6 +125,7 @@ describe('render.yaml: production only, on free hosting (docs/DEPLOYMENT.md sect
       'INSTAGRAM_APP_SECRET',
       'META_APP_SECRET',
       'RESEND_API_KEY',
+      'BREVO_API_KEY',
       'SENTRY_DSN',
     ]) {
       expect(entryOf(productionApi, key), key).toMatch(/sync: false/);

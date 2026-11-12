@@ -12,7 +12,7 @@ import {
 import { v7 as uuidv7 } from 'uuid';
 import { deals } from './deals.js';
 import { users } from './users.js';
-import { disputeStatusEnum, emailLogStatusEnum } from './enums.js';
+import { disputeStatusEnum, emailLogStatusEnum, emailProviderEnum } from './enums.js';
 
 export const emailLog = pgTable(
   'email_log',
@@ -30,6 +30,8 @@ export const emailLog = pgTable(
     attachmentNames: jsonb('attachment_names').$type<string[]>(),
     providerMessageId: varchar('provider_message_id', { length: 255 }),
     status: emailLogStatusEnum('status').notNull().default('QUEUED'),
+    /** The provider that gave the final outcome (null on rows from before it was recorded). */
+    provider: emailProviderEnum('provider'),
     error: text('error'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),

@@ -281,6 +281,8 @@ function UpiSection({ detail }: { detail: AdminDealDetail }) {
   );
 }
 
+const PROVIDER_NAMES = { resend: 'Resend', brevo: 'Brevo', console: 'the console' } as const;
+
 function EmailRow({ email }: { email: AdminEmail }) {
   const [open, setOpen] = useState(false);
   const resend = useAdminResend();
@@ -336,6 +338,11 @@ function EmailRow({ email }: { email: AdminEmail }) {
         <p className="rec-sub mt-1">
           {email.sentAt ? formatDayTime(email.sentAt) : failed ? 'Not sent' : ''}
         </p>
+        {email.provider ? (
+          <p className="rec-sub">
+            {failed ? 'Tried' : 'Sent by'} {PROVIDER_NAMES[email.provider]}
+          </p>
+        ) : null}
       </td>
       <td className="md:text-right" data-label="Action">
         <Button

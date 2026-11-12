@@ -1,4 +1,4 @@
-import type { EmailLogStatus, EmailTemplate } from '@valueskins/shared';
+import type { EmailLogStatus, EmailProvider, EmailTemplate } from '@valueskins/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { emailLog } from '../db/schema/index.js';
@@ -7,8 +7,10 @@ import { logger } from '../logging/logger.js';
 import { captureError } from '../observability/sentry.js';
 import { withSupportFooter } from './footer.js';
 import { templateRegistry } from './templates/index.js';
+import { sendBrevo } from './transports/brevoTransport.js';
 import { sendConsole } from './transports/consoleTransport.js';
 import { sendResend } from './transports/resendTransport.js';
+import type { TransportResult } from './transports/types.js';
 import { escapeHtml, renderHtml } from './templates/layout.js';
 import type { EmailContent, EmailTemplateDataMap } from './types.js';
 
@@ -113,21 +115,44 @@ async function deliver(
   }
 
   try {
-    const result =
+    const transportOptions = { cc: options.cc, attachments: options.attachments };
+    let provider: EmailProvider = env.EMAIL_TRANSPORT;
+    let result: TransportResult =
       env.EMAIL_TRANSPORT === 'console'
         ? await sendConsole(to, content)
-        : await sendResend(to, content, env, { cc: options.cc, attachments: options.attachments });
+        : await sendResend(to, content, env, transportOptions);
+    let error = failureText(provider, result);
+
+    // Resend is over its limit or down: one try through Brevo (SPEC 8). Only the error name and
+    // the status are logged, never an address or a body.
+    if (provider === 'resend' && shouldFallBackToBrevo(result, env)) {
+      const failed = result as Extract<TransportResult, { ok: false }>;
+      logger.warn(
+        { template, resendError: failed.errorName, resendStatus: failed.status },
+        'resend refused the email, trying brevo',
+      );
+      provider = 'brevo';
+      result = await sendBrevo(to, content, env, transportOptions);
+      if (!result.ok) error = `${error}; ${failureText(provider, result)}`;
+    }
 
     if (result.ok) {
       await db
         .update(emailLog)
-        .set({ status: 'SENT', sentAt: new Date(), providerMessageId: result.providerMessageId })
+        .set({
+          status: 'SENT',
+          provider,
+          sentAt: new Date(),
+          providerMessageId: result.providerMessageId,
+        })
         .where(eq(emailLog.id, row.id));
       return { status: 'SENT', emailLogId: row.id };
     }
 
-    const error = 'error' in result ? result.error : 'unknown transport failure';
-    await db.update(emailLog).set({ status: 'FAILED', error }).where(eq(emailLog.id, row.id));
+    await db
+      .update(emailLog)
+      .set({ status: 'FAILED', provider, error })
+      .where(eq(emailLog.id, row.id));
     return { status: 'FAILED', emailLogId: row.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'unknown error';
@@ -142,4 +167,33 @@ async function deliver(
     }
     return { status: 'FAILED', emailLogId: row.id };
   }
+}
+
+/** The Resend error names that mean "over a limit": the daily and monthly quotas and the rate limit. */
+const RESEND_LIMIT_ERRORS = new Set([
+  'daily_quota_exceeded',
+  'monthly_quota_exceeded',
+  'rate_limit_exceeded',
+]);
+
+/**
+ * Whether a failed Resend send goes to Brevo: Resend hit a quota or the rate limit, or failed on its
+ * side (HTTP status 500 to 599), and `BREVO_API_KEY` is set. Any other Resend error is final: a
+ * rejected address or key would fail the same way at Brevo (SPEC 8).
+ */
+export function shouldFallBackToBrevo(
+  result: TransportResult,
+  env: Pick<Env, 'BREVO_API_KEY'>,
+): boolean {
+  if (result.ok || !env.BREVO_API_KEY) return false;
+  if (result.errorName && RESEND_LIMIT_ERRORS.has(result.errorName)) return true;
+  return result.status !== undefined && result.status >= 500 && result.status <= 599;
+}
+
+/** `resend daily_quota_exceeded (429): message`, for `email_log.error`. */
+function failureText(provider: EmailProvider, result: TransportResult): string {
+  if (result.ok) return '';
+  const name = result.errorName ? ` ${result.errorName}` : '';
+  const status = result.status !== undefined ? ` (${result.status})` : '';
+  return `${provider}${name}${status}: ${result.error}`;
 }

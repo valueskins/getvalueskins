@@ -1,17 +1,10 @@
 import { Resend } from 'resend';
 import type { Env } from '../../env/index.js';
 import type { EmailContent } from '../types.js';
+import type { TransportOptions, TransportResult } from './types.js';
 
-export interface ResendSendOptions {
-  cc?: string[];
-  attachments?: { filename: string; content: Buffer }[];
-}
-
-export interface ResendSendResult {
-  ok: boolean;
-  providerMessageId?: string;
-  error?: string;
-}
+export type ResendSendOptions = TransportOptions;
+export type ResendSendResult = TransportResult;
 
 export async function sendResend(
   to: string,
@@ -33,7 +26,13 @@ export async function sendResend(
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    // The name and the HTTP status tell `deliver` whether Brevo should take over (SPEC 8).
+    return {
+      ok: false,
+      error: error.message,
+      errorName: error.name,
+      ...(typeof error.statusCode === 'number' ? { status: error.statusCode } : {}),
+    };
   }
   return { ok: true, providerMessageId: data?.id };
 }

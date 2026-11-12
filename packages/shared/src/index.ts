@@ -44,6 +44,8 @@ export {
   type DealEventActorType,
   EMAIL_LOG_STATUSES,
   type EmailLogStatus,
+  EMAIL_PROVIDERS,
+  type EmailProvider,
   DISPUTE_STATUSES,
   type DisputeStatus,
   EMAIL_TEMPLATES,
