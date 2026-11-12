@@ -686,7 +686,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
       stepsBlock.indexOf(second),
     );
 
-  it('runs daily at 21:00 UTC (02:30 India Standard Time) and by hand, and on nothing else', () => {
+  it('runs daily at 21:00 Coordinated Universal Time (02:30 India Standard Time) and by hand, and on nothing else', () => {
     const on = code.slice(code.indexOf('\non:\n'), code.indexOf('\npermissions:'));
     expect(on).toMatch(/schedule:\n\s+- cron: '0 21 \* \* \*'/);
     expect(on).toContain('workflow_dispatch:');
