@@ -120,6 +120,12 @@ jobs:
               echo "::error::Hint: check the role and password in BACKUP_DATABASE_URL."
             elif grep -qi 'permission denied' "$errors"; then
               echo "::error::Hint: the backup role is missing a privilege. See docs/DEPLOYMENT.md section 21.12."
+              # What is missing, so it can be granted: only the phrase and one object name (a schema,
+              # table or sequence name is not a secret). The rest of the line is never shown, because
+              # it can name the host.
+              { grep -oiE 'permission denied for (schema|table|sequence|relation|function|type|view|large object|database) [A-Za-z0-9_."-]+' "$errors" || true; } | sort -u | head -n 5 | while IFS= read -r missing_privilege; do
+                echo "::error::Missing: $missing_privilege"
+              done
             elif grep -qi 'server version' "$errors"; then
               echo "::error::Hint: the PostgreSQL server is newer than the pg_dump client. Raise POSTGRES_CLIENT_VERSION in backup.yml."
             elif grep -qiE 'could not translate host|name or service not known|connection refused|timeout expired|could not connect' "$errors"; then

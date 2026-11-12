@@ -968,6 +968,14 @@ Section 21.9 first, then section 16a. These two gates are prompted variables on 
    ```sql
    CREATE ROLE backup_reader WITH LOGIN PASSWORD '<a long random password>';
    GRANT CONNECT ON DATABASE <database> TO backup_reader;
+   GRANT pg_read_all_data TO backup_reader;
+   ```
+
+   `pg_read_all_data` is a built-in PostgreSQL role that can only read: SELECT on every table, view and sequence and USAGE on every schema, now and for tables created later, and nothing else (no insert, update, delete, create or drop). It covers everything `pg_dump` touches, including the `drizzle` migration journal and any schema Neon adds, so no grant can be forgotten. Neon's own documentation (checked 12 November 2026) says roles made with SQL are not in `neon_superuser`, which includes `pg_read_all_data`, so it has to be granted as above. The first manual run on 12 November 2026 failed with "the backup role is missing a privilege" using only table, sequence and schema grants on `public` and `drizzle`, which is why this is the main route.
+
+   **If `GRANT pg_read_all_data` is refused** ("permission denied to grant role"), use these grants instead (replace `<owner>` with the role in the API's `DATABASE_URL`), and add `GRANT USAGE ON SCHEMA <name>` and `GRANT SELECT ON ALL TABLES IN SCHEMA <name>` for every other schema the failed run names under "Missing":
+
+   ```sql
    GRANT USAGE ON SCHEMA public, drizzle TO backup_reader;
    GRANT SELECT ON ALL TABLES IN SCHEMA public, drizzle TO backup_reader;
    GRANT SELECT ON ALL SEQUENCES IN SCHEMA public, drizzle TO backup_reader;
@@ -975,7 +983,7 @@ Section 21.9 first, then section 16a. These two gates are prompted variables on 
    ALTER DEFAULT PRIVILEGES FOR ROLE <owner> IN SCHEMA public, drizzle GRANT SELECT ON SEQUENCES TO backup_reader;
    ```
 
-   Neon's documentation (checked 12 November 2026) gives the first five kinds of grant for a read-only role; it does not say that `pg_dump` also needs SELECT on sequences and the `drizzle` schema (the migration journal), so they are added here, and the first manual run (step 5) proves them. A privilege that is still missing makes the job fail with the hint "the backup role is missing a privilege". Never give this role more than SELECT.
+   When a run fails with the hint "the backup role is missing a privilege", the log now also lists up to five lines such as `Missing: permission denied for schema neon`: the object that needs a grant, and nothing else from the error. Never give this role more than read access.
 
 2. **Connection string.** Neon > the production branch > **Connect**, role `backup_reader`, with **Connection pooling switched off**: the host must **not** contain `-pooler`, because `pg_dump` does not work through the pooler (it uses `SET` statements; Neon's own documentation says to use the direct connection). It must end with `?sslmode=require`. Compare with section 21.3.
 3. **Make the key pair, on a machine that is not the server and is not online while you do it.** Install `age` (`apt install age` on Ubuntu 22.04 or later), then `age-keygen -o key.txt`. It prints `Public key: age1...` and writes the private key to `key.txt`. **Keep `key.txt` offline, in two places** (for example two encrypted removable drives held by two Founders). **If the private key is lost, every backup is unreadable.** Never put `key.txt` in GitHub, a chat or an email. The `age1...` line is the public key and is safe to share.
