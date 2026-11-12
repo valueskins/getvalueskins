@@ -795,8 +795,14 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
     }
     // pg_dump's error text goes to a file that nothing prints.
     expect(step(DUMP)).toContain('2> "$errors"');
-    expect(code).not.toMatch(/\bcat\b|\btail\b|\bhead\b/);
-    expect(code).not.toMatch(/grep [^\n]*"\$errors"\s*[|>]/);
+    expect(code).not.toMatch(/\bcat\b|\btail\b/);
+    // The error file is read only by quiet greps, by the one grep that prints just the phrase
+    // "permission denied for <kind> <name>", and by the commands that write or delete it.
+    for (const line of code.split('\n').filter((l) => l.includes('"$errors"'))) {
+      expect(line, line).toMatch(
+        /grep -qiE? |grep -oiE 'permission denied for \([a-z| ]+\) \[A-Za-z0-9_."-\]\+' "\$errors"|2> "\$errors"|errors="\$RUNNER_TEMP|rm -f /,
+      );
+    }
   });
 
   it('asks for the direct Neon address with TLS and an age public key', () => {
@@ -813,6 +819,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
       'BACKUP_DATABASE_URL',
       'BACKUP_AGE_RECIPIENT',
       'CREATE ROLE backup_reader',
+      'GRANT pg_read_all_data TO backup_reader',
       'GRANT SELECT ON ALL SEQUENCES',
       'age-keygen',
       'Run workflow',
@@ -875,6 +882,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
         `for a in "$@"; do case "$a" in --file=*) f="\${a#--file=}";; esac; done
 case "$STUB_PG_DUMP" in
   fail) echo "connection to server at ep-secret-host-123456.ap-southeast-1.aws.neon.tech failed: password authentication failed for user backup_reader s3cretpw" >&2; exit 1;;
+  denied) printf 'pg_dump: error: connection to server at "ep-secret-host-123456.ap-southeast-1.aws.neon.tech" (10.0.0.1), user backup_reader, password s3cretpw\\npg_dump: error: query failed: ERROR:  permission denied for schema neon\\npg_dump: error: Query was: LOCK TABLE neon.foo\\npg_dump: error: ERROR:  permission denied for table users_secret_table_name\\n' >&2; exit 1;;
   empty) : > "$f";;
   *) echo "PGDMP stand-in" > "$f";;
 esac`,
@@ -980,6 +988,22 @@ esac`,
       expect(result.output).toContain('Hint: check the role and password');
       never(result.output);
       // Nothing is left behind, not even the error file that held the host.
+      expect(filesIn(sb)).toEqual([]);
+    });
+
+    it('names the schema or table a missing privilege is about, and nothing else from the error', () => {
+      const sb = prepare();
+      const result = run(DUMP, sb, { STUB_PG_DUMP: 'denied' });
+      expect(result.status).toBe(1);
+      expect(result.output).toContain('Hint: the backup role is missing a privilege');
+      expect(result.output).toContain('Missing: permission denied for schema neon');
+      expect(result.output).toContain(
+        'Missing: permission denied for table users_secret_table_name',
+      );
+      // Only the phrase and the object name: not the host, the address, the user or the password.
+      never(result.output);
+      expect(result.output).not.toContain('10.0.0.1');
+      expect(result.output).not.toContain('LOCK TABLE');
       expect(filesIn(sb)).toEqual([]);
     });
 
