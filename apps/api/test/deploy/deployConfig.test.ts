@@ -676,7 +676,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
   };
   const MAIN_ONLY = 'Refuse anything but main';
   const INPUTS = 'Check the backup inputs';
-  const INSTALL = 'Install the PostgreSQL 16 client and age';
+  const INSTALL = 'Install the PostgreSQL client and age';
   const DUMP = 'Dump the database';
   const ENCRYPT = 'Encrypt the dump with age';
   const UPLOAD = 'Upload the encrypted backup';
@@ -714,17 +714,37 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
     before(UPLOAD, CLEANUP);
   });
 
-  it('runs on a pinned Ubuntu that has the PostgreSQL 16 client, not on the moving latest label', () => {
+  it('runs on a pinned Ubuntu, not on the moving latest label', () => {
     expect(code).toMatch(/^ {4}runs-on: ubuntu-24\.04$/m);
     expect(code).not.toContain('ubuntu-latest');
   });
 
-  it('installs the PostgreSQL 16 client and age, and dumps in the custom format with the 16 tools', () => {
+  it('installs the PostgreSQL client of one chosen version and age, and dumps in the custom format with it', () => {
+    const version = code.match(/^ {2}POSTGRES_CLIENT_VERSION: '(\d+)'$/m)?.[1];
+    expect(version, 'POSTGRES_CLIENT_VERSION').toBeDefined();
+    // The version lives in one place: every step reads the variable, none repeats the number.
+    expect(code.match(/POSTGRES_CLIENT_VERSION: /g)).toHaveLength(1);
     const install = step(INSTALL);
-    expect(install).toContain('postgresql-client-16');
+    expect(install).toContain('apt.postgresql.org.sh');
+    expect(install).toContain('"postgresql-client-$POSTGRES_CLIENT_VERSION"');
     expect(install).toMatch(/install -y [^\n]*\bage\b/);
-    expect(install).toContain('/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"');
+    expect(install).toContain(
+      '/usr/lib/postgresql/$POSTGRES_CLIENT_VERSION/bin" >> "$GITHUB_PATH"',
+    );
+    expect(install).not.toMatch(/postgresql-client-\d|postgresql\/\d/);
     expect(step(DUMP)).toContain('pg_dump --format=custom');
+  });
+
+  it('is at least as new as the Neon server, and the runbook restores with the same version', () => {
+    const version = Number(code.match(/POSTGRES_CLIENT_VERSION: '(\d+)'/)![1]);
+    // Neon's production database is PostgreSQL 18 (checked 12 November 2026): the client must not be older.
+    expect(version).toBeGreaterThanOrEqual(18);
+    // A backup restores only with the same version or a newer one, so the runbook names that image.
+    expect(runbookDoc).toContain(`postgres:${version}`);
+    expect(runbookDoc).not.toMatch(/docker compose up -d postgres/);
+    expect(deploymentDoc.slice(deploymentDoc.indexOf('### 21.12'))).toContain(
+      'POSTGRES_CLIENT_VERSION',
+    );
   });
 
   it('encrypts to the public key, deletes the plain file, and fails on an empty file', () => {
@@ -757,7 +777,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
   });
 
   it('has read-only permissions and one backup at a time', () => {
-    expect(code).toMatch(/^permissions:\n {2}contents: read\n\nconcurrency:/m);
+    expect(code).toMatch(/^permissions:\n {2}contents: read\n\n/m);
     expect(code).not.toMatch(/: write/);
     expect(code).toMatch(/concurrency:\n {2}group: backup\n {2}cancel-in-progress: false/);
   });
@@ -804,7 +824,7 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
     for (const text of [
       'age -d -i',
       'pg_restore',
-      'docker compose up -d postgres',
+      'docker run -d --name restore_check',
       'count(*) from deals',
       'count(*) from payments',
       'count(*) from invoices',

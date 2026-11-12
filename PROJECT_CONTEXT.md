@@ -804,7 +804,7 @@ Error codes surface on `/login?error=`; onboarding link failures on `/onboarding
 ### Hosting / operations
 
 - **Render:** production API, Singapore, free instance, manual deploys, health check `/healthz` (never the database), no pre-deploy command.
-- **Neon:** production PostgreSQL 16, free plan, direct (non-pooled) connection required.
+- **Neon:** production PostgreSQL 18 (development and tests use 16), free plan, direct (non-pooled) connection required.
 - **Netlify:** production web, no Git link; deployed by GitHub Actions with pinned Netlify CLI; 300 credits/month.
 - **Vercel:** staging web.
 - **Cloudflare:** DNS only (not in code).
