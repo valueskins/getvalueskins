@@ -98,7 +98,7 @@ services:
         value: 'ValueSkins <notifications@valueskins.com>'
       - key: EMAIL_TRANSPORT
         value: resend
-      # Optional overflow provider: when Resend is over its daily or rate limit, or fails on its
+      # Optional overflow provider: when Resend is over its daily, monthly or rate limit, or fails on its
       # side, one email goes through Brevo. Leave it blank to keep Resend only.
       - key: BREVO_API_KEY
         sync: false

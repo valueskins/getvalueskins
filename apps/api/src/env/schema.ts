@@ -46,7 +46,7 @@ export const envSchema = z.object({
   RESEND_API_KEY: requiredString,
   EMAIL_FROM: requiredString,
   EMAIL_TRANSPORT: z.enum(['console', 'resend']),
-  // Optional overflow provider (SPEC 8): empty means off. When Resend is over its daily or rate limit,
+  // Optional overflow provider (SPEC 8): empty means off. When Resend is over its daily, monthly or rate limit,
   // or fails on its side, one email goes through Brevo instead. A host that cannot define empty
   // variables may omit it.
   BREVO_API_KEY: z.string().default(''),

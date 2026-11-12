@@ -14,7 +14,7 @@ export function parseSender(from: string): { email: string; name?: string } {
 }
 
 /**
- * Sends one email through Brevo's transactional email API (SPEC 8), with `fetch` and no SDK: the
+ * Sends one email through Brevo's transactional email API (SPEC 8), with `fetch` and no client library: the
  * same from address, reply-to, copy recipients, subject, text, HTML and attachments as the Resend
  * send. It never throws, and its error text carries only Brevo's error code and message.
  * https://developers.brevo.com/reference/sendtransacemail
