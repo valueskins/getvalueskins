@@ -229,6 +229,7 @@ export async function getAdminDealDetail(
       toEmail: e.toEmail,
       cc: e.cc ?? [],
       status: e.status,
+      provider: e.provider,
       error: e.error,
       attachmentNames: e.attachmentNames ?? [],
       createdAt: e.createdAt.toISOString(),

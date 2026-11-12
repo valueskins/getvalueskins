@@ -78,6 +78,7 @@ function email(over: Partial<AdminEmail> = {}): AdminEmail {
     toEmail: 'brand@example.test',
     cc: [],
     status: 'SENT',
+    provider: 'resend',
     error: null,
     attachmentNames: ['VS-2026-27-000123.pdf'],
     createdAt: '2026-10-02T06:04:00.000Z',
@@ -338,6 +339,32 @@ describe('admin deal page', () => {
       screen.getByText('To brand@example.test. Left off: VS-2026-27-000123.pdf.'),
     ).toBeInTheDocument();
     expect(api.called(`POST /admin/emails/${email().id}/resend`)).toHaveLength(1);
+  });
+
+  it('shows which provider sent each email, and which one a failed email last tried', async () => {
+    mockApi({
+      [`GET /admin/deals/${DEAL_ID}`]: detail({
+        emails: [
+          email({ id: 'e-resend', provider: 'resend', subject: 'Sent through Resend' }),
+          email({ id: 'e-brevo', provider: 'brevo', subject: 'Sent through Brevo' }),
+          email({
+            id: 'e-failed',
+            provider: 'brevo',
+            status: 'FAILED',
+            sentAt: null,
+            error: 'resend daily_quota_exceeded (429): limit; brevo unauthorized (401): key',
+            subject: 'Failed after both',
+          }),
+          email({ id: 'e-old', provider: null, subject: 'Sent before it was recorded' }),
+        ],
+      }),
+    });
+    renderWithProviders(<AdminDealPage id={DEAL_ID} />);
+    await screen.findByRole('button', { name: /^Sent through Resend/ });
+    expect(screen.getByText('Sent by Resend')).toBeInTheDocument();
+    expect(screen.getByText('Sent by Brevo')).toBeInTheDocument();
+    expect(screen.getByText('Tried Brevo')).toBeInTheDocument();
+    expect(screen.getAllByText(/^(Sent by|Tried) /)).toHaveLength(3);
   });
 
   it('cancels with a required note and an optional refund reference', async () => {

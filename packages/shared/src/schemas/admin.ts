@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import { ADMIN_DEAL_ACTIONS } from '../adminActions.js';
 import { DEAL_STATUSES } from '../dealStateMachine.js';
-import { DISPUTE_STATUSES, EMAIL_LOG_STATUSES, PAYMENT_STATUSES, PAYMENT_TYPES } from '../enums.js';
+import {
+  DISPUTE_STATUSES,
+  EMAIL_LOG_STATUSES,
+  EMAIL_PROVIDERS,
+  PAYMENT_STATUSES,
+  PAYMENT_TYPES,
+} from '../enums.js';
 import { dealDetailSchema, dealPartySchema, dealSummarySchema } from './deal.js';
 import { directPaymentViewSchema } from './directPayment.js';
 import { dealEventSchema } from './documents.js';
@@ -77,6 +83,8 @@ export const adminEmailSchema = z.object({
   toEmail: z.string(),
   cc: z.array(z.string()),
   status: z.enum(EMAIL_LOG_STATUSES),
+  /** The provider that gave the final outcome. Null for emails from before it was recorded. */
+  provider: z.enum(EMAIL_PROVIDERS).nullable(),
   error: z.string().nullable(),
   attachmentNames: z.array(z.string()),
   createdAt: z.string(),
