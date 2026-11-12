@@ -623,6 +623,8 @@ Unique partial index `disputes_one_open_per_deal_idx` on `(deal_id)` where `stat
 **webhook_events**
 `id (Razorpay event id, pk), event_type, payload jsonb, received_at, processed_at, error`
 
+Indexes: `event_type` and `processed_at`. The `webhook-sweeper` job (section 14) filters on `processed_at is null`, `error is null` and `received_at`, and sorts by `received_at`. The `processed_at` index is enough for it: a btree index holds null values, and the rows with no `processed_at` are only the few that are stuck or failed, so the filter on `error` and `received_at` runs on a handful of rows. A partial index on the other two columns was considered and left out: it would add a migration to run by hand on Neon for no gain.
+
 **meta_deletion_requests**
 `id, instagram_user_id, confirmation_code (unique), status, created_at, completed_at`
 
