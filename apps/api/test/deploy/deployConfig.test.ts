@@ -714,6 +714,11 @@ describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
     before(UPLOAD, CLEANUP);
   });
 
+  it('runs on a pinned Ubuntu that has the PostgreSQL 16 client, not on the moving latest label', () => {
+    expect(code).toMatch(/^ {4}runs-on: ubuntu-24\.04$/m);
+    expect(code).not.toContain('ubuntu-latest');
+  });
+
   it('installs the PostgreSQL 16 client and age, and dumps in the custom format with the 16 tools', () => {
     const install = step(INSTALL);
     expect(install).toContain('postgresql-client-16');
