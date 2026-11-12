@@ -40,7 +40,7 @@ If a prompt, the plan, the spec and the code disagree, or something seems wrong,
 - Node 22, pnpm 9 workspaces, TypeScript `strict` everywhere, ESM.
 - `apps/api`: Express 5, Drizzle ORM on PostgreSQL 16 (node-postgres), Zod, pino, rate-limiter-flexible, PDFKit, Resend. Socket.io from Prompt 16. Deployed on Render, Singapore.
 - `packages/shared`: money math, the deal state machine and allowed actions, enums, Zod request and response schemas, and text constants. Both apps import it, so rules and numbers can never disagree. Any rule needed by both apps lives here.
-- `apps/web`: Next.js. Production is on Netlify's Free plan with no Git link (GitHub Actions builds it and deploys it with the Netlify CLI after CI passes); staging is on Vercel. See section 15.
+- `apps/web`: Next.js. Production is on Netlify's Free plan with no Git link (GitHub Actions builds it and deploys it with the Netlify CLI, started by hand from `main` after CI has passed for that commit; at most 8 production deploys a month); staging is on Vercel. See section 15.
 - `docs/`: spec, replacement plan, deployment, runbook.
 
 Commands (from the repo root):

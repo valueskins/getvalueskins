@@ -317,7 +317,7 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 **Operations**
 
 - CI: install, production audit (critical), typecheck, lint, test, build, with a Postgres 16 service.
-- Production web deploy workflow to Netlify after CI succeeds on `main`, with change detection and secret checks.
+- Production web deploy workflow to Netlify, started by hand from `main` after CI has succeeded for that commit, with a preview target and secret checks.
 - Render blueprint for production API; Vercel config for staging web.
 - Startup env validation, startup guards, migration-vs-code check.
 - Structured logs with redaction; Sentry scrubbing.
@@ -912,7 +912,7 @@ No secret values are in this document. `.env.example` lists names; real values b
 ### Deployment
 
 - **Production API:** `render.yaml` (manual deploy, free instance, Singapore, `api.valueskins.com`, env via dashboard, no secrets in git).
-- **Production web:** `.github/workflows/deploy-web-production.yml` → Netlify, only after CI passes on `main`, only for web-related changes, with a pinned CLI and production URL check.
+- **Production web:** `.github/workflows/deploy-web-production.yml` → Netlify, started by hand from `main` (a preview first, at most 8 production deploys a month), only after CI passed for that commit, with a pinned CLI and production URL check.
 - **Staging web:** `apps/web/vercel.json`.
 - **Cutover:** `docs/CUTOVER.md` (prepare → production checks on `next.valueskins.com` → DNS/Meta switch → checks → one-week rollback window).
 - **Runbook:** `docs/RUNBOOK.md` (logs, DB queries, deploys/rollbacks, backups, accepted advisories).
@@ -975,7 +975,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
    - Fee/payment/review/content reminders can be delayed by hours; missed runs catch up when the service wakes (SPEC 14).
    - Accepted by the founders on 11 November 2026; jobs catch up after waking. Current production gates are off.
 2. **Split deploy cadence between API and web.**
-   - Web deploys automatically on merge (`.github/workflows/deploy-web-production.yml`); API is manual (`autoDeployTrigger: 'off'` in `render.yaml`).
+   - Web deploys only when started by hand (`.github/workflows/deploy-web-production.yml`); API is manual (`autoDeployTrigger: 'off'` in `render.yaml`).
    - A merge that changes API and web together can serve a new web build against an old API.
    - Mitigation: deploy API first, or make API deploy part of the same release process.
 3. **Realtime is single-instance.**
