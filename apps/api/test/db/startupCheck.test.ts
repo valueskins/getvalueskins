@@ -151,7 +151,7 @@ describe('readKnownMigrations', () => {
     const migrations = readKnownMigrations();
     expect(migrations.length).toBeGreaterThanOrEqual(12);
     expect(migrations[0]!.tag).toBe('0000_chubby_lifeguard');
-    expect(migrations.map((m) => m.tag)).toContain('0012_curious_lockjaw');
+    expect(migrations.map((m) => m.tag)).toContain('0013_fancy_wolfsbane');
     expect(new Set(migrations.map((m) => m.hash)).size).toBe(migrations.length);
     for (const m of migrations) expect(m.hash).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -186,7 +186,7 @@ describe('against a real database', () => {
     expect(warnings).toEqual([]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain(
-      '1 migration(s) the database has not applied: 0012_curious_lockjaw',
+      '1 migration(s) the database has not applied: 0013_fancy_wolfsbane',
     );
   });
 
@@ -217,7 +217,7 @@ describe('against a real database', () => {
       `update drizzle.__drizzle_migrations set hash = '${'e'.repeat(64)}' where id = (select max(id) from drizzle.__drizzle_migrations)`,
     ]);
     expect(problems).toHaveLength(1);
-    expect(problems[0]).toContain('0012_curious_lockjaw');
+    expect(problems[0]).toContain('0013_fancy_wolfsbane');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('eeeeeeeeee');
   });
@@ -311,7 +311,7 @@ describe('the startup exit (a child process, like the real start)', () => {
       const result = start(testDatabaseUrl);
       expect(result.status).toBe(1);
       const output = result.stdout + result.stderr;
-      expect(output).toContain('1 migration(s) the database has not applied: 0012_curious_lockjaw');
+      expect(output).toContain('1 migration(s) the database has not applied: 0013_fancy_wolfsbane');
       expect(output).toContain('Startup check failed');
       expect(output).not.toContain('database ok');
     } finally {

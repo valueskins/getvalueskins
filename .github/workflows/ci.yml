@@ -40,6 +40,7 @@ jobs:
       RAZORPAY_KEY_SECRET: ci-razorpay-key-secret
       RAZORPAY_WEBHOOK_SECRET: ci-razorpay-webhook-secret
       RESEND_API_KEY: ci-resend-api-key
+      BREVO_API_KEY: ''
       EMAIL_FROM: notifications@valueskins.com
       EMAIL_TRANSPORT: console
       ADMIN_INSTAGRAM_USER_IDS: ''

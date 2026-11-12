@@ -37,6 +37,10 @@ export type DealEventActorType = (typeof DEAL_EVENT_ACTOR_TYPES)[number];
 export const EMAIL_LOG_STATUSES = ['QUEUED', 'SENT', 'FAILED'] as const;
 export type EmailLogStatus = (typeof EMAIL_LOG_STATUSES)[number];
 
+/** Which provider sent an email (SPEC 8): Resend first, Brevo when Resend is over its limits. */
+export const EMAIL_PROVIDERS = ['resend', 'brevo', 'console'] as const;
+export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+
 export const DISPUTE_STATUSES = ['OPEN', 'RESOLVED'] as const;
 export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
 
