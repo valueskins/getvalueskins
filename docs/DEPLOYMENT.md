@@ -108,6 +108,17 @@ The API refuses to start if `RAZORPAY_KEY_ID` does not start with `rzp_test_` on
 
 Until the domain is verified, sends fail and are recorded as FAILED in the `email_log` table; nothing crashes.
 
+## 7a. Brevo (overflow when Resend is over its limit)
+
+The Resend free plan stops at 100 emails a day. The Brevo free plan sends 300 a day, so Brevo takes over, one email at a time, when Resend refuses because of its daily, monthly or rate limit or fails on its side (HTTP status 500 to 599). Any other Resend error is final and is not sent again. This is optional: with `BREVO_API_KEY` empty, nothing changes.
+
+1. In Brevo, create an account, then add and verify the sender: the domain `valueskins.com` (or at least the address in `EMAIL_FROM`). Brevo shows the DNS records to add; copy them exactly as shown (section 10 says where records go). Without a verified sender, Brevo refuses every send, and the email is recorded as FAILED with both errors. (Brevo's menu names change: use its documentation at `developers.brevo.com` if a name here is not found.)
+2. Create an API key in Brevo's dashboard (the SMTP and API section). Copy it as `BREVO_API_KEY` (shown once).
+3. Set `BREVO_API_KEY` in the Render dashboard (production: a prompted variable) and restart the service. Never commit it.
+4. Check: in a deal's admin page, the **Emails** list shows "Sent by Resend" or "Sent by Brevo" under each email. A wrong `RESEND_API_KEY` does not test the overflow: a rejected key is a final error and is not sent again.
+
+The `email_log.provider` column needs migration 0013: run `pnpm db:migrate` against the database before deploying this version (section 21.4).
+
 ## 8. Render (API and database)
 
 > `render.yaml` no longer contains staging (see the top of this file). The Blueprint steps below show how staging was set up and which settings it has. To recreate it, create the web service and the Postgres database by hand in the dashboard with the same settings.
@@ -125,6 +136,7 @@ Until the domain is verified, sends fail and are recorded as FAILED in the `emai
    | `RAZORPAY_KEY_SECRET`      | from section 6                                                                        |
    | `RAZORPAY_WEBHOOK_SECRET`  | from section 6 step 3                                                                 |
    | `RESEND_API_KEY`           | from section 7                                                                        |
+   | `BREVO_API_KEY`            | optional, from section 7a: leave it unset on staging unless you test the overflow     |
    | `ADMIN_INSTAGRAM_USER_IDS` | `none` for now (you set the real id in section 14)                                    |
    | `COMPANY_ADDRESS`          | the company address                                                                   |
    | `COMPANY_STATE`            | the company state, for example `Karnataka`                                            |
@@ -589,6 +601,7 @@ These are staging's settings. Rows that say `render.yaml` mean the earlier file 
 | `RAZORPAY_KEY_ID`          | prompted, `rzp_test_...`                                         | Razorpay test mode (section 6)                                                                                                         |
 | `RAZORPAY_KEY_SECRET`      | prompted                                                         | Razorpay test mode (section 6)                                                                                                         |
 | `RAZORPAY_WEBHOOK_SECRET`  | prompted                                                         | you make it up (section 6); same value in the Razorpay webhook form                                                                    |
+| `BREVO_API_KEY`            | prompted, optional                                               | Brevo (section 7a). Empty means no overflow when Resend is over its limit. Never needed for the API to start                           |
 | `RESEND_API_KEY`           | prompted                                                         | Resend (section 7)                                                                                                                     |
 | `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>`                      | `render.yaml`                                                                                                                          |
 | `EMAIL_TRANSPORT`          | `resend`                                                         | `render.yaml`; `console` is refused in production                                                                                      |
@@ -720,6 +733,7 @@ Cookies: the web app and the API are both under `valueskins.com`, so the session
 | `INSTAGRAM_APP_SECRET`     | prompted                                                         | The same page, **Show**                                                                                                                                                                      | Meta app owner                                     |
 | `INSTAGRAM_REDIRECT_URI`   | `https://api.valueskins.com/api/auth/instagram/callback` (file)  | `render.yaml`. It must match the redirect URI added in Meta exactly (21.7)                                                                                                                   | Engineer writes it, Meta app owner adds it in Meta |
 | `META_APP_SECRET`          | prompted                                                         | Meta app: **App settings > Basic > App secret**. The API accepts a signed request made with this or the Instagram app secret, so set both                                                    | Meta app owner                                     |
+| `BREVO_API_KEY`            | prompted, optional                                               | Brevo: an API key in the SMTP and API section (section 7a). Empty means Resend only                                                                                                          | Engineer (the Brevo account holder)                |
 | `RESEND_API_KEY`           | prompted                                                         | Resend: **API Keys > Create API Key**, "Sending access", domain `valueskins.com` (section 7). Shown once                                                                                     | Engineer (the Resend account holder)               |
 | `EMAIL_FROM`               | `ValueSkins <notifications@valueskins.com>` (file)               | The Resend sending domain                                                                                                                                                                    | Engineer                                           |
 | `EMAIL_TRANSPORT`          | `resend` (file)                                                  | The API refuses `console` in production                                                                                                                                                      | Engineer                                           |
@@ -809,6 +823,7 @@ Prerequisites: this `render.yaml` is on `main` (section 3), Neon is set up (21.3
    | `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` | from the Meta app (21.2)                     |
    | `META_APP_SECRET`                          | from the Meta app                            |
    | `RESEND_API_KEY`                           | from Resend                                  |
+   | `BREVO_API_KEY`                            | from Brevo (section 7a), or leave it blank   |
    | `ADMIN_INSTAGRAM_USER_IDS`                 | `none`                                       |
    | `SENTRY_DSN`                               | the Node.js project's DSN, or leave it blank |
    | `COMPANY_ADDRESS`, `COMPANY_STATE`         | the company's address and state              |
@@ -898,7 +913,7 @@ By the founders' decision of 11 November 2026, production stays on free instance
 - **No Shell** on a free instance (21.4), and **no pre-deploy command**.
 - **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
 - **The web app has a monthly credit limit.** Netlify's Free plan pauses every site on the account when its 300 credits are used (section 21.6). One production deploy is 15 of them.
-- **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (built in Task 5, which adds the Brevo variables to this document). The minimum deal budget is ₹2,000.
+- **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first (100 emails a day on the free plan), then Brevo as overflow (300 a day on the free plan) when Resend is over its daily or rate limit or fails on its side, if `BREVO_API_KEY` is set (section 7a). The minimum deal budget is ₹2,000.
 - **No hosting tier guard.** The API starts in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` on free hosting, by the founders' decision of 11 November 2026. The payment values are still checked (section 16a). If the production service still has the old hosting tier variable in the Render dashboard, delete it: it is ignored, but it is no longer used.
 
 ### 21.9 Moving to paid (optional)

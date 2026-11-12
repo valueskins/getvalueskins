@@ -20,7 +20,7 @@ These override any older statement in this document. The code changes are built 
 
 - Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on`. The hosting tier variable and its guard are removed.
 - The minimum deal budget is ₹2,000.
-- Email: Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
+- Email: Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (SPEC 8).
 - Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs catch up when the service wakes (SPEC 14).
 - The web application in `apps/web` is the real application, and one task may change `apps/api`, `packages/shared` and `apps/web` together. `docs/REPLACEMENT_PLAN.md` is history.
 - The Revision 11 payment ledger will not be built.
