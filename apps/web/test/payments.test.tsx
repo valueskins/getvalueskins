@@ -117,6 +117,43 @@ describe('the ValueSkins fee', () => {
     expect(screen.getByRole('button', { name: 'Check payment' })).toBeInTheDocument();
   });
 
+  it('lists the fee events in the activity, in plain words and without an amount', async () => {
+    const event = (id: string, kind: string) => ({
+      id,
+      kind,
+      fromStatus: 'CONFIRMED',
+      toStatus: 'CONFIRMED',
+      actor: { type: 'SYSTEM', role: 'SYSTEM', username: null },
+      note: null,
+      refundReference: null,
+      createdAt: '2026-10-02T06:04:00.000Z',
+    });
+    renderDeal(confirmed, 'brand', {
+      [`GET /deals/${DEAL_ID}/events`]: json(200, {
+        items: [
+          event('e1', 'FEE_AMOUNT_MISMATCH'),
+          event('e2', 'EXTRA_PAYMENT_ON_PAID_ORDER'),
+          event('e3', 'PAYMENT_RECORDED'),
+        ],
+        nextCursor: null,
+      }),
+    });
+    const activity = await screen.findByRole('region', { name: 'Activity' });
+    expect(
+      await within(activity).findByText(
+        'A fee payment did not match the order and was not accepted. ValueSkins has been told.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(activity).getByText(
+        'A second payment was received for the fee. ValueSkins will refund it.',
+      ),
+    ).toBeInTheDocument();
+    // A UPI record is under Payments, not here.
+    expect(within(activity).getAllByRole('listitem')).toHaveLength(2);
+    expect(activity.textContent).not.toMatch(/₹|paise|pay_|order_/);
+  });
+
   it('says the payment will be refunded when the deal had already changed', async () => {
     const message =
       'Your payment of ₹885.00 went through, but the deal had already changed. We will refund it.';

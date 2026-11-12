@@ -25,6 +25,25 @@ describe('the fee captured after the deal changed', () => {
   });
 });
 
+describe('the two checks on a captured fee', () => {
+  it('has plain alert subjects and activity texts with no amount or identifier', async () => {
+    const copy = await import('./copy.js');
+    expect(copy.EXTRA_PAYMENT_ON_PAID_ORDER_ALERT).toBe(
+      'A second payment was captured on a paid fee order, refund by hand',
+    );
+    expect(copy.PAYMENT_AMOUNT_MISMATCH_ALERT).toBe('Payment amount mismatch');
+    expect(copy.EXTRA_PAYMENT_ACTIVITY).toBe(
+      'A second payment was received for the fee. ValueSkins will refund it.',
+    );
+    expect(copy.FEE_AMOUNT_MISMATCH_ACTIVITY).toBe(
+      'A fee payment did not match the order and was not accepted. ValueSkins has been told.',
+    );
+    for (const text of [copy.EXTRA_PAYMENT_ACTIVITY, copy.FEE_AMOUNT_MISMATCH_ACTIVITY]) {
+      expect(text).not.toMatch(/₹|paise|pay_|order_|INR/);
+    }
+  });
+});
+
 describe('sign-in labels', () => {
   it('has the two homepage sign-in labels', () => {
     expect(CONTINUE_WITH_INSTAGRAM).toBe('Continue with Instagram');

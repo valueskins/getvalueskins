@@ -194,6 +194,21 @@ describe('a second captured payment on a paid order', () => {
   });
 });
 
+describe('what the deal history shows', () => {
+  it('shows the kind of each fee event to the brand and never an identifier or an amount', async () => {
+    const f = await paidOrder();
+    razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_second' });
+    await deliverWebhook(app, paymentCapturedEvent(f.orderId, 'pay_second', f.amount));
+
+    const res = await call.get(`/api/deals/${f.deal.id}/events`, f.brand.cookie);
+
+    expect(res.status).toBe(200);
+    const kinds = res.body.items.map((e: { kind: string }) => e.kind);
+    expect(kinds).toContain('EXTRA_PAYMENT_ON_PAID_ORDER');
+    expect(JSON.stringify(res.body)).not.toMatch(/pay_|order_|metadata/);
+  });
+});
+
 describe('an amount or currency mismatch', () => {
   /** A CONFIRMED deal whose payment Razorpay captured for the wrong amount. */
   async function mismatched(paymentId = 'pay_wrong') {
