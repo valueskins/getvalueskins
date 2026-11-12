@@ -52,12 +52,53 @@ describe('mostRecentScheduledTime', () => {
     );
   });
 
+  it('finds the latest slot of an every-N-minutes job, restarting each hour', () => {
+    const everyTen = '*/10 * * * *';
+    expect(recent(everyTen, ist('2026-11-12', '07:05'))).toBe(
+      ist('2026-11-12', '07:00').toISOString(),
+    );
+    expect(recent(everyTen, ist('2026-11-12', '07:10'))).toBe(
+      ist('2026-11-12', '07:10').toISOString(),
+    );
+    expect(recent(everyTen, ist('2026-11-12', '07:19'))).toBe(
+      ist('2026-11-12', '07:10').toISOString(),
+    );
+    expect(recent(everyTen, ist('2026-11-12', '07:59'))).toBe(
+      ist('2026-11-12', '07:50').toISOString(),
+    );
+    expect(recent(everyTen, ist('2026-11-12', '00:00'))).toBe(
+      ist('2026-11-12', '00:00').toISOString(),
+    );
+    expect(recent(everyTen, ist('2026-11-12', '23:59'))).toBe(
+      ist('2026-11-12', '23:50').toISOString(),
+    );
+    // A step that does not divide the hour starts again at minute 0 of the next hour, like cron.
+    const everySeven = '*/7 * * * *';
+    expect(recent(everySeven, ist('2026-11-12', '07:55'))).toBe(
+      ist('2026-11-12', '07:49').toISOString(),
+    );
+    expect(recent(everySeven, ist('2026-11-12', '08:03'))).toBe(
+      ist('2026-11-12', '08:00').toISOString(),
+    );
+    // Seconds are ignored: the slot is the minute.
+    expect(
+      mostRecentScheduledTime(
+        everyTen,
+        new Date(ist('2026-11-12', '07:10').getTime() + 45_000),
+      ).toISOString(),
+    ).toBe(ist('2026-11-12', '07:10').toISOString());
+  });
+
   it('throws on a schedule shape it does not understand', () => {
     for (const bad of [
       '* * * * *',
       '0 10 * * 1',
       '0 10 1 * *',
-      '*/5 * * * *',
+      '*/5 * * * 1',
+      '*/5 3 * * *',
+      '*/0 * * * *',
+      '*/60 * * * *',
+      '*/5 * * * * *',
       '0 25 * * *',
       '0 */0 * * *',
       '0 10',
