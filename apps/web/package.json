@@ -24,7 +24,7 @@
     "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.2",
     "@types/qrcode": "^1.5.6",
