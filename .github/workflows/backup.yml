@@ -30,7 +30,9 @@ jobs:
     if: >-
       github.event.repository.fork == false &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the latest label moved to Ubuntu 26.04, whose archive has no
+    # postgresql-client-16 (Neon runs PostgreSQL 16). Ubuntu 24.04 has it, and age.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
