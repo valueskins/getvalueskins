@@ -112,8 +112,8 @@ jobs:
         run: pnpm --filter "./packages/*" run build
 
       # A draft deploy: the same build, uploaded to its own address and not to the live site. The
-      # step's log shows the address. It should cost no deploy credits; confirm it once
-      # (docs/DEPLOYMENT.md section 21.6).
+      # step's log shows the address. It costs no deploy credits, as checked on the
+      # real site (docs/DEPLOYMENT.md section 21.6).
       - name: Build and deploy a preview to Netlify
         if: inputs.target == 'preview'
         env:
