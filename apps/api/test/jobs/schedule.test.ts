@@ -21,7 +21,7 @@ describe('mostRecentScheduledTime', () => {
   });
 
   it('uses the India Standard Time day, not the UTC day', () => {
-    // 00:30 IST on the 12th is still the 11th in UTC.
+    // 00:30 India Standard Time on the 12th is still the 11th in UTC.
     expect(recent('59 23 * * *', ist('2026-11-12', '00:30'))).toBe(
       ist('2026-11-11', '23:59').toISOString(),
     );

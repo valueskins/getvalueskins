@@ -330,7 +330,7 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 - **Admin alert inbox:** alerts are emails only; no table or screen.
 - **Email/webhook durability:** no retry queue. Failing emails stay `FAILED` and can be resent by an admin; failing webhook handlers are recorded and alerted but not retried.
 - **Realtime scale-out:** single Node process, no Redis adapter; multi-instance deployment would not share rooms.
-- **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs are not backfilled.
+- **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs catch up when the service wakes (SPEC 14).
 - **Production launch:** designed to start with payments/posting off; live Razorpay keys, GSTIN/SAC confirmation and Meta live approval are operational prerequisites. Paid hosting is not required (decision of 11 November 2026).
 - **Data import from the old app:** not implemented; cutover plan explicitly assumes no data import (only founders’ test accounts).
 - **Browser E2E / visual regression:** none in the repo; API has a full e2e test, web has jsdom unit/component tests.
@@ -972,7 +972,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 1. **Free Render instance sleeps, so scheduled jobs do not run on time.**
    - `render.yaml` (`plan: free`), `apps/api/src/jobs/scheduler.ts`, `docs/CUTOVER.md`.
-   - Fee/payment/review/content reminders can be delayed by hours; missed ticks are not backfilled.
+   - Fee/payment/review/content reminders can be delayed by hours; missed runs catch up when the service wakes (SPEC 14).
    - Accepted by the founders on 11 November 2026; jobs catch up after waking. Current production gates are off.
 2. **Split deploy cadence between API and web.**
    - Web deploys automatically on merge (`.github/workflows/deploy-web-production.yml`); API is manual (`autoDeployTrigger: 'off'` in `render.yaml`).

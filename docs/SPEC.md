@@ -617,7 +617,7 @@ Two writers, and nothing else (an architecture test checks it; the seed inserts 
 Unique partial index `disputes_one_open_per_deal_idx` on `(deal_id)` where `status = 'OPEN'`: one open dispute per deal (migration 0010 first resolves any extra open ones, keeping the newest).
 
 **job_runs**
-`job_name (pk), last_success_at` (migration 0012): the start time of each job's last successful run (section 14). No foreign key.
+`job_name (primary key), last_success_at` (migration 0012): the start time of each job's last successful run (section 14). No foreign key.
 
 **webhook_events**
 `id (Razorpay event id, pk), event_type, payload jsonb, received_at, processed_at, error`

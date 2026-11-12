@@ -4,7 +4,7 @@ import { emailLoginCodes, emailVerificationTokens, sessions } from '../db/schema
 import type { JobCounts, JobDefinition } from './types.js';
 
 /**
- * Daily at 08:30 IST, after the API wakes at 07:00: delete expired sessions, email verification links and email sign-in codes.
+ * Daily at 08:30 India Standard Time, after the API wakes at 07:00: delete expired sessions, email verification links and email sign-in codes.
  * An expired row is dead already, so this only keeps the tables small. The count names avoid the
  * words the logger redacts.
  */

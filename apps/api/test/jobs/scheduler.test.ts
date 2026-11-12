@@ -54,7 +54,7 @@ describe('startScheduler', () => {
       };
       for (const job of JOBS) expect(next(job.name)).toBeInstanceOf(Date);
 
-      // Whatever day it is, a daily 10:00 IST job runs at 04:30 UTC, and cleanup at 03:00 UTC.
+      // Whatever day it is, a daily 10:00 India Standard Time job runs at 04:30 UTC, and cleanup at 03:00 UTC.
       expect(next('fee-reminder')!.toISOString().slice(11, 16)).toBe('04:30');
       expect(next('instagram-refresh')!.toISOString().slice(11, 16)).toBe('02:45');
       expect(next('cleanup')!.toISOString().slice(11, 16)).toBe('03:00');
