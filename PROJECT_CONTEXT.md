@@ -328,7 +328,7 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 - **Admin analytics:** specified in `docs/SPEC.md` section 12, no endpoint or screen. `docs/WEB_API_GAPS.md` marks it “Not doing (after cutover)”.
 - **Refunds:** manual in Razorpay; no refund entity, no automatic reversal, no reconciliation UI.
 - **Admin alert inbox:** alerts are emails only; no table or screen.
-- **Email/webhook durability:** no retry queue. Failing emails stay `FAILED` and can be resent by an admin; failing webhook handlers are recorded and alerted but not retried.
+- **Email/webhook durability:** no retry queue. Failing emails stay `FAILED` and can be resent by an admin; failing webhook handlers are recorded and alerted but not retried, and a stored event that was never processed (the API stopped after answering 200) is picked up by the `webhook-sweeper` job every 10 minutes.
 - **Realtime scale-out:** single Node process, no Redis adapter; multi-instance deployment would not share rooms.
 - **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs catch up when the service wakes (SPEC 14).
 - **Production launch:** designed to start with payments/posting off; live Razorpay keys, GSTIN/SAC confirmation and Meta live approval are operational prerequisites. Paid hosting is not required (decision of 11 November 2026).
