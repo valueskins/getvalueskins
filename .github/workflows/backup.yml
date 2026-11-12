@@ -1,0 +1,174 @@
+# Daily encrypted backup of the production database (Neon). docs/DEPLOYMENT.md section 21.12.
+#
+# Neon Free keeps only a short restore window, so every day at 21:00 Coordinated Universal Time
+# (02:30 India Standard Time) this takes a pg_dump with a read-only role, encrypts it with age to a
+# public key, and uploads only the encrypted file as an artifact kept for 30 days. The repository is
+# public, and anyone signed in to GitHub can download a public repository's artifacts, so the plain
+# dump must never be uploaded. The private key is kept offline by the founder; it is never in GitHub.
+#
+# It never runs for a pull request or a fork. A manual run (Actions > backup > Run workflow) must
+# start from main. The log of a public repository is public, so nothing here prints the database
+# address: pg_dump's error text goes to a file that is never shown.
+
+name: backup
+
+on:
+  schedule:
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One backup at a time, and a running one is never cancelled.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: >-
+      github.event.repository.fork == false &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # A manual run from another branch fails here, loudly. A scheduled run is always on main.
+      - name: Refuse anything but main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run this workflow from the main branch (it was started from $GITHUB_REF)."
+            exit 1
+          fi
+
+      # Fails early and names the input, never its value. The database address must be Neon's direct
+      # one (pg_dump does not work through the pooler) and must require TLS.
+      - name: Check the backup inputs
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          missing=0
+          if [ -z "$BACKUP_DATABASE_URL" ]; then
+            echo "::error::BACKUP_DATABASE_URL is not set. See docs/DEPLOYMENT.md section 21.12."
+            missing=1
+          fi
+          if [ -z "$BACKUP_AGE_RECIPIENT" ]; then
+            echo "::error::BACKUP_AGE_RECIPIENT is not set. See docs/DEPLOYMENT.md section 21.12."
+            missing=1
+          fi
+          [ "$missing" = "0" ] || exit 1
+          case "$BACKUP_DATABASE_URL" in
+            *-pooler*)
+              echo "::error::BACKUP_DATABASE_URL must be the direct connection string, not the pooled one (no -pooler in the host)."
+              exit 1
+              ;;
+          esac
+          case "$BACKUP_DATABASE_URL" in
+            *sslmode=require*) ;;
+            *)
+              echo "::error::BACKUP_DATABASE_URL must contain sslmode=require."
+              exit 1
+              ;;
+          esac
+          case "$BACKUP_AGE_RECIPIENT" in
+            age1*) ;;
+            *)
+              echo "::error::BACKUP_AGE_RECIPIENT must be an age public key (it starts with age1)."
+              exit 1
+              ;;
+          esac
+
+      # The PostgreSQL 16 client (Neon runs 16) and age. The 16 binaries go first on the path,
+      # because the runner image may carry another version.
+      - name: Install the PostgreSQL 16 client and age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16 age
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          age --version
+
+      # The only step besides the input check that sees the database address. No -v and no set -x:
+      # nothing may echo it. The error text of pg_dump can name the host, so it goes to a file that
+      # is never printed, and a failure says only which kind of problem it was.
+      - name: Dump the database
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dump="$RUNNER_TEMP/backup.dump"
+          errors="$RUNNER_TEMP/pg_dump.err"
+          if ! pg_dump --format=custom --no-owner --no-privileges --file="$dump" "$BACKUP_DATABASE_URL" 2> "$errors"; then
+            echo "::error::pg_dump failed. Its error text is not shown, because the log of a public repository is public."
+            if grep -qiE 'password authentication failed|authentication failed|does not exist' "$errors"; then
+              echo "::error::Hint: check the role and password in BACKUP_DATABASE_URL."
+            elif grep -qi 'permission denied' "$errors"; then
+              echo "::error::Hint: the backup role is missing a privilege. See docs/DEPLOYMENT.md section 21.12."
+            elif grep -qi 'server version' "$errors"; then
+              echo "::error::Hint: the PostgreSQL version of the server is newer than the pg_dump client."
+            elif grep -qiE 'could not translate host|name or service not known|connection refused|timeout expired|could not connect' "$errors"; then
+              echo "::error::Hint: the host could not be reached. Check the host in BACKUP_DATABASE_URL and the Neon compute."
+            elif grep -qiE 'ssl|tls' "$errors"; then
+              echo "::error::Hint: the TLS connection failed. Check sslmode=require in BACKUP_DATABASE_URL."
+            fi
+            rm -f "$dump" "$errors"
+            exit 1
+          fi
+          rm -f "$errors"
+          # A real archive with entries in it, not an empty or truncated file.
+          if [ ! -s "$dump" ]; then
+            echo "::error::The dump file is empty."
+            rm -f "$dump"
+            exit 1
+          fi
+          entries=$(pg_restore --list "$dump" 2>/dev/null | grep -vc '^;' || true)
+          if [ "$entries" -lt 1 ]; then
+            echo "::error::The dump is not a readable archive."
+            rm -f "$dump"
+            exit 1
+          fi
+          echo "Dump written: $entries entries."
+
+      # Encrypts to the public key, deletes the plain file, and fails if the encrypted file is empty.
+      # The trap removes the plain dump even when age fails.
+      - name: Encrypt the dump with age
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dump="$RUNNER_TEMP/backup.dump"
+          trap 'rm -f "$dump"' EXIT
+          mkdir -p "$RUNNER_TEMP/backup"
+          out="$RUNNER_TEMP/backup/valueskins-$(date -u +%Y-%m-%dT%H%MZ).dump.age"
+          if [ ! -s "$dump" ]; then
+            echo "::error::The dump file is missing or empty."
+            exit 1
+          fi
+          if ! age -r "$BACKUP_AGE_RECIPIENT" -o "$out" "$dump"; then
+            echo "::error::age could not encrypt the dump. Check BACKUP_AGE_RECIPIENT."
+            exit 1
+          fi
+          rm -f "$dump"
+          if [ ! -s "$out" ]; then
+            echo "::error::The encrypted file is empty."
+            exit 1
+          fi
+          echo "Encrypted backup written."
+
+      # Only the encrypted file, never the plain dump.
+      - name: Upload the encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: valueskins-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/backup/*.age
+          retention-days: 30
+          if-no-files-found: error
+
+      # The runner is thrown away after the job, but the plain dump is removed even on a failure.
+      - name: Remove the plain dump
+        if: always()
+        run: rm -f "$RUNNER_TEMP/backup.dump" "$RUNNER_TEMP/pg_dump.err"
