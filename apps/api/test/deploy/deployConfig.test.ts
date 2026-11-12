@@ -8,6 +8,7 @@ import { buildTestEnv } from '../testEnv.js';
 const REPO_ROOT = new URL('../../../../', import.meta.url);
 const renderYaml = readFileSync(new URL('render.yaml', REPO_ROOT), 'utf8');
 const deploymentDoc = readFileSync(new URL('docs/DEPLOYMENT.md', REPO_ROOT), 'utf8');
+const specDoc = readFileSync(new URL('docs/SPEC.md', REPO_ROOT), 'utf8');
 const cutoverDoc = readFileSync(new URL('docs/CUTOVER.md', REPO_ROOT), 'utf8');
 const netlifyToml = readFileSync(new URL('apps/web/netlify.toml', REPO_ROOT), 'utf8');
 const deployWorkflow = readFileSync(
@@ -561,6 +562,10 @@ describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () 
     expect(section).toMatch(/checked first on a (free )?preview/i);
     expect(section).toContain('CI has not succeeded');
     expect(section).not.toMatch(/after the \*\*CI\*\* workflow finishes/);
+    // The spec says the same: by hand, from main, with the CI check, and no change detection.
+    expect(specDoc).toContain('started by hand (`workflow_dispatch`) from `main`');
+    expect(specDoc).not.toMatch(/deploys only when the merge changed/);
+    expect(specDoc).not.toMatch(/runs only after CI passes on a push to `main`/);
   });
 });
 
