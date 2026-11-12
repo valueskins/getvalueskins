@@ -21,6 +21,8 @@ const PAYMENT_KINDS: readonly DealEventKind[] = [
   'PAYMENT_RECORDED',
   'PAYMENT_NOT_RECEIVED',
   'FEE_CAPTURED_DEAL_CHANGED',
+  'EXTRA_PAYMENT_ON_PAID_ORDER',
+  'FEE_AMOUNT_MISMATCH',
 ];
 
 function metadataOf(event: EventRow['event']): Record<string, unknown> {

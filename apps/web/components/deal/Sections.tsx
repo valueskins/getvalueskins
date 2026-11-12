@@ -2,10 +2,13 @@
 
 import { Fragment, useState } from 'react';
 import {
+  EXTRA_PAYMENT_ACTIVITY,
+  FEE_AMOUNT_MISMATCH_ACTIVITY,
   formatInr,
   type DealDetail,
   type DealEmail,
   type DealEvent,
+  type DealEventKind,
   type DocumentKind,
 } from '@valueskins/shared';
 import { parseBrief } from '@/lib/brief';
@@ -282,10 +285,20 @@ export function EmailsSection({
   );
 }
 
+/** The event kinds the activity list shows: status changes and the three fee events. */
+const FEE_ACTIVITY_KINDS: readonly DealEventKind[] = [
+  'TRANSITION',
+  'FEE_CAPTURED_DEAL_CHANGED',
+  'EXTRA_PAYMENT_ON_PAID_ORDER',
+  'FEE_AMOUNT_MISMATCH',
+];
+
 function eventText(e: DealEvent, deal: DealDetail): string {
   if (e.kind === 'FEE_CAPTURED_DEAL_CHANGED') {
     return 'Fee received after the deal changed. ValueSkins will refund it.';
   }
+  if (e.kind === 'EXTRA_PAYMENT_ON_PAID_ORDER') return EXTRA_PAYMENT_ACTIVITY;
+  if (e.kind === 'FEE_AMOUNT_MISMATCH') return FEE_AMOUNT_MISMATCH_ACTIVITY;
   switch (e.toStatus) {
     case 'OPEN':
       return 'Published';
@@ -324,10 +337,9 @@ export function ActivitySection({
   events: DealEvent[] | undefined;
   failed?: Failed;
 }) {
-  // Status changes, and a fee kept on a deal that had changed. UPI records are under Payments.
-  const list = (events ?? []).filter(
-    (e) => e.kind === 'TRANSITION' || e.kind === 'FEE_CAPTURED_DEAL_CHANGED',
-  );
+  // Status changes, and the three fee events (kept after the deal changed, a second payment, a
+  // payment that did not match). UPI records are under Payments.
+  const list = (events ?? []).filter((e) => FEE_ACTIVITY_KINDS.includes(e.kind));
   return (
     <Section
       title="Activity"

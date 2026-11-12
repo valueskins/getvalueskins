@@ -65,6 +65,10 @@ Logs and Sentry never contain emails, UPI IDs, cookies, tokens or request bodies
 
 If the fee was captured twice on the same deal, the second payment is marked `FAILED` ("Duplicate capture ... Refund it.") and the same alert fires. Refund the second payment.
 
+**A second payment on an order that is already paid.** The alert "A second payment was captured on a paid fee order, refund by hand" means the brand paid the same fee order twice (two Checkout windows, say). The first payment stays as the fee and the deal is untouched; the alert names the extra payment id and the one that paid the order. Refund the **extra** payment in Razorpay (steps 3 and 5 above). The deal's activity shows "A second payment was received for the fee. ValueSkins will refund it." Find it with `q "select deal_id, created_at, metadata from deal_events where metadata->>'kind' = 'EXTRA_PAYMENT_ON_PAID_ORDER' order by created_at desc limit 10"`.
+
+**A payment for the wrong amount.** The alert "Payment amount mismatch" means Razorpay captured a payment whose amount or currency is not the order's. Nothing was accepted: the deal did not move and no invoice was issued. The alert has both amounts and the payment id; the event is `FEE_AMOUNT_MISMATCH`. Ask engineering how the order was paid, then refund that payment in Razorpay if the money was taken, and let the brand pay the order again.
+
 **An invoice is never issued for a refunded fee.** If a tax invoice was issued and the fee must still be refunded (a rare dispute outcome), ask the CA how to credit it; the numbers are gapless and an issued invoice is never deleted.
 
 ## 3. A deal is stuck

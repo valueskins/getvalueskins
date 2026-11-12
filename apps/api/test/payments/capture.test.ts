@@ -256,10 +256,17 @@ describe('verify and webhooks in any order, and repeated', () => {
 });
 
 describe('what Razorpay says is what counts', () => {
-  async function untouched(f: Awaited<ReturnType<typeof dealWithOrder>>) {
+  /**
+   * The deal and the payment are unchanged. The only thing recorded is a FEE_AMOUNT_MISMATCH event,
+   * once, for a payment whose amount or currency is not the order's (`mismatchEvents`).
+   */
+  async function untouched(f: Awaited<ReturnType<typeof dealWithOrder>>, mismatchEvents = 0) {
     const state = await dealState(f.deal.id);
     expect(state.deal.status).toBe('CONFIRMED');
-    expect(state.events).toHaveLength(0);
+    expect(state.events).toHaveLength(mismatchEvents);
+    for (const event of state.events) {
+      expect(event.metadata).toMatchObject({ kind: 'FEE_AMOUNT_MISMATCH' });
+    }
     expect((await paymentRow(f.orderId))?.status).toBe('CREATED');
     expect(
       (await db.select().from(emailLog)).filter((e) => e.template !== 'ADMIN_ALERT'),
@@ -277,7 +284,7 @@ describe('what Razorpay says is what counts', () => {
       code: 'PAYMENT_AMOUNT_MISMATCH',
       message: PAYMENT_COULD_NOT_BE_CONFIRMED,
     });
-    await untouched(f);
+    await untouched(f, 1);
     const alerts = await emails('ADMIN_ALERT');
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ toEmail: env.DISPUTE_EMAIL });
@@ -307,18 +314,21 @@ describe('what Razorpay says is what counts', () => {
       'a payment on a different order',
       (p: { order_id: string | null }) => (p.order_id = 'order_other'),
       'PAYMENT_ORDER_MISMATCH',
+      0,
     ],
     [
       'a payment that is only authorized',
       (p: { status: string }) => (p.status = 'authorized'),
       'PAYMENT_NOT_CAPTURED',
+      0,
     ],
     [
       'a payment in another currency',
       (p: { currency: string }) => (p.currency = 'USD'),
       'PAYMENT_AMOUNT_MISMATCH',
+      1,
     ],
-  ])('refuses %s', async (_name, change, code) => {
+  ])('refuses %s', async (_name, change, code, mismatchEvents) => {
     const f = await dealWithOrder(call, 'commission');
     const paymentId = razorpayCaptured(razorpay, f, 'commission');
     change(razorpay.payments.get(paymentId) as never);
@@ -327,7 +337,7 @@ describe('what Razorpay says is what counts', () => {
     expect(res.body.error.code).toBe(code);
     // Plain words: never Razorpay's own status, an order id or an amount.
     expect(res.body.error.message).not.toMatch(/authorized|captured|order_|USD|INR/);
-    await untouched(f);
+    await untouched(f, mismatchEvents);
   });
 
   it('answers 422 for a payment Razorpay does not know', async () => {

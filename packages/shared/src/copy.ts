@@ -70,6 +70,15 @@ export function feeCapturedDealChangedMessage(amountPaise: number): string {
 export const FEE_CAPTURED_DEAL_CHANGED_ALERT =
   'Fee received on a deal that had changed, refund by hand';
 
+// Two checks on a captured fee (SPEC 7.3): admin alert subjects, and what the deal's activity says
+export const EXTRA_PAYMENT_ON_PAID_ORDER_ALERT =
+  'A second payment was captured on a paid fee order, refund by hand';
+export const PAYMENT_AMOUNT_MISMATCH_ALERT = 'Payment amount mismatch';
+export const EXTRA_PAYMENT_ACTIVITY =
+  'A second payment was received for the fee. ValueSkins will refund it.';
+export const FEE_AMOUNT_MISMATCH_ACTIVITY =
+  'A fee payment did not match the order and was not accepted. ValueSkins has been told.';
+
 // Publishing (SPEC 13)
 export const PUBLISH_LIMIT_MESSAGE = 'You can publish up to 10 deals a day';
 
