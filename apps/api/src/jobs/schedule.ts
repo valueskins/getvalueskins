@@ -8,12 +8,23 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 // The most recent time at or before `now` that a schedule fires, in India Standard Time (SPEC 14).
-// It understands only the two shapes the jobs use: `M H * * *` (daily) and `M */N * * *` (every N
-// hours, like `0 */6 * * *`). It throws on anything else, so a new kind of schedule fails a test,
-// not production. India Standard Time has no daylight saving, so a day is always 24 hours.
+// It understands only the three shapes the jobs use: `M H * * *` (daily), `M */N * * *` (every N
+// hours, like `0 */6 * * *`) and `*/N * * * *` (every N minutes, like `*/10 * * * *`, restarting
+// each hour as cron does). It throws on anything else, so a new kind of schedule fails a test, not
+// production. India Standard Time has no daylight saving, so a day is always 24 hours.
 export function mostRecentScheduledTime(schedule: string, now: Date): Date {
   const fields = schedule.trim().split(/\s+/);
   const [minuteField, hourField, ...rest] = fields;
+  const everyMinutes = /^\*\/(\d+)$/.exec(minuteField ?? '');
+  if (everyMinutes && fields.length === 5 && [hourField, ...rest].every((f) => f === '*')) {
+    const step = Number(everyMinutes[1]);
+    if (step < 1 || step > 59) throw new Error(`Unsupported job schedule "${schedule}"`);
+    const { start: dayStart } = istDayBounds(now);
+    const minutesIntoDay = Math.floor((now.getTime() - dayStart.getTime()) / MINUTE_MS);
+    // The slots of an hour are minutes 0, N, 2N, ... below 60, and the next hour starts again at 0.
+    const slot = minutesIntoDay - ((minutesIntoDay % 60) % step);
+    return new Date(dayStart.getTime() + slot * MINUTE_MS);
+  }
   if (fields.length !== 5 || rest.some((f) => f !== '*') || !minuteField || !hourField) {
     throw new Error(`Unsupported job schedule "${schedule}"`);
   }
