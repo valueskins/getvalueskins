@@ -21,7 +21,7 @@ These override any older statement in this document. The code changes are built 
 - Production stays on free hosting (Render free, Neon free, Netlify free), and `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on`. The hosting tier variable and its guard are removed.
 - The minimum deal budget is ₹2,000.
 - Email: Resend first, then Brevo as overflow when Resend refuses because of a daily or rate limit or a server error (Task 5).
-- Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs must tolerate sleeping (Task 4).
+- Production is awake only from 07:00 to 01:00 India Standard Time on purpose (Render free hours), so scheduled jobs catch up when the service wakes (SPEC 14).
 - The web application in `apps/web` is the real application, and one task may change `apps/api`, `packages/shared` and `apps/web` together. `docs/REPLACEMENT_PLAN.md` is history.
 - The Revision 11 payment ledger will not be built.
 - Commits and pull requests are authored only by Melove Gupta, with no trailers and no abbreviations (`CLAUDE.md` section 14).
@@ -330,7 +330,7 @@ Only `transitionDeal()` in `apps/api/src/deals/stateMachine.ts` writes `deals.st
 - **Admin alert inbox:** alerts are emails only; no table or screen.
 - **Email/webhook durability:** no retry queue. Failing emails stay `FAILED` and can be resent by an admin; failing webhook handlers are recorded and alerted but not retried.
 - **Realtime scale-out:** single Node process, no Redis adapter; multi-instance deployment would not share rooms.
-- **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs are not backfilled.
+- **Scheduled jobs on free hosting:** run only while the Render free instance is awake; missed runs catch up when the service wakes (SPEC 14).
 - **Production launch:** designed to start with payments/posting off; live Razorpay keys, GSTIN/SAC confirmation and Meta live approval are operational prerequisites. Paid hosting is not required (decision of 11 November 2026).
 - **Data import from the old app:** not implemented; cutover plan explicitly assumes no data import (only founders’ test accounts).
 - **Browser E2E / visual regression:** none in the repo; API has a full e2e test, web has jsdom unit/component tests.
@@ -972,8 +972,8 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 1. **Free Render instance sleeps, so scheduled jobs do not run on time.**
    - `render.yaml` (`plan: free`), `apps/api/src/jobs/scheduler.ts`, `docs/CUTOVER.md`.
-   - Fee/payment/review/content reminders can be delayed by hours; missed ticks are not backfilled.
-   - Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping. Current production gates are off.
+   - Fee/payment/review/content reminders can be delayed by hours; missed runs catch up when the service wakes (SPEC 14).
+   - Accepted by the founders on 11 November 2026; jobs catch up after waking. Current production gates are off.
 2. **Split deploy cadence between API and web.**
    - Web deploys automatically on merge (`.github/workflows/deploy-web-production.yml`); API is manual (`autoDeployTrigger: 'off'` in `render.yaml`).
    - A merge that changes API and web together can serve a new web build against an old API.
@@ -1212,24 +1212,24 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 
 ## 18. Potential risks and areas requiring further investigation
 
-| Risk                           | Why it matters                                 | Current mitigation                                                                | What to verify                       |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------ |
-| Free-tier API sleep            | Jobs late; first request slow; deploys restart | Accepted by the founders on 11 November 2026; Task 4 makes jobs tolerate sleeping | Jobs catch up after waking           |
-| Short backup window            | Financial/legal data loss                      | Neon 6h restore                                                                   | Restore test; paid plan              |
-| Split API/web deploys          | Version skew                                   | Manual API deploy discipline                                                      | Release order / automation           |
-| Single-instance realtime       | Live updates break on scale-out                | Single instance                                                                   | Redis adapter before scaling         |
-| No email/webhook retry         | Lost notifications, stuck processing           | Admin resend; event log/alert                                                     | Queue/outbox                         |
-| Honor-system UPI               | Fake/incorrect references                      | Creator confirmation; immutable records                                           | UTR verification or dispute policy   |
-| Manual refunds                 | Missed refunds, reconciliation errors          | Event/dispute reference                                                           | Refund process owner                 |
-| Admin flag staleness           | Removed admin retains access                   | Sign-in refresh                                                                   | Force re-evaluation or short session |
-| Postgres rate limiting         | DB load/latency at scale                       | Shared limits, small pool                                                         | Load test; Redis option              |
-| Long deal histories            | Large payloads                                 | UI truncation                                                                     | Pagination/archival                  |
-| Docs drift                     | Wrong operator actions                         | Source-of-truth docs                                                              | Reconcile README/SPEC vs code        |
-| Meta/Razorpay dashboard state  | Sign-in/payments can fail despite code         | Cutover checklist                                                                 | Confirm live approval/keys           |
-| TDS/TCS uncertainty            | Payout math/reporting may change               | Open decision                                                                     | CA sign-off                          |
-| Account deletion vs. retention | Legal/privacy mismatch                         | Anonymization + snapshots                                                         | Counsel/privacy review               |
-| No browser E2E                 | Checkout/CSP/realtime regressions              | API e2e + component tests                                                         | Add Playwright smoke                 |
-| Bus factor                     | One maintainer, many branches                  | Docs/checklists                                                                   | Review/ownership plan                |
+| Risk                           | Why it matters                                 | Current mitigation                                                       | What to verify                       |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------ |
+| Free-tier API sleep            | Jobs late; first request slow; deploys restart | Accepted by the founders on 11 November 2026; jobs catch up after waking | Jobs catch up after waking           |
+| Short backup window            | Financial/legal data loss                      | Neon 6h restore                                                          | Restore test; paid plan              |
+| Split API/web deploys          | Version skew                                   | Manual API deploy discipline                                             | Release order / automation           |
+| Single-instance realtime       | Live updates break on scale-out                | Single instance                                                          | Redis adapter before scaling         |
+| No email/webhook retry         | Lost notifications, stuck processing           | Admin resend; event log/alert                                            | Queue/outbox                         |
+| Honor-system UPI               | Fake/incorrect references                      | Creator confirmation; immutable records                                  | UTR verification or dispute policy   |
+| Manual refunds                 | Missed refunds, reconciliation errors          | Event/dispute reference                                                  | Refund process owner                 |
+| Admin flag staleness           | Removed admin retains access                   | Sign-in refresh                                                          | Force re-evaluation or short session |
+| Postgres rate limiting         | DB load/latency at scale                       | Shared limits, small pool                                                | Load test; Redis option              |
+| Long deal histories            | Large payloads                                 | UI truncation                                                            | Pagination/archival                  |
+| Docs drift                     | Wrong operator actions                         | Source-of-truth docs                                                     | Reconcile README/SPEC vs code        |
+| Meta/Razorpay dashboard state  | Sign-in/payments can fail despite code         | Cutover checklist                                                        | Confirm live approval/keys           |
+| TDS/TCS uncertainty            | Payout math/reporting may change               | Open decision                                                            | CA sign-off                          |
+| Account deletion vs. retention | Legal/privacy mismatch                         | Anonymization + snapshots                                                | Counsel/privacy review               |
+| No browser E2E                 | Checkout/CSP/realtime regressions              | API e2e + component tests                                                | Add Playwright smoke                 |
+| Bus factor                     | One maintainer, many branches                  | Docs/checklists                                                          | Review/ownership plan                |
 
 ### Questions the repository cannot answer
 

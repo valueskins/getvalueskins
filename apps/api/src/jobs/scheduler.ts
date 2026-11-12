@@ -1,9 +1,17 @@
 import cron from 'node-cron';
 import { JOBS, JOB_TIMEZONE } from './registry.js';
+import { logger } from '../logging/logger.js';
+import { findMissedJobs } from './schedule.js';
 import { runJob } from './runJob.js';
-import type { JobContext, JobDefinition } from './types.js';
+import type { JobContext, JobDefinition, JobRunResult } from './types.js';
 
 export interface Scheduler {
+  /**
+   * Runs the jobs that fell due while the API was asleep or restarting: those whose most recent
+   * scheduled time has passed with no success recorded since (SPEC 14). One after another, each
+   * through `runJob` and its advisory lock. Never throws. Call it once, after `startScheduler`.
+   */
+  catchUp(): Promise<JobRunResult[]>;
   /** Stops the schedules and waits for any job that is running. */
   stop(): Promise<void>;
 }
@@ -15,6 +23,7 @@ export interface Scheduler {
  */
 export function startScheduler(ctx: JobContext, jobs: readonly JobDefinition[] = JOBS): Scheduler {
   const running = new Set<Promise<unknown>>();
+  let stopped = false;
 
   const tasks = jobs.map((job) =>
     cron.schedule(
@@ -28,8 +37,28 @@ export function startScheduler(ctx: JobContext, jobs: readonly JobDefinition[] =
     ),
   );
 
+  async function catchUpMissedJobs(): Promise<JobRunResult[]> {
+    const results: JobRunResult[] = [];
+    try {
+      const missed = await findMissedJobs(jobs, ctx.now());
+      for (const { job, dueAt } of missed) {
+        if (stopped) break;
+        results.push(await runJob(job, ctx, { unlessSucceededSince: dueAt }));
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'job catch-up failed');
+    }
+    return results;
+  }
+
   return {
+    catchUp() {
+      const run = catchUpMissedJobs().finally(() => running.delete(run));
+      running.add(run);
+      return run;
+    },
     async stop() {
+      stopped = true;
       for (const task of tasks) await task.destroy();
       await Promise.allSettled([...running]);
     },

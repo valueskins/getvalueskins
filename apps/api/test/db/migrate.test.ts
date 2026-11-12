@@ -22,6 +22,7 @@ const EXPECTED_TABLES = [
   'webhook_events',
   'meta_deletion_requests',
   'rate_limiter_points',
+  'job_runs',
 ];
 
 describe('migrations', () => {

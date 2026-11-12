@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pool } from '../../src/db/client.js';
+import { eq } from 'drizzle-orm';
+import { db, pool } from '../../src/db/client.js';
+import { jobRuns } from '../../src/db/schema/index.js';
 import { closeDb, resetDb, truncateAll } from '../db/testDb.js';
 import { jobCtx } from './helpers.js';
 
@@ -91,6 +93,84 @@ describe('runJob', () => {
     release();
     await holder;
     expect((await runJob(job, jobCtx())).status).toBe('ok');
+  });
+
+  describe('recording the last success (SPEC 14)', () => {
+    const lastSuccess = async (name: string) =>
+      (await db.select().from(jobRuns).where(eq(jobRuns.jobName, name)))[0]?.lastSuccessAt;
+
+    it('records the start of a successful run, and nothing for a failed or skipped one', async () => {
+      const ok = sleepJob('records-ok', 0);
+      const boom: JobDefinition = {
+        ...sleepJob('records-boom', 0),
+        run: async () => {
+          throw new Error('nope');
+        },
+      };
+      const at = new Date('2026-11-12T04:30:00.000Z');
+
+      await runJob(ok, jobCtx(at));
+      await runJob(boom, jobCtx(at));
+
+      expect(await lastSuccess('records-ok')).toEqual(at);
+      expect(await lastSuccess('records-boom')).toBeUndefined();
+
+      // A run that finds the lock taken records nothing either.
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      const holder = withAdvisoryLock('records-held', () => held);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await runJob(sleepJob('records-held', 0), jobCtx(at));
+      release();
+      await holder;
+      expect(await lastSuccess('records-held')).toBeUndefined();
+    });
+
+    it('never moves the recorded time backwards', async () => {
+      const job = sleepJob('records-forward', 0);
+      const later = new Date('2026-11-12T10:00:00.000Z');
+      const earlier = new Date('2026-11-12T04:30:00.000Z');
+
+      await runJob(job, jobCtx(later));
+      await runJob(job, jobCtx(earlier));
+
+      expect(await lastSuccess('records-forward')).toEqual(later);
+    });
+
+    it('skips a run that already succeeded since the given time, and runs one that did not', async () => {
+      let runs = 0;
+      const job: JobDefinition = {
+        ...sleepJob('records-since', 0),
+        run: async () => {
+          runs += 1;
+          return { done: 1 };
+        },
+      };
+      const at = new Date('2026-11-12T04:30:00.000Z');
+      await runJob(job, jobCtx(at));
+
+      const done = await runJob(job, jobCtx(at), { unlessSucceededSince: at });
+      expect(done.status).toBe('skipped');
+      expect(jobLines().at(-1)).toMatchObject({ status: 'skipped', reason: 'already run' });
+      expect(runs).toBe(1);
+
+      const due = await runJob(job, jobCtx(at), {
+        unlessSucceededSince: new Date(at.getTime() + 1),
+      });
+      expect(due.status).toBe('ok');
+      expect(runs).toBe(2);
+    });
+
+    it('does not fail a run whose success could not be recorded', async () => {
+      await pool.query('alter table job_runs rename to job_runs_away');
+      try {
+        const result = await runJob(sleepJob('records-broken', 0), jobCtx());
+        expect(result.status).toBe('ok');
+        expect(jobLines().some((l) => l.msg === 'job success could not be recorded')).toBe(true);
+      } finally {
+        await pool.query('alter table job_runs_away rename to job_runs');
+      }
+    });
   });
 
   it('lets exactly one of two simultaneous runs of a job do the work', async () => {

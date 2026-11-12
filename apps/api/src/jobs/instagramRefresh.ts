@@ -32,8 +32,8 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * Daily at 03:00 IST: refresh the Instagram profile, followers, engagement rate and the long-lived
- * token of every user active in the last 30 days (SPEC 6.1, 14).
+ * Daily at 08:15 India Standard Time, after the API wakes at 07:00: refresh the Instagram profile, followers,
+ * engagement rate and the long-lived token of every user active in the last 30 days (SPEC 6.1, 14).
  *
  * It is a plain update of the Instagram fields. The role, the account type, the admin flag and
  * the profile details only change at sign-in (`resolveRole`), never here, and the name is left
@@ -44,7 +44,7 @@ function isUniqueViolation(error: unknown): boolean {
  */
 export const instagramRefreshJob: JobDefinition = {
   name: 'instagram-refresh',
-  schedule: '0 3 * * *',
+  schedule: '15 8 * * *',
   description:
     'Refresh profile, followers, engagement and the long-lived token for users active in 30 days',
   async run(ctx: JobContext): Promise<JobCounts> {
