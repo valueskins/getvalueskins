@@ -161,7 +161,7 @@ A deal's brand or confirmed creator raises it from the deal page (from `CONFIRME
 
 ## 7. Restoring the database
 
-Use this when data was lost or corrupted (a bad migration, a bad script, an accidental delete). **Production while it is free is on Neon's Free plan, which can restore only the last 6 hours** (no daily backups). Neon's console has a restore function for a branch to a point in that window (look under the project's branches or backup and restore; menu names change, so follow Neon's own restore documentation), and you can create a branch from `main` before a risky migration as a copy to return to. After the restore, do steps 3 to 8 below with Neon's direct connection string for the restored data. Moving to paid hosting, with a longer window, is `docs/DEPLOYMENT.md` section 21.9. The free staging database has no backups and cannot be restored (recreate and reseed it, `docs/DEPLOYMENT.md` section 17). The rest of this section describes a **paid** Render Postgres plan.
+Use this when data was lost or corrupted (a bad migration, a bad script, an accidental delete). **Production while it is free is on Neon's Free plan, which can restore only the last 6 hours.** Older data is in the daily encrypted backup (30 days), see "From the daily encrypted backup" at the end of this section. Neon's console has a restore function for a branch to a point in that window (look under the project's branches or backup and restore; menu names change, so follow Neon's own restore documentation), and you can create a branch from `main` before a risky migration as a copy to return to. After the restore, do steps 3 to 8 below with Neon's direct connection string for the restored data. Moving to paid hosting, with a longer window, is `docs/DEPLOYMENT.md` section 21.9. The free staging database has no backups and cannot be restored (recreate and reseed it, `docs/DEPLOYMENT.md` section 17). The rest of this section describes a **paid** Render Postgres plan.
 
 Render keeps point-in-time recovery for the last 3 days (Hobby plans) or 7 days (Pro and above). A restore creates a **new** database; the old one is left alone.
 
@@ -181,6 +181,29 @@ Render keeps point-in-time recovery for the last 3 days (Hobby plans) or 7 days 
 8. Write up what happened, and add the cause to this runbook if it will happen again.
 
 **Practice it.** Run steps 2 to 3 once on production-like data before launch (SPEC 22 asks for "restore tested once"). Write down how long it took.
+
+**From the daily encrypted backup.** `.github/workflows/backup.yml` uploads an encrypted `pg_dump` every day, kept 30 days (`docs/DEPLOYMENT.md` section 21.12). The repository is public, so the file is encrypted with `age` and only the private key, kept offline by the Founders, can open it. Use this to look at old data, to rehearse a restore, or when the Neon window is not enough. Do it on a trusted machine.
+
+1. **Download.** GitHub **Actions > backup**, pick the newest green run (or the day you need), and download its artifact `valueskins-backup-<run id>` (you must be signed in to GitHub). Unzip it: it holds one file, `valueskins-<date and time>.dump.age`.
+2. **Decrypt** with `age` and the private key (`key.txt`, from the offline copy; never put it in GitHub or a chat): `age -d -i key.txt -o backup.dump valueskins-2026-11-12T2100Z.dump.age`. The result, `backup.dump`, is plain production data: do not email it, upload it or leave it in a shared folder.
+3. **Start a local PostgreSQL 16** from the repository: `docker compose up -d postgres` (the same version as production). Make a scratch database, copy the dump in and restore it with the container's own `pg_restore`, so the versions match:
+   ```bash
+   docker compose exec postgres createdb -U valueskins restore_check
+   docker compose cp backup.dump postgres:/tmp/backup.dump
+   docker compose exec postgres pg_restore -U valueskins --no-owner --no-privileges -d restore_check /tmp/backup.dump
+   ```
+   A few warnings about roles or extensions are normal; an error about a table is not.
+4. **Count the rows** and compare them with the live database (they differ only by what happened since the backup):
+   ```bash
+   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from deals;"
+   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from payments;"
+   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from invoices;"
+   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from users;"
+   ```
+   Also run the invoice and deal-event checks from step 3 above against `restore_check`.
+5. **Clean up** when you are done: `docker compose exec postgres dropdb -U valueskins restore_check`, `docker compose exec postgres rm /tmp/backup.dump`, and delete `backup.dump` from your machine.
+6. **To restore production from it:** create a new Neon project (or branch), restore into it with the same `pg_restore` using that database's **direct** connection string (not the pooled one), check it as in step 3 of the numbered list above, then switch `DATABASE_URL` and replay what was lost (steps 4 to 8 above). The migration journal (`drizzle` schema) is part of the dump, so the API's startup check sees the same migrations as before.
+7. **Write down how long the whole restore took**, and what you had to look up.
 
 ## Running a job by hand
 

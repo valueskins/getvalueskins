@@ -1,5 +1,16 @@
-import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
 import { parseEnv } from '../../src/env/parse.js';
 import { envSchema } from '../../src/env/schema.js';
 import { getStartupGuardViolations } from '../../src/env/startupGuards.js';
@@ -15,6 +26,9 @@ const deployWorkflow = readFileSync(
   new URL('.github/workflows/deploy-web-production.yml', REPO_ROOT),
   'utf8',
 );
+
+const backupWorkflow = readFileSync(new URL('.github/workflows/backup.yml', REPO_ROOT), 'utf8');
+const runbookDoc = readFileSync(new URL('docs/RUNBOOK.md', REPO_ROOT), 'utf8');
 
 const ALL_ENV_KEYS = Object.keys(envSchema.shape);
 // Injected by Render, or defaulted and so safely omitted from the Blueprint.
@@ -646,5 +660,334 @@ describe('the Netlify docs (DEPLOYMENT.md section 21.6, CUTOVER.md A7, C3, F)', 
       'remove `valueskins.com` and `www.valueskins.com` from the Netlify site',
     );
     expect(rollback).toContain('in the old Vercel project add them back');
+  });
+});
+
+describe('backup workflow (docs/DEPLOYMENT.md section 21.12)', () => {
+  const code = codeLines(backupWorkflow).join('\n');
+  const stepsBlock = code.slice(code.indexOf('    steps:\n') + '    steps:\n'.length);
+  const steps = stepsBlock
+    .split(/\n {6}- (?=name:|uses:)/)
+    .map((t, i) => (i === 0 ? t.replace(/^ {6}- /, '') : t));
+  const step = (name: string) => {
+    const found = steps.find((t) => t.includes(name));
+    if (!found) throw new Error(`no step "${name}"`);
+    return found;
+  };
+  const MAIN_ONLY = 'Refuse anything but main';
+  const INPUTS = 'Check the backup inputs';
+  const INSTALL = 'Install the PostgreSQL 16 client and age';
+  const DUMP = 'Dump the database';
+  const ENCRYPT = 'Encrypt the dump with age';
+  const UPLOAD = 'Upload the encrypted backup';
+  const CLEANUP = 'Remove the plain dump';
+  const before = (first: string, second: string) =>
+    expect(stepsBlock.indexOf(first), `${first} before ${second}`).toBeLessThan(
+      stepsBlock.indexOf(second),
+    );
+
+  it('runs daily at 21:00 Coordinated Universal Time (02:30 India Standard Time) and by hand, and on nothing else', () => {
+    const on = code.slice(code.indexOf('\non:\n'), code.indexOf('\npermissions:'));
+    expect(on).toMatch(/schedule:\n\s+- cron: '0 21 \* \* \*'/);
+    expect(on).toContain('workflow_dispatch:');
+    expect(on).not.toMatch(
+      /pull_request|pull_request_target|push:|workflow_run|repository_dispatch/,
+    );
+  });
+
+  it('never runs for a fork, and a manual run must start from main', () => {
+    const condition = code.slice(code.indexOf('    if: >-'), code.indexOf('    runs-on:'));
+    expect(condition).toContain('github.event.repository.fork == false');
+    expect(condition).toContain("github.event_name == 'schedule'");
+    expect(condition).toContain("github.event_name == 'workflow_dispatch'");
+    expect(step(MAIN_ONLY)).toContain('"$GITHUB_REF" != "refs/heads/main"');
+    expect(stepsBlock.trimStart().startsWith(`- name: ${MAIN_ONLY}`)).toBe(true);
+  });
+
+  it('checks inputs, installs the tools, dumps, encrypts, then uploads, in that order', () => {
+    before(MAIN_ONLY, INPUTS);
+    before(INPUTS, INSTALL);
+    before(INSTALL, DUMP);
+    before(DUMP, ENCRYPT);
+    // The encryption comes before the upload, so a plain file can never be uploaded.
+    before(ENCRYPT, UPLOAD);
+    before(UPLOAD, CLEANUP);
+  });
+
+  it('installs the PostgreSQL 16 client and age, and dumps in the custom format with the 16 tools', () => {
+    const install = step(INSTALL);
+    expect(install).toContain('postgresql-client-16');
+    expect(install).toMatch(/install -y [^\n]*\bage\b/);
+    expect(install).toContain('/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"');
+    expect(step(DUMP)).toContain('pg_dump --format=custom');
+  });
+
+  it('encrypts to the public key, deletes the plain file, and fails on an empty file', () => {
+    const encrypt = step(ENCRYPT);
+    expect(encrypt).toContain('age -r "$BACKUP_AGE_RECIPIENT"');
+    expect(encrypt).toContain('BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}');
+    expect(encrypt).toContain('rm -f "$dump"');
+    expect(encrypt).toContain('trap \'rm -f "$dump"\' EXIT');
+    expect(encrypt).toContain('[ ! -s "$out" ]');
+    expect(encrypt).toContain('exit 1');
+    // The dump itself must not be empty either.
+    expect(step(DUMP)).toContain('[ ! -s "$dump" ]');
+    // The plain dump is removed once more at the end, whatever happened.
+    expect(step(CLEANUP)).toContain('if: always()');
+    expect(step(CLEANUP)).toContain('backup.dump');
+  });
+
+  it('uploads only the encrypted file, for 30 days, with the official action', () => {
+    const upload = step(UPLOAD);
+    expect(upload).toMatch(/uses: actions\/upload-artifact@v\d+/);
+    expect(upload).toContain('path: ${{ runner.temp }}/backup/*.age');
+    expect(upload).toContain('retention-days: 30');
+    expect(upload).toContain('if-no-files-found: error');
+    expect(upload).not.toMatch(/\.dump(?!\.age)/);
+    // Nothing but actions from the actions organization, and no checkout (nothing is needed).
+    for (const uses of code.matchAll(/uses: ([^\s@]+)@/g)) {
+      expect(uses[1], String(uses[1])).toMatch(/^actions\//);
+    }
+    expect(code).not.toContain('actions/checkout');
+  });
+
+  it('has read-only permissions and one backup at a time', () => {
+    expect(code).toMatch(/^permissions:\n {2}contents: read\n\nconcurrency:/m);
+    expect(code).not.toMatch(/: write/);
+    expect(code).toMatch(/concurrency:\n {2}group: backup\n {2}cancel-in-progress: false/);
+  });
+
+  it('never prints the database address: the secret is on two steps, never echoed, and errors are not shown', () => {
+    const seeing = steps.filter((t) => /\$\{\{ secrets\./.test(t));
+    expect(seeing.map((t) => t.match(/name: (.*)/)![1])).toEqual([INPUTS, DUMP]);
+    expect(code.slice(0, code.indexOf('    steps:'))).not.toMatch(/secrets\./);
+    expect(code).toContain('secrets.BACKUP_DATABASE_URL');
+    expect(code).not.toMatch(
+      /set -x|printenv|\benv \||\bcurl\b|ACTIONS_STEP_DEBUG|--verbose|pg_dump -v/,
+    );
+    for (const line of code.split('\n').filter((l) => /\becho\b/.test(l))) {
+      expect(line, line).not.toMatch(/\$\{?BACKUP_DATABASE_URL|\$\{\{ *secrets/);
+    }
+    // pg_dump's error text goes to a file that nothing prints.
+    expect(step(DUMP)).toContain('2> "$errors"');
+    expect(code).not.toMatch(/\bcat\b|\btail\b|\bhead\b/);
+    expect(code).not.toMatch(/grep [^\n]*"\$errors"\s*[|>]/);
+  });
+
+  it('asks for the direct Neon address with TLS and an age public key', () => {
+    const inputs = step(INPUTS);
+    expect(inputs).toContain('*-pooler*');
+    expect(inputs).toContain('*sslmode=require*');
+    expect(inputs).toContain('age1*');
+    expect(inputs).toContain('::error::');
+  });
+
+  it('is documented in the deployment guide and the runbook', () => {
+    const section = deploymentDoc.slice(deploymentDoc.indexOf('### 21.12'));
+    for (const text of [
+      'BACKUP_DATABASE_URL',
+      'BACKUP_AGE_RECIPIENT',
+      'CREATE ROLE backup_reader',
+      'GRANT SELECT ON ALL SEQUENCES',
+      'age-keygen',
+      'Run workflow',
+      '60 days',
+      '-pooler',
+    ]) {
+      expect(section, text).toContain(text);
+    }
+    for (const text of [
+      'age -d -i',
+      'pg_restore',
+      'docker compose up -d postgres',
+      'count(*) from deals',
+      'count(*) from payments',
+      'count(*) from invoices',
+      'count(*) from users',
+    ]) {
+      expect(runbookDoc, text).toContain(text);
+    }
+  });
+
+  describe('the shell of each step, run against stand-in pg_dump, pg_restore and age', () => {
+    const SECRET_URL =
+      'postgresql://backup_reader:s3cretpw@ep-secret-host-123456.ap-southeast-1.aws.neon.tech/valueskins?sslmode=require';
+    const RECIPIENT = 'age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
+
+    /** The `run: |` script of a step, as bash would receive it. */
+    function scriptOf(name: string): string {
+      const block = step(name);
+      const start = block.indexOf('        run: |\n');
+      if (start < 0) throw new Error(`step "${name}" has no run block`);
+      const lines = block.slice(start + '        run: |\n'.length).split('\n');
+      return lines.map((l) => l.replace(/^ {10}/, '')).join('\n');
+    }
+
+    const dirs: string[] = [];
+    afterAll(() => {
+      for (const d of dirs) rmSync(d, { recursive: true, force: true });
+    });
+
+    /** Stand-ins on PATH. Their behaviour is chosen by STUB_* variables. */
+    function sandbox() {
+      const dir = mkdtempSync(join(tmpdir(), 'backup-test-'));
+      dirs.push(dir);
+      const bin = join(dir, 'bin');
+      const temp = join(dir, 'runner-temp');
+      mkdirSync(bin);
+      mkdirSync(temp);
+      const write = (name: string, body: string) => {
+        writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
+        chmodSync(join(bin, name), 0o755);
+      };
+      return { dir, bin, temp, write };
+    }
+
+    function prepare() {
+      const sb = sandbox();
+      sb.write(
+        'pg_dump',
+        `for a in "$@"; do case "$a" in --file=*) f="\${a#--file=}";; esac; done
+case "$STUB_PG_DUMP" in
+  fail) echo "connection to server at ep-secret-host-123456.ap-southeast-1.aws.neon.tech failed: password authentication failed for user backup_reader s3cretpw" >&2; exit 1;;
+  empty) : > "$f";;
+  *) echo "PGDMP stand-in" > "$f";;
+esac`,
+      );
+      sb.write(
+        'pg_restore',
+        `case "$STUB_ENTRIES" in
+  none) ;;
+  *) printf ';\n; Archive created\n123; 1259 16394 TABLE public deals owner\n124; 1259 16400 TABLE public users owner\n';;
+esac`,
+      );
+      sb.write(
+        'age',
+        `while [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; -r) shift 2;; *) in="$1"; shift;; esac; done
+case "$STUB_AGE" in
+  fail) echo "age: error: failed to parse recipient" >&2; exit 1;;
+  empty) : > "$out";;
+  *) printf 'age-encryption.org/v1 stand-in' > "$out"; cat "$in" >> "$out";;
+esac`,
+      );
+      return sb;
+    }
+
+    function run(name: string, sb: ReturnType<typeof prepare>, env: Record<string, string> = {}) {
+      const result = spawnSync('bash', ['-c', scriptOf(name)], {
+        encoding: 'utf8',
+        env: {
+          PATH: `${sb.bin}:${process.env.PATH}`,
+          RUNNER_TEMP: sb.temp,
+          GITHUB_REF: 'refs/heads/main',
+          BACKUP_DATABASE_URL: SECRET_URL,
+          BACKUP_AGE_RECIPIENT: RECIPIENT,
+          ...env,
+        },
+      });
+      return { status: result.status, output: `${result.stdout}${result.stderr}` };
+    }
+
+    const filesIn = (sb: ReturnType<typeof prepare>) => readdirSync(sb.temp).sort();
+    const never = (output: string) => {
+      for (const secret of ['s3cretpw', 'ep-secret-host', SECRET_URL, 'backup_reader']) {
+        expect(output, secret).not.toContain(secret);
+      }
+    };
+
+    it('refuses a run from another branch, and accepts main', () => {
+      const sb = prepare();
+      expect(run(MAIN_ONLY, sb, { GITHUB_REF: 'refs/heads/feature/x' }).status).toBe(1);
+      expect(run(MAIN_ONLY, sb).status).toBe(0);
+    });
+
+    it('stops on a missing input, a pooled address, a missing sslmode or a recipient that is not an age key, without printing the address', () => {
+      const sb = prepare();
+      const bad: Array<[string, Record<string, string>]> = [
+        ['missing address', { BACKUP_DATABASE_URL: '' }],
+        ['missing recipient', { BACKUP_AGE_RECIPIENT: '' }],
+        [
+          'pooled',
+          {
+            BACKUP_DATABASE_URL: SECRET_URL.replace(
+              'ep-secret-host-123456',
+              'ep-secret-host-123456-pooler',
+            ),
+          },
+        ],
+        ['no sslmode', { BACKUP_DATABASE_URL: SECRET_URL.replace('?sslmode=require', '') }],
+        ['not an age key', { BACKUP_AGE_RECIPIENT: 'ssh-ed25519 AAAA' }],
+      ];
+      for (const [label, env] of bad) {
+        const result = run(INPUTS, sb, env);
+        expect(result.status, label).toBe(1);
+        expect(result.output, label).toContain('::error::');
+        never(result.output);
+      }
+      expect(run(INPUTS, sb).status).toBe(0);
+    });
+
+    it('dumps, encrypts and leaves only the encrypted file', () => {
+      const sb = prepare();
+      const dump = run(DUMP, sb);
+      expect(dump.status).toBe(0);
+      expect(dump.output).toContain('Dump written: 2 entries.');
+      never(dump.output);
+      expect(filesIn(sb)).toEqual(['backup.dump']);
+
+      const encrypt = run(ENCRYPT, sb);
+      expect(encrypt.status).toBe(0);
+      never(encrypt.output);
+      expect(filesIn(sb)).toEqual(['backup']);
+      const files = readdirSync(join(sb.temp, 'backup'));
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatch(/^valueskins-\d{4}-\d{2}-\d{2}T\d{4}Z\.dump\.age$/);
+      expect(readFileSync(join(sb.temp, 'backup', files[0]!), 'utf8')).toContain(
+        'age-encryption.org/v1',
+      );
+    });
+
+    it('fails, and shows no address, user or password, when pg_dump fails', () => {
+      const sb = prepare();
+      const result = run(DUMP, sb, { STUB_PG_DUMP: 'fail' });
+      expect(result.status).toBe(1);
+      expect(result.output).toContain('::error::pg_dump failed');
+      expect(result.output).toContain('Hint: check the role and password');
+      never(result.output);
+      // Nothing is left behind, not even the error file that held the host.
+      expect(filesIn(sb)).toEqual([]);
+    });
+
+    it('fails when the dump is empty or is not a readable archive', () => {
+      const sb = prepare();
+      const empty = run(DUMP, sb, { STUB_PG_DUMP: 'empty' });
+      expect(empty.status).toBe(1);
+      expect(empty.output).toContain('The dump file is empty');
+      expect(filesIn(sb)).toEqual([]);
+
+      const unreadable = run(DUMP, sb, { STUB_ENTRIES: 'none' });
+      expect(unreadable.status).toBe(1);
+      expect(unreadable.output).toContain('not a readable archive');
+      expect(filesIn(sb)).toEqual([]);
+    });
+
+    it('fails when the encrypted file is empty or age fails, and the plain dump is gone either way', () => {
+      for (const mode of ['empty', 'fail']) {
+        const sb = prepare();
+        expect(run(DUMP, sb).status).toBe(0);
+        const result = run(ENCRYPT, sb, { STUB_AGE: mode });
+        expect(result.status, mode).toBe(1);
+        expect(result.output, mode).toContain('::error::');
+        never(result.output);
+        expect(filesIn(sb), mode).not.toContain('backup.dump');
+      }
+    });
+
+    it('fails when there is no dump to encrypt', () => {
+      const sb = prepare();
+      const result = run(ENCRYPT, sb);
+      expect(result.status).toBe(1);
+      expect(result.output).toContain('missing or empty');
+    });
   });
 });
