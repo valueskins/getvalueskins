@@ -54,7 +54,7 @@ Instagram login (SPEC 6.1) needs a real Meta app and a real Instagram tester acc
 
 ## Deploying
 
-Staging setup (Render, Vercel, DNS, Meta, Razorpay, Resend) and production (Render, Netlify, Neon) is described step by step in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The Render Blueprint is [render.yaml](render.yaml) and the Vercel config (staging) is [apps/web/vercel.json](apps/web/vercel.json). The production web app is deployed by [the deploy-web-production workflow](.github/workflows/deploy-web-production.yml) with [apps/web/netlify.toml](apps/web/netlify.toml).
+Staging setup (Render, Vercel, DNS, Meta, Razorpay, Resend) and production (Render, Netlify, Neon) is described step by step in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The Render Blueprint is [render.yaml](render.yaml) and the Vercel config (staging) is [apps/web/vercel.json](apps/web/vercel.json). The production web app is deployed, when started by hand, by [the deploy-web-production workflow](.github/workflows/deploy-web-production.yml) with [apps/web/netlify.toml](apps/web/netlify.toml).
 
 ## Checks
 

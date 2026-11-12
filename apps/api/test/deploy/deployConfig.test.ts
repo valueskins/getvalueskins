@@ -8,6 +8,7 @@ import { buildTestEnv } from '../testEnv.js';
 const REPO_ROOT = new URL('../../../../', import.meta.url);
 const renderYaml = readFileSync(new URL('render.yaml', REPO_ROOT), 'utf8');
 const deploymentDoc = readFileSync(new URL('docs/DEPLOYMENT.md', REPO_ROOT), 'utf8');
+const specDoc = readFileSync(new URL('docs/SPEC.md', REPO_ROOT), 'utf8');
 const cutoverDoc = readFileSync(new URL('docs/CUTOVER.md', REPO_ROOT), 'utf8');
 const netlifyToml = readFileSync(new URL('apps/web/netlify.toml', REPO_ROOT), 'utf8');
 const deployWorkflow = readFileSync(
@@ -385,39 +386,75 @@ describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () 
     return found;
   };
   const DEPLOY = 'Build and deploy to Netlify';
+  const PREVIEW = 'Build and deploy a preview to Netlify';
+  const CI_CHECK = 'Confirm CI passed for this commit';
+  const MAIN_ONLY = 'Refuse anything but main';
+  const before = (first: string, second: string) =>
+    expect(stepsBlock.indexOf(first), `${first} before ${second}`).toBeLessThan(
+      stepsBlock.indexOf(second),
+    );
 
-  it('runs only after the CI workflow has finished on main, and on nothing else', () => {
+  it('runs only when started by hand, with a preview or production choice that defaults to preview', () => {
     const on = code.slice(code.indexOf('\non:\n'), code.indexOf('\npermissions:'));
-    expect(on).toMatch(
-      /workflow_run:\n\s+workflows: \[CI\]\n\s+types: \[completed\]\n\s+branches: \[main\]/,
-    );
-    expect(code).not.toMatch(
-      /pull_request|workflow_dispatch|schedule:|^\s{2}push:|repository_dispatch/m,
-    );
-    // And the CI workflow it waits for really is called CI and runs on pushes to main.
+    expect(on).toMatch(/^\s*on:\n {2}workflow_dispatch:\n {4}inputs:\n {6}target:/);
+    expect(on).toContain('type: choice');
+    expect(on).toContain('options: [preview, production]');
+    expect(on).toContain('default: preview');
+    // Those triggers, as keys (the CI check below mentions `workflow_runs`, the API's own word).
+    expect(on).not.toMatch(/workflow_run:|pull_request|schedule:|push:|repository_dispatch/);
+    // The CI workflow it checks is called CI, lives in ci.yml and runs on pushes to main.
     const ci = readFileSync(new URL('.github/workflows/ci.yml', REPO_ROOT), 'utf8');
     expect(ci).toMatch(/^name: CI$/m);
     expect(ci).toMatch(/push:\n\s+branches: \[main\]/);
   });
 
-  it('deploys only a passed push to this repository main: never a pull request, never a fork', () => {
+  it('is never run for a fork, and fails loudly unless it was started from main', () => {
     const condition = code.slice(code.indexOf('    if: >-'), code.indexOf('    runs-on:'));
-    for (const clause of [
-      "github.event.workflow_run.conclusion == 'success'",
-      "github.event.workflow_run.event == 'push'",
-      "github.event.workflow_run.head_branch == 'main'",
-      'github.event.workflow_run.head_repository.full_name == github.repository',
-    ]) {
-      expect(condition, clause).toContain(clause);
-    }
+    expect(condition).toContain("github.event_name == 'workflow_dispatch'");
+    expect(condition).toContain('github.event.repository.fork == false');
+    const main = step(MAIN_ONLY);
+    expect(main).toContain('"$GITHUB_REF" != "refs/heads/main"');
+    expect(main).toContain('::error::');
+    expect(main).toContain('exit 1');
+    expect(stepsBlock.trimStart().startsWith(`- name: ${MAIN_ONLY}`)).toBe(true);
   });
 
-  it('checks out exactly the commit CI tested, with read-only access and no stored credentials', () => {
-    expect(code).toMatch(/^permissions:\n {2}contents: read$/m);
+  it('asks the GitHub API, with the workflow token, whether CI succeeded for this exact commit', () => {
+    const check = step(CI_CHECK);
+    expect(check).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(check).toContain('gh api');
+    expect(check).toContain('actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA');
+    expect(check).toContain('event=push&branch=main');
+    // Only runs of this repository count, and only the newest one.
+    expect(check).toContain('env.GITHUB_REPOSITORY');
+    expect(check).toContain('.[0]');
+    // Anything but a success stops the deploy, and says what to do.
+    expect(check).toContain('"$result" != "success"');
+    expect(check).toContain('::error::');
+    expect(check).toContain('exit 1');
+  });
+
+  it('checks main and CI before it reads a secret, builds or deploys anything', () => {
+    before(MAIN_ONLY, CI_CHECK);
+    before(CI_CHECK, 'actions/checkout');
+    before(CI_CHECK, 'Check the deploy inputs');
+    before(CI_CHECK, 'Install dependencies');
+    before(CI_CHECK, PREVIEW);
+    before(CI_CHECK, DEPLOY);
+    expect(step(MAIN_ONLY)).not.toMatch(/secrets\./);
+    expect(step(CI_CHECK)).not.toMatch(/secrets\.|vars\./);
+  });
+
+  it('has read-only access: contents and actions read, nothing written, no stored credentials', () => {
+    expect(code).toMatch(/^permissions:\n {2}contents: read\n {2}actions: read\n/m);
     expect(code).not.toMatch(/: write/);
-    const checkout = step('actions/checkout');
-    expect(checkout).toContain('ref: ${{ github.event.workflow_run.head_sha }}');
-    expect(checkout).toContain('persist-credentials: false');
+    expect(step('actions/checkout')).toContain('persist-credentials: false');
+  });
+
+  it('builds exactly the commit that was checked, and has no change detection left', () => {
+    expect(step('actions/checkout')).toContain('ref: ${{ github.sha }}');
+    expect(code).toContain('DEPLOY_SHA: ${{ github.sha }}');
+    expect(code).not.toMatch(/fetch-depth|git diff|steps\.changes|workflow_run\.head_sha/);
   });
 
   it('uses Node 22 and pnpm with the frozen lockfile, like CI', () => {
@@ -426,34 +463,48 @@ describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () 
     expect(step('Install dependencies')).toContain('pnpm install --frozen-lockfile');
   });
 
-  it('builds the shared package, then deploys to production with the pinned Netlify CLI', () => {
-    expect(stepsBlock.indexOf('Build the shared package')).toBeGreaterThan(
-      stepsBlock.indexOf('Install dependencies'),
-    );
-    expect(stepsBlock.indexOf(DEPLOY)).toBeGreaterThan(
-      stepsBlock.indexOf('Build the shared package'),
-    );
+  it('builds the shared package, then deploys with the pinned Netlify CLI', () => {
+    before('Install dependencies', 'Build the shared package');
+    before('Build the shared package', PREVIEW);
+    before('Build the shared package', DEPLOY);
     expect(step('Build the shared package')).toContain('pnpm --filter "./packages/*" run build');
-    const deploy = step(DEPLOY).replace(/\s+/g, ' ');
-    expect(deploy).toMatch(/--package=netlify-cli@\d+\.\d+\.\d+ dlx netlify deploy/);
-    for (const flag of ['--prod', '--context production', '--filter @valueskins/web']) {
-      expect(deploy, flag).toContain(flag);
+    for (const name of [PREVIEW, DEPLOY]) {
+      const deploy = step(name).replace(/\s+/g, ' ');
+      expect(deploy, name).toMatch(/--package=netlify-cli@\d+\.\d+\.\d+ dlx netlify deploy/);
+      expect(deploy, name).toContain('--filter @valueskins/web');
+      // `netlify deploy` builds by default (the Next.js runtime needs that); never skip it.
+      expect(deploy, name).not.toContain('--no-build');
+      expect(deploy, name).not.toContain('--trigger');
     }
-    // `netlify deploy` builds by default (the Next.js runtime needs that); never skip it.
-    expect(deploy).not.toContain('--no-build');
-    // A real production deploy: not a draft (no --prod) and not triggered remotely.
-    expect(deploy).not.toContain('--trigger');
+    // The same CLI version in both.
+    const versions = [PREVIEW, DEPLOY].map((n) => step(n).match(/netlify-cli@([\d.]+)/)![1]);
+    expect(versions[0]).toBe(versions[1]);
+  });
+
+  it('puts the live site behind target production, and the preview behind target preview', () => {
+    const production = step(DEPLOY).replace(/\s+/g, ' ');
+    expect(step(DEPLOY)).toContain("if: inputs.target == 'production'");
+    for (const flag of ['--prod', '--context production']) {
+      expect(production, flag).toContain(flag);
+    }
+    const preview = step(PREVIEW).replace(/\s+/g, ' ');
+    expect(step(PREVIEW)).toContain("if: inputs.target == 'preview'");
+    // A draft deploy: no --prod, so it never reaches the live site.
+    expect(preview).not.toMatch(/--prod\b/);
+    expect(preview).not.toContain('--context production');
   });
 
   it('reads the two secrets and the two variables by the documented names', () => {
-    const env = step(DEPLOY);
-    for (const line of [
-      'NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}',
-      'NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}',
-      'NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}',
-      'NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}',
-    ]) {
-      expect(env, line).toContain(line);
+    for (const name of [PREVIEW, DEPLOY]) {
+      const env = step(name);
+      for (const line of [
+        'NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}',
+        'NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}',
+        'NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}',
+        'NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}',
+      ]) {
+        expect(env, `${name}: ${line}`).toContain(line);
+      }
     }
     for (const name of [
       'NETLIFY_AUTH_TOKEN',
@@ -467,10 +518,11 @@ describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () 
     }
   });
 
-  it('never prints a secret, and only the two steps that run our own shell and the CLI can see them', () => {
+  it('never prints a secret, and only the input check and the two deploy steps can see them', () => {
     const seeing = steps.filter((t) => /\$\{\{ secrets\./.test(t));
     expect(seeing.map((t) => t.match(/name: (.*)/)![1])).toEqual([
       'Check the deploy inputs',
+      PREVIEW,
       DEPLOY,
     ]);
     // The install step runs the packages' own scripts: no secret and no variable there.
@@ -495,61 +547,25 @@ describe('deploy-web-production workflow (docs/DEPLOYMENT.md section 21.6)', () 
     expect(check).toContain('"$NEXT_PUBLIC_API_URL" != "https://api.valueskins.com"');
     expect(check).toContain('::error::');
     expect(check).toContain('exit 1');
+    // It runs for a preview too, which is built with the production settings.
+    expect(check).not.toContain('if:');
+    before('Check the deploy inputs', PREVIEW);
   });
 
-  describe('the skip when the web app did not change (a deploy costs 15 Netlify credits)', () => {
-    const changes = step('Check whether the web app changed');
-    const pattern = new RegExp(changes.match(/grep -Eq '([^']+)'/)![1]!);
-    const deployed = (file: string) => pattern.test(file);
-
-    it('deploys for everything the web build reads, and for the workflow itself', () => {
-      for (const file of [
-        'apps/web/app/layout.tsx',
-        'apps/web/netlify.toml',
-        'apps/web/package.json',
-        'packages/shared/src/money.ts',
-        'pnpm-lock.yaml',
-        'pnpm-workspace.yaml',
-        'package.json',
-        'tsconfig.base.json',
-        '.nvmrc',
-        '.github/workflows/deploy-web-production.yml',
-      ]) {
-        expect(deployed(file), file).toBe(true);
-      }
-    });
-
-    it('skips API-only, docs-only and CI-only changes', () => {
-      for (const file of [
-        'apps/api/src/app.ts',
-        'docs/DEPLOYMENT.md',
-        'render.yaml',
-        'README.md',
-        '.github/workflows/ci.yml',
-        'apps/webish/x.ts',
-        'subdir/apps/web/x.ts',
-      ]) {
-        expect(deployed(file), file).toBe(false);
-      }
-    });
-
-    it('compares a merge commit with its first parent, and a re-run always deploys', () => {
-      expect(changes).toContain('git diff --name-only HEAD^ HEAD');
-      expect(changes).toMatch(/github\.run_attempt \}\}" != "1"/);
-      expect(deployWorkflow).toMatch(/fetch-depth: 2/);
-    });
-
-    it('runs every later step only when it says so', () => {
-      for (const name of [
-        'Check the deploy inputs',
-        'actions/setup-node',
-        'Install dependencies',
-        'Build the shared package',
-        DEPLOY,
-      ]) {
-        expect(step(name), name).toContain("if: steps.changes.outputs.web == 'true'");
-      }
-    });
+  it('is documented: the budget, the preview first, and how to start a deploy', () => {
+    const section = deploymentDoc.slice(
+      deploymentDoc.indexOf('### 21.6'),
+      deploymentDoc.indexOf('### 21.7'),
+    );
+    expect(section).toContain('Run workflow');
+    expect(section).toMatch(/at most 8 production deploys a month/i);
+    expect(section).toMatch(/checked first on a (free )?preview/i);
+    expect(section).toContain('CI has not succeeded');
+    expect(section).not.toMatch(/after the \*\*CI\*\* workflow finishes/);
+    // The spec says the same: by hand, from main, with the CI check, and no change detection.
+    expect(specDoc).toContain('started by hand (`workflow_dispatch`) from `main`');
+    expect(specDoc).not.toMatch(/deploys only when the merge changed/);
+    expect(specDoc).not.toMatch(/runs only after CI passes on a push to `main`/);
   });
 });
 

@@ -4,23 +4,30 @@
 # this workflow builds apps/web and uploads it with the Netlify CLI. Staging is on Vercel and is
 # not touched.
 #
-# It runs only when the CI workflow has passed on a push to main, for that same commit. It never
-# runs for a pull request, and not for a fork: workflow_run runs in the base repository with
-# secrets, so the job refuses anything but a push to this repository's main.
+# It runs only when started by hand (Actions > deploy-web-production > Run workflow), from main,
+# and never for a fork. A production deploy costs 15 of the Free plan's 300 monthly credits, so
+# nothing deploys by itself: the budget is at most 8 production deploys a month, each checked first
+# on a preview (the `target` choice below; a preview costs no deploy credits).
 #
-# A production deploy costs 15 of the Free plan's 300 monthly credits, so a merge that changed
-# nothing the web build uses is skipped. Re-running a run always deploys (that is the rollback).
+# Before it builds, it asks GitHub whether the CI workflow succeeded for this exact commit, with
+# this workflow's own token, and stops if it did not. It deploys the commit it checked out, which
+# is the commit it checked.
 
 name: deploy-web-production
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'preview: a draft deploy with its own address, to check first. production: the live site.'
+        type: choice
+        options: [preview, production]
+        default: preview
 
+# actions: read lets the token list the CI runs for the commit. Nothing is writable.
 permissions:
   contents: read
+  actions: read
 
 # One deploy at a time, in order. A queued deploy is never cancelled by a newer one.
 concurrency:
@@ -30,44 +37,49 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event_name == 'workflow_dispatch' &&
+      github.event.repository.fork == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+      DEPLOY_SHA: ${{ github.sha }}
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
-          persist-credentials: false
-
-      # The files the web build reads. A merge commit is compared with its first parent, so a pull
-      # request counts as a whole. A re-run (run_attempt above 1) always deploys.
-      - name: Check whether the web app changed
-        id: changes
+      # A run started from another branch fails here, loudly, instead of being skipped.
+      - name: Refuse anything but main
         run: |
-          if [ "${{ github.run_attempt }}" != "1" ]; then
-            echo "Re-run: deploying."
-            echo "web=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only HEAD^ HEAD | grep -Eq '^(apps/web/|packages/shared/|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|package\.json$|tsconfig\.base\.json$|\.nvmrc$|\.github/workflows/deploy-web-production\.yml$)'; then
-            echo "The web app or what it builds from changed: deploying."
-            echo "web=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Nothing the web build uses changed: skipping the deploy (it costs Netlify credits)."
-            echo "web=false" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run this workflow from the main branch (it was started from $GITHUB_REF)."
+            exit 1
           fi
 
+      # Asks the GitHub API, with the workflow's own token, for the newest CI run of this exact
+      # commit on main in this repository. Anything but a success stops the deploy: no run yet, a
+      # run still going, a failed or cancelled one. No secret is read before this step passes.
+      - name: Confirm CI passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&branch=main&per_page=20" \
+            --jq '[.workflow_runs[] | select(.head_repository.full_name == env.GITHUB_REPOSITORY)] | (.[0] // {}) | (.conclusion // .status // "none")')
+          if [ "$result" != "success" ]; then
+            echo "::error::CI has not succeeded for commit $GITHUB_SHA (its state: $result). Wait for CI to finish on main, or fix it and merge, then start this workflow again."
+            exit 1
+          fi
+          echo "CI succeeded for commit $GITHUB_SHA."
+
+      # The commit that was just checked, nothing newer.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       # Fails early, and says which input is missing. It prints names only, never values. This
-      # step and the deploy step are the only ones that see the secrets, and both run only our own
-      # shell and the pinned Netlify CLI, never the install scripts of the project's packages.
+      # step and the two deploy steps are the only ones that see the secrets, and all of them run
+      # only our own shell and the pinned Netlify CLI, never the install scripts of the project's
+      # packages.
       - name: Check the deploy inputs
-        if: steps.changes.outputs.web == 'true'
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
@@ -87,28 +99,39 @@ jobs:
           fi
 
       - uses: pnpm/action-setup@v4
-        if: steps.changes.outputs.web == 'true'
 
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.web == 'true'
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies
-        if: steps.changes.outputs.web == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build the shared package
-        if: steps.changes.outputs.web == 'true'
         run: pnpm --filter "./packages/*" run build
+
+      # A draft deploy: the same build, uploaded to its own address and not to the live site. The
+      # step's log shows the address. It should cost no deploy credits; confirm it once
+      # (docs/DEPLOYMENT.md section 21.6).
+      - name: Build and deploy a preview to Netlify
+        if: inputs.target == 'preview'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+        run: >-
+          pnpm --package=netlify-cli@27.14.0 dlx netlify deploy
+          --filter @valueskins/web
+          --message "Preview $DEPLOY_SHA"
 
       # `netlify deploy` builds first (apps/web/netlify.toml: the shared package, then next build,
       # which runs the dev-login build guard) and then uploads the result to the production site.
       # NEXT_PUBLIC_ENABLE_DEV_LOGIN is never set here. The token goes in by environment, not
-      # --auth, and nothing is echoed.
+      # --auth, and nothing is echoed. This costs 15 Netlify credits.
       - name: Build and deploy to Netlify
-        if: steps.changes.outputs.web == 'true'
+        if: inputs.target == 'production'
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
