@@ -117,7 +117,7 @@ describe('webhook-sweeper', () => {
     });
     expect(await emails('ADMIN_ALERT')).toHaveLength(0);
 
-    // A minute later the one that was exactly 2 minutes old is more than 2 minutes old.
+    // A second later the one that was exactly 2 minutes old is more than 2 minutes old.
     const later = await runJob(job, jobCtx(new Date(NOW.getTime() + 1000)));
     expect(later.counts).toMatchObject({ selected: 1, processed: 1 });
     expect(seen).toEqual(['evt_exactly_two_minutes']);
