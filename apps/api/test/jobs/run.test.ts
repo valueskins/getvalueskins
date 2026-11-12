@@ -19,8 +19,9 @@ describe('pnpm job', () => {
     const result = runJobScript('--list');
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('fee-reminder');
+    expect(result.stdout).toContain('webhook-sweeper');
     expect(result.stdout).toContain('0 */6 * * *');
-    expect(result.stdout.trim().split('\n')).toHaveLength(7);
+    expect(result.stdout.trim().split('\n')).toHaveLength(8);
   });
 
   it('refuses an unknown job with exit 1 and the list of names', () => {

@@ -11,6 +11,7 @@ afterAll(closeDb);
 
 /** The schedule table of SPEC 14. */
 const EXPECTED: Record<string, string> = {
+  'webhook-sweeper': '*/10 * * * *',
   'instagram-refresh': '15 8 * * *',
   'fee-reminder': '0 10 * * *',
   'payment-due-reminder': '0 10 * * *',
@@ -21,7 +22,7 @@ const EXPECTED: Record<string, string> = {
 };
 
 describe('job registry', () => {
-  it('has the seven jobs with the SPEC 14 schedules', () => {
+  it('has the eight jobs with the SPEC 14 schedules', () => {
     expect(Object.fromEntries(JOBS.map((j) => [j.name, j.schedule]))).toEqual(EXPECTED);
   });
 
@@ -59,6 +60,8 @@ describe('startScheduler', () => {
       expect(next('instagram-refresh')!.toISOString().slice(11, 16)).toBe('02:45');
       expect(next('cleanup')!.toISOString().slice(11, 16)).toBe('03:00');
       expect(next('content-overdue')!.toISOString().slice(11, 16)).toBe('18:29');
+      // Every 10 minutes: a multiple of 10 past the hour, in UTC as well as in India Standard Time.
+      expect(next('webhook-sweeper')!.getUTCMinutes() % 10).toBe(0);
       // Every 6 hours IST: 00:00, 06:00, 12:00 and 18:00 IST are 18:30, 00:30, 06:30 and 12:30 UTC.
       expect(['18:30', '00:30', '06:30', '12:30']).toContain(
         next('confirm-payment-reminder')!.toISOString().slice(11, 16),

@@ -5,10 +5,13 @@ import { feeReminderJob } from './feeReminder.js';
 import { instagramRefreshJob } from './instagramRefresh.js';
 import { paymentDueReminderJob } from './paymentDueReminder.js';
 import { reviewReminderJob } from './reviewReminder.js';
+import { webhookSweeperJob } from './webhookSweeper.js';
 import type { JobDefinition } from './types.js';
 
 /** Every scheduled job (SPEC 14), in the order of the day. */
 export const JOBS: readonly JobDefinition[] = [
+  // Every 10 minutes, all day (the rest are daily or every 6 hours).
+  webhookSweeperJob,
   instagramRefreshJob,
   cleanupJob,
   feeReminderJob,

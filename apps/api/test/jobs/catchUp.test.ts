@@ -124,6 +124,24 @@ describe('catching up after sleep', () => {
     await scheduler.stop();
   });
 
+  it('catches up an every-10-minutes job only when it missed its latest slot', async () => {
+    const sweeper = countingJob('every-ten-minutes', '*/10 * * * *');
+    const now = ist(TODAY, '07:05'); // the latest slot is 07:00
+    const scheduler = startScheduler(jobCtx(now), [sweeper]);
+
+    // Never run, as after a first deploy: runs once at the start.
+    expect((await scheduler.catchUp()).map((r) => r.status)).toEqual(['ok']);
+    expect(sweeper.runs).toBe(1);
+    // It succeeded at 07:05, after the 07:00 slot, so a restart a minute later runs nothing.
+    expect(await scheduler.catchUp()).toEqual([]);
+
+    // A success from before the sleep (06:50) missed the 07:00 slot: due again.
+    await succeededAt('every-ten-minutes', ist(TODAY, '06:50'));
+    expect((await scheduler.catchUp()).map((r) => r.status)).toEqual(['ok']);
+    expect(sweeper.runs).toBe(2);
+    await scheduler.stop();
+  });
+
   it('a failed job records no success and is tried again at the next start', async () => {
     let attempts = 0;
     const flaky: JobDefinition = {
