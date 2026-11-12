@@ -919,7 +919,7 @@ By the founders' decision of 11 November 2026, production stays on free instance
 - **Live updates drop.** The sockets close when the API sleeps and reconnect when it wakes.
 - **Render may restart a free service at any time**, and counts 750 free instance hours per workspace per month across all free services.
 - **No Shell** on a free instance (21.4), and **no pre-deploy command**.
-- **Neon's restore window is 6 hours**, with no daily backups, and storage is capped at 1 GB. `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
+- **Neon's restore window is 6 hours**, and storage is capped at 1 GB. A daily encrypted backup kept for 30 days covers the rest (section 21.12). `docs/RUNBOOK.md` section 7 says how to restore. Before a migration, create a Neon branch from `main` in the console (a copy of the data as it is now), so there is something to go back to, and delete it afterwards.
 - **The web app has a monthly credit limit.** Netlify's Free plan pauses every site on the account when its 300 credits are used (section 21.6). One production deploy is 15 of them.
 - **Email and the minimum budget (decisions of 11 November 2026).** Email goes through Resend first (100 emails a day on the free plan), then Brevo as overflow (300 a day on the free plan) when Resend is over its daily, monthly or rate limit or fails on its side, if `BREVO_API_KEY` is set (section 7a). The minimum deal budget is ₹2,000.
 - **No hosting tier guard.** The API starts in production with `PAYMENTS_MODE` or `DEAL_POSTING_MODE` set to `on` on free hosting, by the founders' decision of 11 November 2026. The payment values are still checked (section 16a). If the production service still has the old hosting tier variable in the Render dashboard, delete it: it is ignored, but it is no longer used.
@@ -945,7 +945,7 @@ Not required since 11 November 2026. If the founders later choose to move, do al
   1. **Re-run the production run for the last good commit.** GitHub **Actions > deploy-web-production**, pick the green production run for that commit, **Re-run all jobs**. It builds that commit again with the variables as they are now, and still checks that CI passed for it. It costs 15 credits. GitHub keeps runs for a limited time (about 30 days), after which this is not possible. Starting the workflow fresh always deploys the head of `main`, so to go back to an older commit by this route, revert on `main` first.
   2. **Publish an earlier Netlify deploy.** Netlify > the site > **Deploys**, open an earlier successful production deploy, **Publish deploy**. It is instant and builds nothing. The next web deploy replaces it, so decide at once whether to revert the pull request on GitHub as well (the revert reaches the live site only when you start a deploy).
      If the problem is only the API address or the Sentry DSN, fix the GitHub variable and start a deploy again instead.
-- **Backups.** See 21.8: on Neon Free the restore window is 6 hours. On a paid plan it is longer (21.9).
+- **Backups.** See 21.8: on Neon Free the restore window is 6 hours. The daily encrypted backup (21.12) is kept for 30 days. On a paid plan the window is longer (21.9).
 - **Changing a value.** A `value:` entry in `render.yaml` changes by editing the file and merging. A prompted value changes in the dashboard under **Environment**, and the service restarts.
 
 ### 21.11 Opening payments and posting later
@@ -956,3 +956,38 @@ Section 21.9 first, then section 16a. These two gates are prompted variables on 
 
 - **Reminders and scheduled jobs run only while the API is awake.** The free instance sleeps after 15 minutes without traffic, and a job whose time passes while it sleeps is skipped (section 21.8). A test deal can therefore miss its reminders and the Instagram token refresh.
 - **Every test deal must be cancelled or completed before `docs/CUTOVER.md` section C (the switch).** An open deal is visible to every creator who signs in, not only to admins, and it stays visible after the switch. Before C0, check `select status, count(*) from deals group by status` and cancel or finish anything that is not `COMPLETED` or `CANCELLED`.
+
+### 21.12 Encrypted daily backups
+
+**What it is.** Neon Free restores only a short window (section 21.8). `.github/workflows/backup.yml` takes a `pg_dump` of the production database every day at 21:00 Coordinated Universal Time (02:30 India Standard Time, when the API is asleep anyway), encrypts it with `age` to a public key, deletes the plain file and uploads only the encrypted `.age` file as an artifact kept for **30 days**. **The repository is public, and anyone signed in to GitHub can download a public repository's workflow artifacts, so a backup is encrypted before it is uploaded and the plain dump never leaves the runner.** Only the person who holds the private key can read a backup. The workflow never runs for a pull request or a fork, a manual run must start from `main`, and it never prints the database address (the log of a public repository is public; `pg_dump`'s own error text is kept in a file that nothing shows).
+
+**Who:** Engineer, with a Founder who keeps the private key.
+
+1. **Create the read-only role in Neon.** In the Neon **SQL Editor**, connected to the production database as its owner, run the following (replace the password with a long random one, and `<owner>` with the role that owns the tables, the one in the API's `DATABASE_URL`). The role is made with SQL on purpose: a role made in the Neon console joins `neon_superuser` and is not read-only.
+
+   ```sql
+   CREATE ROLE backup_reader WITH LOGIN PASSWORD '<a long random password>';
+   GRANT CONNECT ON DATABASE <database> TO backup_reader;
+   GRANT USAGE ON SCHEMA public, drizzle TO backup_reader;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public, drizzle TO backup_reader;
+   GRANT SELECT ON ALL SEQUENCES IN SCHEMA public, drizzle TO backup_reader;
+   ALTER DEFAULT PRIVILEGES FOR ROLE <owner> IN SCHEMA public, drizzle GRANT SELECT ON TABLES TO backup_reader;
+   ALTER DEFAULT PRIVILEGES FOR ROLE <owner> IN SCHEMA public, drizzle GRANT SELECT ON SEQUENCES TO backup_reader;
+   ```
+
+   Neon's documentation (checked 12 Nov 2026) gives the first five kinds of grant for a read-only role; it does not say that `pg_dump` also needs SELECT on sequences and the `drizzle` schema (the migration journal), so they are added here, and the first manual run (step 5) proves them. A privilege that is still missing makes the job fail with the hint "the backup role is missing a privilege". Never give this role more than SELECT.
+
+2. **Connection string.** Neon > the production branch > **Connect**, role `backup_reader`, with **Connection pooling switched off**: the host must **not** contain `-pooler`, because `pg_dump` does not work through the pooler (it uses `SET` statements; Neon's own documentation says to use the direct connection). It must end with `?sslmode=require`. Compare with section 21.3.
+3. **Make the key pair, on a machine that is not the server and is not online while you do it.** Install `age` (`apt install age` on Ubuntu 22.04 or later), then `age-keygen -o key.txt`. It prints `Public key: age1...` and writes the private key to `key.txt`. **Keep `key.txt` offline, in two places** (for example two encrypted removable drives held by two Founders). **If the private key is lost, every backup is unreadable.** Never put `key.txt` in GitHub, a chat or an email. The `age1...` line is the public key and is safe to share.
+4. **GitHub.** Repository **Settings > Secrets and variables > Actions**. On **Secrets** add `BACKUP_DATABASE_URL` (the string from step 2). On **Variables** add `BACKUP_AGE_RECIPIENT` (the `age1...` public key from step 3). With either missing the workflow stops at "Check the backup inputs" and names it (never the value).
+5. **Run it once by hand.** **Actions > backup > Run workflow**, Branch `main`. Read the log: it should end with "Dump written: N entries." and "Encrypted backup written.", and the run should have one artifact, `valueskins-backup-<run number>`, holding one `valueskins-<date>.dump.age` file. If it fails, the log gives a fixed hint (credentials, a missing privilege, an unreachable host, TLS, a server newer than the client) but never the error text or the address, so fix the step above and run again. The `apt-get install` of `age` (a package from Ubuntu's `universe` section) and the grants are the likely first-run problems.
+6. **Do the first restore** (`docs/RUNBOOK.md` section 7, "From the daily encrypted backup") and write down how long it took. SPEC 22 asks for a restore tested once.
+
+**Keeping it working.**
+
+- The run starts at 21:00 Coordinated Universal Time but GitHub can start a scheduled run late, and may drop one when load is high (the start of an hour is a busy time). Open **Actions > backup** every week and check the last run is green and has an artifact.
+- **GitHub turns scheduled workflows off in a public repository after 60 days with no repository activity.** A merged pull request counts as activity, but if the repository is quiet, check that the workflow is still enabled (a banner appears on its page) and enable it again if not.
+- Artifacts are kept 30 days; nothing is kept longer. A failed run does not delete older artifacts.
+- The dump wakes Neon's compute for a few minutes a day, which is negligible against the 100 compute-unit hours a month (section 21.8). If those hours run out, Neon suspends the compute and the backup fails until the next billing period.
+- Rotating the key: make a new pair, change `BACKUP_AGE_RECIPIENT`, and keep the old private key for as long as old artifacts (30 days) may be needed.
+- A backup is a copy of production data. Handle a decrypted dump like the database itself: use it on a trusted machine and delete it afterwards.
