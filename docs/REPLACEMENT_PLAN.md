@@ -128,6 +128,7 @@ Also: an "I am 18 or older" checkbox, stored with a timestamp.
 ### 2.5 Virtual resume
 
 The resume shows:
+
 - the Instagram handle and link, picture, followers, engagement rate
 - the profile details from 2.4 (age as currently computed)
 - account type
@@ -154,18 +155,18 @@ The live app has both, so the rebuild needs them before cutover: Socket.io (Prom
 
 ## 3. Order of work
 
-| # | Prompt | Track | Rough size |
-|---|---|---|---|
-| 12 | UPI payout details, remove Route | API | 1 session |
-| 13 | Direct payments: record, confirm, dispute, documents, admin | API | 1 to 2 sessions |
-| 14 | Live-rule parity: fee, role, profile, resume, cancelling | API | 1 session |
-| 15 | Scheduled jobs and reminders | API | 1 session |
-| 16 | Real-time with Socket.io | API | 1 session |
-| D0 to D5 | Claude Design | Design | run in parallel with 12 to 16 |
-| W1 to W3 | Web app from the design handoff | Web (second session, own worktree) | 3 sessions |
-| 17 | Hardening and full-flow test | API | 1 session |
-| 18 | Import from the live database, and cutover rehearsal | API | 1 to 2 sessions |
-| 19 | Production and cutover | Both | 1 session plus the switch |
+| #        | Prompt                                                      | Track                              | Rough size                    |
+| -------- | ----------------------------------------------------------- | ---------------------------------- | ----------------------------- |
+| 12       | UPI payout details, remove Route                            | API                                | 1 session                     |
+| 13       | Direct payments: record, confirm, dispute, documents, admin | API                                | 1 to 2 sessions               |
+| 14       | Live-rule parity: fee, role, profile, resume, cancelling    | API                                | 1 session                     |
+| 15       | Scheduled jobs and reminders                                | API                                | 1 session                     |
+| 16       | Real-time with Socket.io                                    | API                                | 1 session                     |
+| D0 to D5 | Claude Design                                               | Design                             | run in parallel with 12 to 16 |
+| W1 to W3 | Web app from the design handoff                             | Web (second session, own worktree) | 3 sessions                    |
+| 17       | Hardening and full-flow test                                | API                                | 1 session                     |
+| 18       | Import from the live database, and cutover rehearsal        | API                                | 1 to 2 sessions               |
+| 19       | Production and cutover                                      | Both                               | 1 session plus the switch     |
 
 One branch and one fresh Claude Code session per prompt. Before merging: read the diff, run `pnpm typecheck && pnpm lint && pnpm test`, and try the feature by hand on staging.
 
