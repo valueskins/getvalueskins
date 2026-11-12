@@ -44,6 +44,8 @@ export async function processWebhookEvent(
     const message = detail.slice(0, MAX_ERROR_LENGTH);
     await db.update(webhookEvents).set({ error: message }).where(eq(webhookEvents.id, eventId));
 
+    // An error whose raiser already told the admin (a mismatch alert) is not alerted a second time.
+    if (error instanceof AppError && error.adminAlerted) return;
     await send(
       'ADMIN_ALERT',
       env.DISPUTE_EMAIL,

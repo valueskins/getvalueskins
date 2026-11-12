@@ -48,6 +48,10 @@ export const DEAL_EVENT_KINDS = [
   'PAYMENT_NOT_RECEIVED',
   /** The fee was captured after the deal had changed: kept, not applied, refunded by hand (SPEC 7.3). */
   'FEE_CAPTURED_DEAL_CHANGED',
+  /** A second payment was captured on an order that was already paid: kept apart, refunded by hand (SPEC 7.3). */
+  'EXTRA_PAYMENT_ON_PAID_ORDER',
+  /** Razorpay captured a different amount or currency than the order: not accepted, the admin told (SPEC 7.3). */
+  'FEE_AMOUNT_MISMATCH',
 ] as const;
 export type DealEventKind = (typeof DEAL_EVENT_KINDS)[number];
 

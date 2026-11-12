@@ -13,7 +13,6 @@ import { notFound } from '../deals/access.js';
 import { feeCapturedOnChangedDeal } from '../deals/dealEvents.js';
 import { buildDealDetail } from '../deals/dealDetail.js';
 import { AppError } from '../errors/AppError.js';
-import { alertAdmin } from './alerts.js';
 import { markPaymentCaptured } from './markPaymentCaptured.js';
 import { createOrReuseOrder } from './order.service.js';
 import { verifyPaymentSignature } from './signature.js';
@@ -56,14 +55,7 @@ export function paymentRoutes(deps: PaymentsDeps): Router {
         throw new AppError('INVALID_SIGNATURE', 400, 'The payment signature is not valid');
       }
 
-      try {
-        await markPaymentCaptured(deps, input.razorpay_order_id, input.razorpay_payment_id);
-      } catch (error) {
-        if (error instanceof AppError && error.code === 'PAYMENT_AMOUNT_MISMATCH') {
-          await alertAdmin(deps.env, 'Payment amount mismatch', error.internal ?? error.message);
-        }
-        throw error;
-      }
+      await markPaymentCaptured(deps, input.razorpay_order_id, input.razorpay_payment_id);
 
       // The money went through but the deal had changed (SPEC 7.3). Whichever of verify and the
       // webhook recorded it, verify says so, every time it is asked.
