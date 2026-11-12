@@ -22,6 +22,7 @@ const TABLES_IN_DELETE_ORDER = [
   'meta_deletion_requests',
   'webhook_events',
   'rate_limiter_points',
+  'job_runs',
   'users',
 ];
 

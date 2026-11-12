@@ -38,6 +38,8 @@ const realtime = attachRealtime(server, ctx);
 
 // SPEC 14: the jobs run in this process, each under a Postgres advisory lock.
 const scheduler = startScheduler(ctx);
+// Runs the jobs that fell due while the API slept, in the background (never blocks a request).
+void scheduler.catchUp();
 
 // An error nobody caught is reported, logged and ends the process (Render restarts it). A rejected
 // promise is reported and logged only: the request that caused it has already been answered.
