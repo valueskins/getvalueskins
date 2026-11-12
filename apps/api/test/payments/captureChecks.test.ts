@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { http as mswHttp, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
@@ -191,6 +192,102 @@ describe('a second captured payment on a paid order', () => {
       'razorpayOrderId',
       'razorpayPaymentId',
     ]);
+  });
+});
+
+describe('two different payments captured at the same time', () => {
+  it('keeps one as the fee and records the other as an extra payment, never dropping it', async () => {
+    // Several rounds, because which payment wins the race is not fixed.
+    for (let round = 0; round < 6; round += 1) {
+      await truncateAll();
+      razorpay = newOrdersState();
+      server.use(...ordersHandlers(razorpay));
+      const f = await dealWithOrder(call, 'commission');
+      razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_a' });
+      razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_b' });
+
+      await Promise.all([
+        verify(f.brand.cookie, verifyBody(f.orderId, 'pay_a')),
+        verify(f.brand.cookie, verifyBody(f.orderId, 'pay_b')),
+        deliverWebhook(app, paymentCapturedEvent(f.orderId, 'pay_a', f.amount)),
+        deliverWebhook(app, paymentCapturedEvent(f.orderId, 'pay_b', f.amount)),
+      ]);
+
+      const paid = await paymentRow(f.orderId);
+      expect(paid?.status).toBe('CAPTURED');
+      const winner = paid?.razorpayPaymentId as string;
+      const loser = winner === 'pay_a' ? 'pay_b' : 'pay_a';
+      const extra = await eventsOfKind(f, 'EXTRA_PAYMENT_ON_PAID_ORDER');
+      expect(extra, `round ${round}`).toHaveLength(1);
+      expect(extra[0]?.metadata).toMatchObject({
+        razorpayPaymentId: winner,
+        extraRazorpayPaymentId: loser,
+      });
+      const alerts = await emails('ADMIN_ALERT');
+      expect(alerts, `round ${round}`).toHaveLength(1);
+      expect(alerts[0]?.bodyText).toContain(`Refund ${loser} by hand`);
+      expect((await dealState(f.deal.id)).deal.status).toBe('COMMISSION_PAID');
+      expect(await db.select().from(invoices).where(eq(invoices.dealId, f.deal.id))).toHaveLength(
+        1,
+      );
+    }
+  });
+
+  it('records the loser as an extra payment when the deal had already changed, too', async () => {
+    for (let round = 0; round < 4; round += 1) {
+      await truncateAll();
+      razorpay = newOrdersState();
+      server.use(...ordersHandlers(razorpay));
+      const f = await dealWithOrder(call, 'commission');
+      razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_a' });
+      razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_b' });
+      const cancelled = await call.send('post', `/api/deals/${f.deal.id}/cancel`, f.brand.cookie, {
+        reason: 'changed',
+      });
+      expect(cancelled.status).toBe(200);
+
+      await Promise.all([
+        deliverWebhook(app, paymentCapturedEvent(f.orderId, 'pay_a', f.amount)),
+        deliverWebhook(app, paymentCapturedEvent(f.orderId, 'pay_b', f.amount)),
+      ]);
+
+      // One is kept as the captured fee on the changed deal, the other is the extra payment:
+      // two refunds are asked for by hand, one alert each, and nothing is dropped.
+      expect(await eventsOfKind(f, 'FEE_CAPTURED_DEAL_CHANGED'), `round ${round}`).toHaveLength(1);
+      expect(await eventsOfKind(f, 'EXTRA_PAYMENT_ON_PAID_ORDER'), `round ${round}`).toHaveLength(
+        1,
+      );
+      expect(await emails('ADMIN_ALERT'), `round ${round}`).toHaveLength(2);
+    }
+  });
+});
+
+describe('when the alert cannot be sent', () => {
+  it('lets the webhook processor send its own alert, since the admin was not reached', async () => {
+    // Resend refuses every send, so the mismatch alert comes back FAILED.
+    server.use(
+      mswHttp.post('https://api.resend.com/emails', () =>
+        HttpResponse.json({ name: 'validation_error', message: 'refused' }, { status: 422 }),
+      ),
+    );
+    const failingEnv = buildTestEnv({ EMAIL_TRANSPORT: 'resend' });
+    const failingApp = createApp(failingEnv, {
+      now: () => NOW,
+      razorpayClientOptions: { baseDelayMs: 0, sleep: async () => {} },
+    });
+    const f = await dealWithOrder(api(failingApp), 'commission');
+    razorpayCaptured(razorpay, f, 'commission', { paymentId: 'pay_wrong' });
+    razorpay.payments.get('pay_wrong')!.amount = f.amount - 100;
+
+    await deliverWebhook(failingApp, paymentCapturedEvent(f.orderId, 'pay_wrong', f.amount));
+
+    // The event is recorded once. The alert from the capture failed, so the processor tried its own.
+    expect(await eventsOfKind(f, 'FEE_AMOUNT_MISMATCH')).toHaveLength(1);
+    const attempts = await emails('ADMIN_ALERT');
+    expect(attempts.map((a) => a.status)).toEqual(['FAILED', 'FAILED']);
+    const subjects = attempts.map((a) => a.subject).join(' | ');
+    expect(subjects).toContain('Payment amount mismatch');
+    expect(subjects).toContain('Razorpay webhook processing failed');
   });
 });
 

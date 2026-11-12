@@ -135,11 +135,12 @@ export function notReceivedEmailTasks(
   return [
     toParty((deal) => deal.brandId),
     toParty((deal) => deal.creatorId),
-    async (deal) =>
-      alertAdmin(
+    async (deal) => {
+      await alertAdmin(
         env,
         'Creator says a direct payment did not arrive',
         `Deal ${deal.shortId}: the creator says the ${record.stage} payment (UPI reference ${record.reference}) did not arrive. Reason: ${reason}. The deal has not moved and the brand can record it again.`,
-      ),
+      );
+    },
   ];
 }

@@ -32,6 +32,7 @@ import { mapRazorpayError } from './errors.js';
 import { PAYMENT_RULES, type PaymentsDeps } from './types.js';
 
 type PaymentRow = typeof payments.$inferSelect;
+type RemotePayment = Awaited<ReturnType<PaymentsDeps['razorpay']['fetchPayment']>>;
 
 export type CaptureResult =
   | { kind: 'ignored' }
@@ -145,13 +146,36 @@ export async function markPaymentCaptured(
     });
     return { kind: 'captured', dealMoved: true };
   } catch (error) {
-    if (error instanceof AlreadyCaptured) return { kind: 'already_captured' };
+    if (error instanceof AlreadyCaptured) return alreadyCaptured(deps, row, paymentId, remote);
     if (error instanceof AppError && error.code === 'INVALID_TRANSITION') {
-      return recordWithoutTransition(deps, row, paymentId, fees);
+      return recordWithoutTransition(deps, row, paymentId, fees, remote);
     }
     if (isUniqueViolation(error)) return recordDuplicate(deps, row, paymentId);
     throw error;
   }
+}
+
+/**
+ * Another caller captured the fee while this one was recording it. If that caller's payment is the
+ * same one, there is nothing more to do. If it is a different payment, this one is a second payment
+ * on a paid order, and it is handled as one (the same case as a second payment that arrives later,
+ * but won by a race), so its money is never dropped without a trace.
+ */
+async function alreadyCaptured(
+  deps: PaymentsDeps,
+  row: PaymentRow,
+  paymentId: string,
+  remote: RemotePayment,
+): Promise<CaptureResult> {
+  const [current] = await db.select().from(payments).where(eq(payments.id, row.id)).limit(1);
+  if (
+    current?.status === 'CAPTURED' &&
+    current.razorpayPaymentId &&
+    current.razorpayPaymentId !== paymentId
+  ) {
+    return recordExtraPayment(deps, current, row.razorpayOrderId, paymentId, remote);
+  }
+  return { kind: 'already_captured' };
 }
 
 /**
@@ -166,12 +190,15 @@ async function recordExtraPayment(
   row: PaymentRow,
   orderId: string,
   paymentId: string,
+  known?: RemotePayment,
 ): Promise<CaptureResult> {
-  let remote;
-  try {
-    remote = await deps.razorpay.fetchPayment(paymentId);
-  } catch (error) {
-    throw mapRazorpayError(error);
+  let remote = known;
+  if (!remote) {
+    try {
+      remote = await deps.razorpay.fetchPayment(paymentId);
+    } catch (error) {
+      throw mapRazorpayError(error);
+    }
   }
   if (remote.order_id !== orderId || remote.status !== 'captured') {
     return { kind: 'already_captured' };
@@ -222,8 +249,8 @@ async function alertAboutPayment(
   details: string,
 ): Promise<boolean> {
   try {
-    await alertAdmin(deps.env, subject, details);
-    return true;
+    // A send that came back FAILED did not reach the admin, so it counts as not alerted.
+    return await alertAdmin(deps.env, subject, details);
   } catch (error) {
     logger.error({ dealId, error: errorName(error) }, 'payment alert failed');
     captureError(error, 'payment alert');
@@ -284,6 +311,7 @@ async function recordWithoutTransition(
   row: PaymentRow,
   paymentId: string,
   fees: CaptureFees,
+  remote: RemotePayment,
 ): Promise<CaptureResult> {
   let status: DealStatus;
   try {
@@ -309,10 +337,10 @@ async function recordWithoutTransition(
       });
       return deal.status;
     });
-    if (outcome === null) return { kind: 'already_captured' };
+    if (outcome === null) return alreadyCaptured(deps, row, paymentId, remote);
     status = outcome;
   } catch (error) {
-    if (error instanceof AlreadyCaptured) return { kind: 'already_captured' };
+    if (error instanceof AlreadyCaptured) return alreadyCaptured(deps, row, paymentId, remote);
     if (isUniqueViolation(error)) return recordDuplicate(deps, row, paymentId);
     throw error;
   }
