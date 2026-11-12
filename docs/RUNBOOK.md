@@ -186,22 +186,24 @@ Render keeps point-in-time recovery for the last 3 days (Hobby plans) or 7 days 
 
 1. **Download.** GitHub **Actions > backup**, pick the newest green run (or the day you need), and download its artifact `valueskins-backup-<run id>` (you must be signed in to GitHub). Unzip it: it holds one file, `valueskins-<date and time>.dump.age`.
 2. **Decrypt** with `age` and the private key (`key.txt`, from the offline copy; never put it in GitHub or a chat): `age -d -i key.txt -o backup.dump valueskins-2026-11-12T2100Z.dump.age`. The result, `backup.dump`, is plain production data: do not email it, upload it or leave it in a shared folder.
-3. **Start a local PostgreSQL 16** from the repository: `docker compose up -d postgres` (the same version as production). Make a scratch database, copy the dump in and restore it with the container's own `pg_restore`, so the versions match:
+3. **Start a scratch PostgreSQL of the same version as the dump** (18, the version Neon runs and `POSTGRES_CLIENT_VERSION` in `backup.yml`). A backup can be restored only by the same version or a newer one, so do **not** use the `postgres:16` of `docker compose`, which is for development. Run a throwaway container, copy the dump in and restore it with the container's own `pg_restore`:
    ```bash
-   docker compose exec postgres createdb -U valueskins restore_check
-   docker compose cp backup.dump postgres:/tmp/backup.dump
-   docker compose exec postgres pg_restore -U valueskins --no-owner --no-privileges -d restore_check /tmp/backup.dump
+   docker run -d --name restore_check -e POSTGRES_USER=restore -e POSTGRES_PASSWORD=restore postgres:18
+   docker exec restore_check pg_isready -U restore
+   docker exec restore_check createdb -U restore restore_check
+   docker cp backup.dump restore_check:/tmp/backup.dump
+   docker exec restore_check pg_restore -U restore --no-owner --no-privileges -d restore_check /tmp/backup.dump
    ```
-   A few warnings about roles or extensions are normal; an error about a table is not.
+   Run `pg_isready` again until it says "accepting connections". A few warnings about roles or extensions are normal; an error about a table is not.
 4. **Count the rows** and compare them with the live database (they differ only by what happened since the backup):
    ```bash
-   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from deals;"
-   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from payments;"
-   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from invoices;"
-   docker compose exec postgres psql -U valueskins -d restore_check -c "select count(*) from users;"
+   docker exec restore_check psql -U restore -d restore_check -c "select count(*) from deals;"
+   docker exec restore_check psql -U restore -d restore_check -c "select count(*) from payments;"
+   docker exec restore_check psql -U restore -d restore_check -c "select count(*) from invoices;"
+   docker exec restore_check psql -U restore -d restore_check -c "select count(*) from users;"
    ```
    Also run the invoice and deal-event checks from step 3 above against `restore_check`.
-5. **Clean up** when you are done: `docker compose exec postgres dropdb -U valueskins restore_check`, `docker compose exec postgres rm /tmp/backup.dump`, and delete `backup.dump` from your machine.
+5. **Clean up** when you are done: `docker rm -f restore_check` (this deletes the scratch database and the copy of the dump inside it), and delete `backup.dump` from your machine.
 6. **To restore production from it:** create a new Neon project (or branch), restore into it with the same `pg_restore` using that database's **direct** connection string (not the pooled one), check it as in step 3 of the numbered list above, then switch `DATABASE_URL` and replay what was lost (steps 4 to 8 above). The migration journal (`drizzle` schema) is part of the dump, so the API's startup check sees the same migrations as before.
 7. **Write down how long the whole restore took**, and what you had to look up.
 

@@ -20,6 +20,12 @@ on:
 permissions:
   contents: read
 
+# The PostgreSQL major version of the pg_dump client: the same as Neon's server, or newer. A backup
+# can be restored only with this version or newer (docs/RUNBOOK.md section 7). When Neon moves the
+# database to a newer version, raise this number and the image in the runbook together.
+env:
+  POSTGRES_CLIENT_VERSION: '18'
+
 # One backup at a time, and a running one is never cancelled.
 concurrency:
   group: backup
@@ -30,8 +36,8 @@ jobs:
     if: >-
       github.event.repository.fork == false &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    # Pinned, not ubuntu-latest: the latest label moved to Ubuntu 26.04, whose archive has no
-    # postgresql-client-16 (Neon runs PostgreSQL 16). Ubuntu 24.04 has it, and age.
+    # Pinned, not ubuntu-latest: the latest label moved to Ubuntu 26.04. Ubuntu 24.04 is supported
+    # by PostgreSQL's own package repository, which is where the client comes from (below).
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -82,14 +88,19 @@ jobs:
               ;;
           esac
 
-      # The PostgreSQL 16 client (Neon runs 16) and age. The 16 binaries go first on the path,
-      # because the runner image may carry another version.
-      - name: Install the PostgreSQL 16 client and age
+      # The PostgreSQL client and age. pg_dump must be the same version as the server or newer, and
+      # Neon runs PostgreSQL 18 (checked 12 November 2026), which Ubuntu 24.04's own archive does not
+      # have. So the client comes from PostgreSQL's official package repository, set up with the
+      # script that Ubuntu's postgresql-common package ships. The version is POSTGRES_CLIENT_VERSION
+      # above, and its binaries go first on the path because the runner image carries others.
+      - name: Install the PostgreSQL client and age
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client-16 age
-          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
-          /usr/lib/postgresql/16/bin/pg_dump --version
+          sudo apt-get install -y --no-install-recommends postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends "postgresql-client-$POSTGRES_CLIENT_VERSION" age
+          echo "/usr/lib/postgresql/$POSTGRES_CLIENT_VERSION/bin" >> "$GITHUB_PATH"
+          "/usr/lib/postgresql/$POSTGRES_CLIENT_VERSION/bin/pg_dump" --version
           age --version
 
       # The only step besides the input check that sees the database address. No -v and no set -x:
@@ -110,7 +121,7 @@ jobs:
             elif grep -qi 'permission denied' "$errors"; then
               echo "::error::Hint: the backup role is missing a privilege. See docs/DEPLOYMENT.md section 21.12."
             elif grep -qi 'server version' "$errors"; then
-              echo "::error::Hint: the PostgreSQL version of the server is newer than the pg_dump client."
+              echo "::error::Hint: the PostgreSQL server is newer than the pg_dump client. Raise POSTGRES_CLIENT_VERSION in backup.yml."
             elif grep -qiE 'could not translate host|name or service not known|connection refused|timeout expired|could not connect' "$errors"; then
               echo "::error::Hint: the host could not be reached. Check the host in BACKUP_DATABASE_URL and the Neon compute."
             elif grep -qiE 'ssl|tls' "$errors"; then
