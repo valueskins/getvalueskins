@@ -11,13 +11,13 @@ afterAll(closeDb);
 
 /** The schedule table of SPEC 14. */
 const EXPECTED: Record<string, string> = {
-  'instagram-refresh': '0 3 * * *',
+  'instagram-refresh': '15 8 * * *',
   'fee-reminder': '0 10 * * *',
   'payment-due-reminder': '0 10 * * *',
   'confirm-payment-reminder': '0 */6 * * *',
   'review-reminder': '0 10 * * *',
   'content-overdue': '59 23 * * *',
-  cleanup: '0 4 * * *',
+  cleanup: '30 8 * * *',
 };
 
 describe('job registry', () => {
@@ -54,10 +54,10 @@ describe('startScheduler', () => {
       };
       for (const job of JOBS) expect(next(job.name)).toBeInstanceOf(Date);
 
-      // Whatever day it is, a daily 10:00 IST job runs at 04:30 UTC, and cleanup at 22:30 UTC.
+      // Whatever day it is, a daily 10:00 IST job runs at 04:30 UTC, and cleanup at 03:00 UTC.
       expect(next('fee-reminder')!.toISOString().slice(11, 16)).toBe('04:30');
-      expect(next('instagram-refresh')!.toISOString().slice(11, 16)).toBe('21:30');
-      expect(next('cleanup')!.toISOString().slice(11, 16)).toBe('22:30');
+      expect(next('instagram-refresh')!.toISOString().slice(11, 16)).toBe('02:45');
+      expect(next('cleanup')!.toISOString().slice(11, 16)).toBe('03:00');
       expect(next('content-overdue')!.toISOString().slice(11, 16)).toBe('18:29');
       // Every 6 hours IST: 00:00, 06:00, 12:00 and 18:00 IST are 18:30, 00:30, 06:30 and 12:30 UTC.
       expect(['18:30', '00:30', '06:30', '12:30']).toContain(
