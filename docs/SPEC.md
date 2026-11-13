@@ -854,7 +854,7 @@ Staging runs on Render's free Postgres plan: it expires 30 days after creation a
 - [ ] Commission invoice format approved by CA, company GSTIN and SAC code in env
 - [ ] Resend domain verified (SPF, DKIM), test emails land in inbox (not spam) for Gmail and Outlook
 - [ ] Domains live with HTTPS: valueskins.com, api.valueskins.com
-- [ ] Backups with a useful window, and the restore tested once (the steps and the checks to run are in `docs/RUNBOOK.md`, section 7). Neon Free restores only the last 6 hours, which the founders accepted on 11 November 2026. The daily encrypted backup is built (`docs/DEPLOYMENT.md` section 21.12); the founders still set it up, run it once by hand and do the first restore.
+- [x] Backups with a useful window, and the restore tested once (the steps and the checks to run are in `docs/RUNBOOK.md`, section 7). Neon Free restores only the last 6 hours, which the founders accepted on 11 November 2026. The daily encrypted backup is built and running (`docs/DEPLOYMENT.md` section 21.12), and the first restore was done on 13 November 2026 (rows counted in the scratch database: `deals` 1, `payments` 0, `invoices` 0, `users` 1). Repeat the restore once there is real data.
 - [x] Paid hosting is not required (decision of 11 November 2026): `PAYMENTS_MODE` and `DEAL_POSTING_MODE` may be `on` on free hosting (the hosting tier guard is removed)
 - [ ] `ENABLE_DEV_LOGIN` is `false` in production (the variable is required and the guard refuses `true`), startup guard verified
 - [ ] Privacy policy and terms published and reviewed
