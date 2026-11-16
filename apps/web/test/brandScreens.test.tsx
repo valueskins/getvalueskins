@@ -213,6 +213,8 @@ describe('post a deal', () => {
     const dialog = screen.getByRole('dialog', { name: 'Publish Test kurta reel?' });
     expect(dialog).toHaveTextContent('You cannot edit a deal once it is published.');
     expect(dialog).toHaveTextContent('₹10,000.00');
+    // In the confirm only the creator's amount is lime, not the budget or the fee.
+    expect([...dialog.querySelectorAll('.money-creator')]).toHaveLength(1);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/deals/${DEAL_ID}`));
     expect(api.called('POST /deals')[0]!.body).toMatchObject({

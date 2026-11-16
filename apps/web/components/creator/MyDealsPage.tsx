@@ -189,8 +189,8 @@ export function MyDealsPage() {
           <>
             {!list.hasNextPage && completed.length ? (
               <p className="t-small c-ink-2 mb-3">
-                <span className="money">{formatInr(received)}</span> received across{' '}
-                {completed.length} completed {completed.length === 1 ? 'deal' : 'deals'}.
+                <Money paise={received} creator="total" /> received across {completed.length}{' '}
+                completed {completed.length === 1 ? 'deal' : 'deals'}.
               </p>
             ) : null}
             <div className="card overflow-hidden">

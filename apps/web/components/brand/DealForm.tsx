@@ -209,7 +209,7 @@ function Preview({
                 <Money paise={b.creatorAmountPaise} size="m" creator="total" />
               </p>
             </div>
-            <p className="flex flex-wrap items-baseline justify-end gap-1 text-right">
+            <p className="t-small c-ink-3 flex flex-wrap items-baseline justify-end gap-x-1 text-right">
               (<Money paise={b.advancePaise} size="s" creator="advance" /> +{' '}
               <Money paise={b.finalPaise} size="s" creator="final" />)
             </p>
