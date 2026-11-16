@@ -130,8 +130,7 @@ describe('lime in the app styles', () => {
     const used = rules
       .filter((r) => /var\(--(?:hm-)?lime/.test(r.body))
       .flatMap((r) => r.selectors);
-    expect(used.length).toBeGreaterThan(0);
-    for (const selector of used) expect(MONEY.has(selector), selector).toBe(true);
+    expect(new Set(used)).toEqual(MONEY);
   });
 
   it('is only ever a fill, with the ink on it, and the soft swatch edge', () => {

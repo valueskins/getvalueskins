@@ -408,7 +408,7 @@ Shared pieces and the part that restyles them: `components/ui/*`, `components/li
 
 The ten open questions of the first version of this file, answered by the founder. They are settled, and they override anything above that reads differently.
 
-1. **Lime in the app.** Lime may appear in the app only on the creator's money: the 30% and 70% amounts, "You receive" and the creator total, on both the brand's and the creator's screens. Always a fill under ink text, never text, an icon or a border. The fee stays ink. Statuses stay green.
+1. **Lime in the app.** Lime may appear in the app (and in the How it works pictures) only on the creator's money: the 30% and 70% amounts, "You receive" and the creator total, on both the brand's and the creator's screens. Always a fill under ink text, never text, an icon or a border. The fee stays ink. Statuses stay green.
 2. **Display cut.** App screens use the condensed display cut only for the page title (the one `h1` per page). Section headings, body text and controls stay in the regular Bricolage Grotesque. The admin area does not use the display cut at all.
 3. **Saffron.** Every saffron use maps to rani pink: primary action, hover and press, focus ring, current step, accent text and accent tint. Where saffron marked a "key money moment" that is the creator's money, lime is used as in decision 1. Any other money stays ink.
 4. **Danger, warning and information.** Today's values stay (danger `#b42318`, warning `#8a5a00`, information `#2f4b7c`, each with its soft tint). Success uses the home page's green (`#17733e` on `#e1f2e7`). Danger must never be confused with rani pink: every danger state also carries an icon and words, and destructive buttons use the danger red, never pink. Every pairing is checked for contrast (section 2.2 and `apps/web/test/designTokens.test.ts`).
@@ -425,19 +425,19 @@ Where other files disagreed with the home page, or with each other, when this fi
 
 - **SPEC section 18, opening paragraph.** Says the app uses one system "taken from the home page, the approved look". The tokens it named were saffron in `tokens.css` (now rani pink, **resolved** in Part 2 and described in SPEC section 18). The home page is rani pink and lime with its own tokens.
 - **SPEC section 18, "Look" bullet.** Warm ground `#FBF8F4`, saffron `#C2410C`, near-black contrast sections, `#FF7A3D` on dark, radii 14, 18 and 24. The home page has a cool ground `#F3F3F0`, rani pink, no dark sections, and radii 32, 16 and pill.
-- **SPEC section 18, sentence about `landing.css`.** Says the home page's styles are `landing.css` under `.v3`. The home page's styles are `home.css` under `.hm`. Only How it works and the public header still use `.v3`.
+- **Resolved in Part 3. SPEC section 18, sentence about `landing.css`.** Said the home page's styles are `landing.css` under `.v3`. They are `home.css` under `.hm`, and no page imports `landing.css` any more.
 - **Resolved in Part 3. SPEC section 18, "Public pages".** Said How it works uses the home page's look and has a dark band. It used `.v3` saffron; it now uses the `.hm` frame and an accent block.
 - **SPEC section 18, focus ring.** The Look bullet says 3px. The Accessibility bullet says 2px. The code uses 3px.
 - **Resolved in Part 3. SPEC section 18, header.** `SiteHeader` was the old `.v3` `Nav`. It is now the home page's navigation bar.
 - **`docs/DESIGN_HANDOFF.md`.** Marked superseded but describes a third look: vermilion `#D2340C`, cool grey ground, Geist and Geist Mono, 6px radii, no shadows, a 2px focus ring.
 - **Resolved. `apps/web/app/styles/tokens.css`, lines 3 to 5.** Says its values come from the home page, the approved look. They are saffron.
-- **`apps/web/app/landing.css`.** Its header calls the saffron `.v3` look the approved home look. It also sets `html, body { overflow-x: clip }` globally, and its `.v3` rules may reach content inside `.hm` through the `(landing)/layout.tsx` wrapper.
+- **`apps/web/app/landing.css`.** Imported by no page since Part 3. Its header calls the saffron `.v3` look the approved home look. It is listed for removal.
 - **Resolved in Part 3. `apps/web/app/(landing)/layout.tsx`.** Wrapped the home page in `.v3`. It now passes its children through.
-- **`apps/web/app/styles/shell.css`, lines 56 to 64.** Says the public header is the home page's own navigation. It is the old `Nav`.
+- **Resolved in Part 3. `apps/web/app/styles/shell.css`, lines 56 to 64.** Said the public header is the home page's own navigation. It now is; the old wrapper rule is listed for removal.
 - **`apps/web/components/landing/`.** `Nav.tsx` and `SignIn.tsx` still use `.v3` classes and are now used by nothing (listed for removal). `screens/Screens.tsx` now uses `pic-*` classes from `app/public.css`.
 - **Resolved. `apps/web/lib/razorpay.ts`, line 90.** Checkout colour `#D2340C`, the old vermilion, matching neither saffron nor rani pink.
 - **`apps/web/app/layout.tsx`.** `themeColor` is `#fbf8f4`. The home page paints `#f3f3f0`, so the browser chrome colour differs on `/`.
-- **`apps/web/app/global-error.tsx`.** Hard-coded saffron and warm grounds.
+- **Resolved in Part 3. `apps/web/app/global-error.tsx`.** Hard-coded saffron and warm grounds; now the new colours, still inline.
 - **Resolved. Input edge contrast.** `.hm-calc-input`, `.hm-menu-btn` and `.hm-free li` use `--hm-line-strong`, 2.13:1 on `--hm-bg`, below the 3:1 SPEC asks for on input edges.
 - **Not verified.** The home page's lighter radial highlights on `.hm-tile-money` and `.hm-cta-block` give about 2.8:1 to 2.9:1 against `--hm-on-accent`. The text sits in the darker part of the block, but this was read from the CSS and not checked in a rendered page.
 - **Unused token.** `--hm-accent-mid` is declared and not used by any `.hm` rule.

@@ -369,8 +369,8 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--hm-accent-mid), var(--hm-accent));
-  color: var(--ink);
+  background: var(--hm-accent-soft);
+  color: var(--hm-accent-ink);
   font-size: 12px;
   font-weight: 700;
 }
@@ -582,24 +582,6 @@
   display: inline-block;
 }
 
-/* Links drawn as buttons keep their own colours inside the public frame */
-.hm .btn-primary,
-.hm .btn-danger {
-  color: var(--on-accent);
-}
-.hm .btn-secondary,
-.hm .btn-ghost,
-.hm .btn-text {
-  color: var(--ink);
-}
-.hm .btn-danger-outline {
-  color: var(--danger);
-}
-.hm .btn:disabled,
-.hm .btn.is-disabled {
-  color: var(--disabled-ink);
-}
-
 /* How it works (/how-it-works), laid out step by step */
 .hiw-hero,
 .hiw-head,
@@ -804,7 +786,8 @@
 .hiw-wrong .hiw-md a {
   color: var(--hm-on-accent);
 }
-.hiw-wrong .hm-note {
+.hiw-wrong .hm-note,
+.hiw-wrong .hm-reason {
   color: var(--hm-on-accent);
 }
 .hiw-wrong :focus-visible {

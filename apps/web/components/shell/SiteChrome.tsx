@@ -18,16 +18,17 @@ const PAGE_LINKS = [
 
 /**
  * The public pages' top bar: the home page's own floating navigation bar, with its Sign in button
- * and wake states, linking back to the home page's sections. It must sit inside the `.hm` frame
- * (PublicFrame), which carries the home page's tokens and styles.
+ * and wake states, linking back to the home page's sections. It must sit inside `.hm` (PublicFrame
+ * does it), which carries the home page's styles.
  */
 export function SiteHeader() {
   return <HomeNav links={PAGE_LINKS} />;
 }
 
 /**
- * The frame of every public page: the home page's look (`.hm`), the navigation bar, the page and
- * the footer. A page that keeps its own `<main>` passes it as children.
+ * The frame of every public page: the home page's navigation bar (the only part inside `.hm`, so
+ * the page's own content keeps its styles), the page and the footer. A page that keeps its own
+ * `<main>` passes it as children.
  */
 export function PublicFrame({
   children,
@@ -37,8 +38,10 @@ export function PublicFrame({
   footer?: boolean;
 }) {
   return (
-    <div className="hm flex min-h-screen flex-col">
-      <SiteHeader />
+    <div className="flex min-h-screen flex-col">
+      <div className="hm hm-chrome">
+        <SiteHeader />
+      </div>
       {children}
       {footer ? <SiteFooter /> : null}
     </div>
