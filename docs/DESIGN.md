@@ -323,11 +323,11 @@ All of this uses the home page's tokens. Where the home page has no example it i
 - Pills for anything pressed. Cards 32px for page-level containers and 16px for things inside them. **Proposed:** a card inside a card is always 16px.
 - Content first: one accent block per screen at most, and only for the one action that moves the deal.
 
-### 5.2 Dense admin variant (**Proposed**)
+### 5.2 Dense admin variant (`.admin-frame`, `apps/web/app/styles/shell.css`)
 
-- Ground `--hm-bg`, flat `--hm-surface` cards with a 1px `--hm-line` border and no shadow, 16px radius.
+- Ground `--hm-bg`, flat `--hm-surface` cards with a 1px `--hm-line` border and no shadow, 16px radius, and card padding of 16px by 20px. The page title is the regular cut (`.admin-frame h1.t-h1` in `base.css`), never the display cut (decision 2).
 - Solid top bar (no glass) with an "Admin" tag in ink, not pink.
-- Tables: 14px text, 40px rows, `--hm-line` row rules, tabular figures, monospace identifiers. Wide tables scroll inside their card. On phones rows stack as cards.
+- Tables: 14px text, 40px rows, `--hm-line` row rules, tabular figures, monospace identifiers. Wide tables scroll inside their card. On phones rows stack as cards. The creator's money is lime wherever it shows (the deal's Amounts and UPI records), as it is everywhere else.
 - Actions stay pills and stay pink. Pink stays the primary action in admin (decision 10). Secondary actions are ink outline pills, destructive ones the danger red.
 
 ### 5.3 Forms (**Proposed**, based on the amount field)
@@ -397,7 +397,7 @@ Current look: `.hm` (the home page look), `.v3` (the older look from `landing.cs
 | `/campaigns`, `/campaigns/new`, `/campaigns/[id]/edit` (brand)                 | `(app)/campaigns/...`                       | `app` styles on the new tokens, creator money in lime (Part 5)            | `AppShell`, `RolePage`, `brand/*`, `DealForm`, `DateField`                                                           | Done in Part 5       |
 | `/deals/[id]` (both roles)                                                     | `(app)/deals/[id]/page.tsx`                 | `app` styles on the new tokens, creator money in lime (Part 6)            | `AppShell`, `deal/DealPage`, `deal/panels/*`                                                                         | Done in Part 6       |
 | `/admin`                                                                       | `(admin)/admin/page.tsx`                    | redirect                                                                  | none                                                                                                                 | none                 |
-| `/admin/deals`, `/admin/deals/[id]`, `/admin/disputes`, `/admin/disputes/[id]` | `(admin)/admin/...`                         | app, flatter                                                              | `AdminShell`, `Pager`, `admin/*`                                                                                     | Part 7               |
+| `/admin/deals`, `/admin/deals/[id]`, `/admin/disputes`, `/admin/disputes/[id]` | `(admin)/admin/...`                         | `app` styles, dense admin variant on the new tokens (Part 7)              | `AdminShell`, `Pager`, `admin/*`                                                                                     | Done in Part 7       |
 | `/dev/components`                                                              | `dev/components/page.tsx`                   | app                                                                       | `dev/ComponentSheet`                                                                                                 | Part 2               |
 | `/dev/login`                                                                   | `dev/login/page.tsx`                        | `.hm` public frame without the footer (Part 3)                            | `dev/DevLoginForm`, `PublicFrame`                                                                                    | Done in Part 3       |
 | `/dev/error`                                                                   | `dev/error/page.tsx`                        | throws on purpose                                                         | none                                                                                                                 | none                 |

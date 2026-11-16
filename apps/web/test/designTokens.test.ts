@@ -149,3 +149,22 @@ describe('lime in the app styles', () => {
     }
   });
 });
+
+describe('the dense admin variant', () => {
+  const base = read('../app/styles/base.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const shell = read('../app/styles/shell.css').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('keeps the regular cut for the page title, not the display cut', () => {
+    const title = base.match(/\.admin-frame h1\.t-h1 \{([^}]*)\}/)![1]!;
+    expect(title).toMatch(/font-family:\s*var\(--font-sans\)/);
+    expect(title).toMatch(/font-stretch:\s*100%/);
+    expect(title).toMatch(/font-weight:\s*700/);
+  });
+
+  it('draws flat 16px cards on a solid bar', () => {
+    const card = shell.match(/\.admin-frame \.card \{([^}]*)\}/)![1]!;
+    expect(card).toMatch(/box-shadow:\s*none/);
+    expect(card).toMatch(/border-radius:\s*var\(--radius-md\)/);
+    expect(shell).toMatch(/\.admin-frame \.topbar::before,[^{]*\{[^}]*backdrop-filter:\s*none/);
+  });
+});
