@@ -438,6 +438,9 @@
   box-shadow: none;
   border-radius: var(--radius-md);
 }
+.admin-frame .card-pad {
+  padding: 16px 20px;
+}
 .admin-frame .dt td {
   padding: 10px 14px;
 }

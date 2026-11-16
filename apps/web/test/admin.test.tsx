@@ -502,6 +502,20 @@ describe('admin disputes', () => {
     });
   });
 
+  it("puts only the creator's advance and final in lime on the dispute's deal card", async () => {
+    mockApi({ [`GET /admin/disputes/${DISPUTE_ID}`]: disputeDetail(dispute()) });
+    const { container } = renderWithProviders(<AdminDisputePage id={DISPUTE_ID} />);
+    await screen.findByRole('link', { name: 'Open the deal' });
+    const lime = [...container.querySelectorAll('.money-creator')];
+    expect(lime).toHaveLength(2);
+    expect(lime[0]).toHaveClass('money-creator-soft');
+    expect(lime[1]).not.toHaveClass('money-creator-soft');
+    // The fee and the budget stay ink.
+    for (const el of container.querySelectorAll('dd .money:not(.money-creator)')) {
+      expect(el).not.toHaveClass('money-creator');
+    }
+  });
+
   it('shows a resolved dispute with the disabled reason', async () => {
     mockApi({
       [`GET /admin/disputes/${DISPUTE_ID}`]: {
