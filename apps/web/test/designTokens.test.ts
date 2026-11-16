@@ -173,3 +173,43 @@ describe('the dense admin variant', () => {
     expect(shell).toMatch(/\.admin-frame \.topbar::before,[^{]*\{[^}]*backdrop-filter:\s*none/);
   });
 });
+
+describe('every custom property a stylesheet reads is defined', () => {
+  // Set at run time by a component (style={{ '--x': ... }}) or by next/font, not in a stylesheet.
+  const RUNTIME = new Set([
+    '--font-bricolage',
+    '--font-instrument',
+    '--font-hm-display',
+    '--toast-lift',
+    '--press',
+    '--mx',
+    '--my',
+    '--px',
+    '--py',
+    '--fee',
+    '--advance',
+    '--field-em',
+    '--num-em',
+    '--d',
+    '--i',
+    '--pic-slot',
+  ]);
+  const dir = fileURLToPath(new URL('../app/', import.meta.url));
+  const files = [
+    ...readdirSync(`${dir}styles`).map((f) => `styles/${f}`),
+    'home.css',
+    'public.css',
+    'globals.css',
+  ].filter((f) => f.endsWith('.css'));
+  const text = files.map((f) => read(`../app/${f}`).replace(/\/\*[\s\S]*?\*\//g, ''));
+  const defined = new Set(
+    text.flatMap((t) => [...t.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!)),
+  );
+
+  it.each(files.map((f, i) => [f, text[i]!] as const))('%s', (_file, css) => {
+    for (const m of css.matchAll(/var\((--[\w-]+)/g)) {
+      const name = m[1]!;
+      expect(defined.has(name) || RUNTIME.has(name), name).toBe(true);
+    }
+  });
+});

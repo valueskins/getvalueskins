@@ -227,3 +227,4 @@ This covers emails, PDFs and API error messages.
 
 - `apps/web` is the real application. It is not temporary and it is not being rebuilt from a handoff.
 - One task may change `apps/api`, `packages/shared` and `apps/web` together, so rules and screens stay in step.
+- Every screen follows `docs/DESIGN.md`: its tokens, components and colour meanings. Change the look there first, then in the code.

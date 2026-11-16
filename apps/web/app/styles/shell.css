@@ -259,11 +259,6 @@
 .topbar-m .wordmark {
   font-size: 20px;
 }
-.topbar-m-end {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 
 /* The phone account sheet (and the admin's phone menu): under the top bar, over the page */
 .sheet {
@@ -408,7 +403,6 @@
     padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
   /* Bars that stick to the bottom of a page sit on top of the tab bar */
-  .app-main .sticky-apply,
   .app-main .form-bar {
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   }
