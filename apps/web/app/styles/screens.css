@@ -110,9 +110,7 @@
 :where(body) .side-nav a.is-active {
   color: var(--ink);
   font-weight: 650;
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  background: var(--sunken);
 }
 .side-nav a:focus-visible {
   outline: 3px solid var(--accent);
@@ -139,6 +137,14 @@
   line-height: 22px;
   color: var(--ink);
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* On phones the label sits above its value, so a long email or name never runs out of the card */
+@media (max-width: 599px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }
 
 /* Instagram numbers */
@@ -1362,7 +1368,7 @@ a.stretched:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 .onb-preview-fold {
   border: 1px solid var(--border);
@@ -1437,7 +1443,8 @@ a.stretched:hover {
     top: calc(var(--topbar-h) + 32px);
   }
 }
-@media (min-width: 1024px) {
+/* The profile preview gets a column of its own only when there is room for one (at least 320px) */
+@media (min-width: 1280px) {
   .onb {
     grid-template-columns: 220px minmax(0, 560px) minmax(0, 1fr);
   }
@@ -1521,7 +1528,7 @@ a.stretched:hover {
   }
 }
 
-/* "Is this you?": the account read from Instagram, on a warm band */
+/* "Is this you?": the account read from Instagram, on a grey band */
 .ig-hello-head {
   background: linear-gradient(180deg, var(--sand), var(--surface));
 }
