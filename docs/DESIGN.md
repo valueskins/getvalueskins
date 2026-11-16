@@ -2,7 +2,7 @@
 
 This file describes the look every ValueSkins screen will follow. The only source is the home page: `apps/web/app/(landing)/page.tsx`, `apps/web/components/landing/`, the `.hm` rules and tokens in `apps/web/app/home.css`, and `docs/SPEC.md` section 18 (the "Homepage" and "Deal calculator" bullets).
 
-Status: written from the home page only. Nothing in the app has been restyled yet. Sections 5 and 7 hold proposals and open decisions that need an answer before the foundation work starts. Anything marked **Proposed** has no example on the home page.
+Status: written from the home page, with the founder's decisions in section 7. Anything marked **Proposed** has no example on the home page.
 
 These are older looks and are not the reference, even where a comment calls them "the approved look": `apps/web/app/styles/tokens.css` (saffron), `apps/web/app/landing.css` (`.v3`), the rest of `apps/web/app/styles/`, and `docs/DESIGN_HANDOFF.md`.
 
@@ -120,7 +120,7 @@ Non-text pairings (need 3:1):
 - `--hm-r-xl` 32px: `.hm-side`, `.hm-costs-card`, `.hm-tile`, `.hm-cta-block`, `.hm-panel`.
 - `--hm-r` 16px: `.hm-calc-input`, `.hm-figure`, `.hm-sat`, `.hm-applicants li`, `.hm-calc-empty`.
 - `--hm-pill` 999px: everything pressable.
-- Off the rule today: 24px on the ticket, `.hm-mini`, `.hm-record` and the open mobile menu; 12px on `.hm-nav-mark` and `.hm-record li`; 10px on `.hm-sat-amount`. See open decision 7.
+- Off the rule today: 24px on the ticket, `.hm-mini`, `.hm-record` and the open mobile menu; 12px on `.hm-nav-mark` and `.hm-record li`; 10px on `.hm-sat-amount`. See decision 7: app screens snap to the rule.
 
 ### 2.6 Shadows
 
@@ -247,7 +247,7 @@ All of this uses the home page's tokens. Where the home page has no example it i
 
 ### 5.1 General rules for working screens
 
-- Same ground, ink, pink, lime and green meanings as section 3. Same type, with the display cut subject to open decision 2.
+- Same ground, ink, pink, lime and green meanings as section 3. Same type, with the display cut subject to decision 2.
 - No tilt, no marquee, no parallax, no scroll-driven or decorative motion, no radial gradient blocks. Allowed motion: press feedback, menus, modals, toasts, bars filling, a status badge popping on a live change, and rows that arrive by realtime rising in gently. All transform and opacity, all off under reduced motion.
 - Pills for anything pressed. Cards 32px for page-level containers and 16px for things inside them. **Proposed:** a card inside a card is always 16px.
 - Content first: one accent block per screen at most, and only for the one action that moves the deal.
@@ -257,12 +257,12 @@ All of this uses the home page's tokens. Where the home page has no example it i
 - Ground `--hm-bg`, flat `--hm-surface` cards with a 1px `--hm-line` border and no shadow, 16px radius.
 - Solid top bar (no glass) with an "Admin" tag in ink, not pink.
 - Tables: 14px text, 40px rows, `--hm-line` row rules, tabular figures, monospace identifiers. Wide tables scroll inside their card. On phones rows stack as cards.
-- Actions stay pills and stay pink. Whether the admin area uses pink at all is open decision 10.
+- Actions stay pills and stay pink. Pink stays the primary action in admin (decision 10). Secondary actions are ink outline pills, destructive ones the danger red.
 
 ### 5.3 Forms (**Proposed**, based on the amount field)
 
-- Label above, 14px help text in `--hm-ink-3` below, error in the danger colour (open decision 4) with an icon.
-- Text inputs: 56px high, 16px radius, 2px border in `--hm-line-strong` or darker (open decision 6), `--hm-bg` ground. Focus is the amount field's ring: accent border and a 4px `--hm-accent-soft` halo.
+- Label above, 14px help text in `--hm-ink-3` below, error in the danger colour (decision 4) with an icon.
+- Text inputs: 56px high, 16px radius, 2px border in `--hm-line-field` (decision 6), `--hm-bg` ground. Focus is the amount field's ring: accent border and a 4px `--hm-accent-soft` halo.
 - Inputs with a prefix or suffix use `data-affix` and draw one ring on the box.
 - Checkbox, radio and select follow the same border, radius and ring. Date fields keep today's behaviour.
 
@@ -297,11 +297,11 @@ All of this uses the home page's tokens. Where the home page has no example it i
 
 - Format `₹10,000.00`, `en-IN` grouping, from `Money` and `computeBreakdown`. Tabular figures (`.hm-num`). Paise one shade lighter (`--hm-ink-3`) in large amounts.
 - Identifiers, unique transaction references (UTRs) and UPI IDs use the system monospace.
-- The ValueSkins fee is ink. The creator's 30% and 70% and "You receive" follow open decision 1 (lime fill under ink text, never lime text).
+- The ValueSkins fee is ink. The creator's 30% and 70% and "You receive" follow decision 1 (lime fill under ink text, never lime text).
 
 ### 5.11 Status and deadline badges (**Proposed**)
 
-- Status badge: pill, 12px to 14px, weight 700. Done and confirmed use `--hm-ok` on `--hm-ok-soft`. In progress uses ink on `--hm-bg-2`. Needs action uses `--hm-accent-ink` on `--hm-accent-soft`. Cancelled and error use the danger colour (open decision 4).
+- Status badge: pill, 12px to 14px, weight 700. Done and confirmed use `--hm-ok` on `--hm-ok-soft`. In progress uses ink on `--hm-bg-2`. Needs action uses `--hm-accent-ink` on `--hm-accent-soft`. Cancelled and error use the danger colour (decision 4).
 - Deadline badge: same shape. Overdue uses the danger colour. Today uses accent-soft. Otherwise grey.
 
 ## 6. Route map
@@ -333,20 +333,20 @@ Current look: `.hm` (the home page look), `.v3` (the older saffron look from `la
 
 Shared pieces and the part that restyles them: `components/ui/*`, `components/lists/*`, `components/shell/*` and `app/styles/*` in Part 2.
 
-## 7. Open decisions
+## 7. Decisions
 
-Each needs an answer before Part 2.
+The ten open questions of the first version of this file, answered by the founder. They are settled, and they override anything above that reads differently.
 
-1. **Lime in the app.** The home page uses lime for the creator's money only. May lime appear in the app on the 30% and 70% amounts, "You receive" and the creator total, always as a fill under ink text?
-2. **Display cut in app headings.** Do app headings (page titles, deal titles, big amounts) use the condensed 800 weight display cut, or only the marketing page? Using it in the app means loading that font on every route.
-3. **Saffron mapping.** Proposed: every saffron action, focus ring, current step and accent-soft tint maps to rani pink (`--hm-accent`, `--hm-accent-hover`, `--hm-accent-ink`, `--hm-accent-soft`). Is that right?
-4. **Danger, warning and information colours.** The home page has only green. The app needs danger, warning and information. Keep today's values (`#b42318`, `#8a5a00`, `#2f4b7c` with soft tints) or choose new ones? Each must still pass AA on the new grounds.
-5. **Wordmark.** Keep the Instrument Serif italic "Skins" recoloured pink, as on the home page today, or change it?
-6. **Input edge contrast.** `--hm-line-strong` on `--hm-bg` is 2.13:1, below the 3:1 that SPEC section 18 asks for on input edges. May app inputs and outline pills use a darker edge, leaving the home page calculator unchanged?
-7. **Off-rule radii.** The home page uses 24px (ticket, mini cards, open menu) and 12px (monogram, record rows) outside its 32 and 16 rule. Do app screens snap everything to 32, 16 and pill?
-8. **Colours outside the stylesheets.** Move the avatar tints (`--tone-*`), the browser theme colour (`themeColor #fbf8f4` in `app/layout.tsx`) and the Razorpay Checkout colour (`apps/web/lib/razorpay.ts`) to the new palette? These are presentation, but the last two are not CSS.
-9. **Public header.** Public pages now use the old `.v3` header. Should they use the home page's `HomeNav` look (floating glass bar)? The links and wake states stay the same.
-10. **Admin accent.** Does the admin area keep pink actions on the dense variant, or use ink-only actions to look plainer?
+1. **Lime in the app.** Lime may appear in the app only on the creator's money: the 30% and 70% amounts, "You receive" and the creator total, on both the brand's and the creator's screens. Always a fill under ink text, never text, an icon or a border. The fee stays ink. Statuses stay green.
+2. **Display cut.** App screens use the condensed display cut only for the page title (the one `h1` per page). Section headings, body text and controls stay in the regular Bricolage Grotesque. The admin area does not use the display cut at all.
+3. **Saffron.** Every saffron use maps to rani pink: primary action, hover and press, focus ring, current step, accent text and accent tint. Where saffron marked a "key money moment" that is the creator's money, lime is used as in decision 1. Any other money stays ink.
+4. **Danger, warning and information.** Today's values stay (danger `#b42318`, warning `#8a5a00`, information `#2f4b7c`, each with its soft tint). Success uses the home page's green (`#17733e` on `#e1f2e7`). Danger must never be confused with rani pink: every danger state also carries an icon and words, and destructive buttons use the danger red, never pink. Every pairing is checked for contrast (section 2.2 and `apps/web/test/designTokens.test.ts`).
+5. **Wordmark.** As on the home page: "Value" in the sans, "Skins" in the serif italic, in the pink accent text colour.
+6. **Edges.** Inputs, checkboxes, radio buttons and outline pills get a darker edge, `--hm-line-field`, that reaches at least 3:1 against every ground they sit on. The home page's amount field and outline pills use it too. This is the one allowed visual change to the home page, because it fixes an accessibility gap.
+7. **Radii.** One rule everywhere: anything you press is a pill; containers (cards, modals, sheets, panels) are 32px; things inside a container are 16px. Inputs follow the home page's amount field. The dense admin variant may use 16px for its cards and tables. The one exception is the 6px mark of a checkbox, which would otherwise become a circle and look like a radio button.
+8. **Other colours.** The avatar and monogram tints move to the new palette with their ink at AA. `themeColor` is the page ground `#f3f3f0`. The Razorpay Checkout theme colour is the rani pink accent `#d6195f`.
+9. **Public header.** Public pages use the home page's floating navigation bar (glass on scroll, Menu on phones), with the same links to the home page's sections and to `/how-it-works`. Every behaviour of today's public header stays: the Sign in button with its waking and "Try again" states, and the links. Public pages keep the shared footer. This is done in Part 3.
+10. **Admin.** Admin keeps pink for its primary actions, so pink means "action" everywhere. Secondary admin actions are outline pills in ink. Destructive ones use the danger red. Admin keeps the plainer, denser layout.
 
 ## 8. Conflicts
 
