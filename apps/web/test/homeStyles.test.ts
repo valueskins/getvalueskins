@@ -14,6 +14,11 @@ import { describe, expect, it } from 'vitest';
  */
 
 const CSS = readFileSync(fileURLToPath(new URL('../app/home.css', import.meta.url)), 'utf8');
+// The --hm-* token values live in the one token source, app/styles/tokens.css.
+const TOKENS = readFileSync(
+  fileURLToPath(new URL('../app/styles/tokens.css', import.meta.url)),
+  'utf8',
+);
 
 /** Every innermost `selector { declarations }` rule, comments removed. */
 function rules(css: string): Array<{ selector: string; body: string }> {
@@ -24,9 +29,9 @@ function rules(css: string): Array<{ selector: string; body: string }> {
   }));
 }
 
-/** The value of a token on `.hm`, with one level of var() resolved. */
+/** The value of a token on `:root` in the token source, with var() resolved. */
 function token(name: string): string {
-  const hm = rules(CSS).find((r) => r.selector === '.hm' && r.body.includes('--hm-lime'))!;
+  const hm = rules(TOKENS).find((r) => r.selector === ':root')!;
   const value = hm.body.match(new RegExp(`${name}:\\s*([^;]+);`))![1]!.trim();
   const ref = value.match(/^var\((--[\w-]+)\)$/);
   return ref ? token(ref[1]!) : value;

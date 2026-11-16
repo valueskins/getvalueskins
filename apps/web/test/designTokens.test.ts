@@ -1,0 +1,93 @@
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * The design reference (docs/DESIGN.md) lists every colour pairing the app relies on, with the
+ * contrast it must reach. This test reads that list and the token source (app/styles/tokens.css),
+ * so a changed colour that breaks a pairing fails the build.
+ */
+
+const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+const TOKENS = read('../app/styles/tokens.css');
+const HOME = read('../app/home.css');
+const DESIGN = read('../../../docs/DESIGN.md');
+
+const declarations = new Map<string, string>(
+  [...TOKENS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [
+    m[1]!,
+    m[2]!.trim(),
+  ]),
+);
+
+/** A token's colour as `#rrggbb`, following var() references. */
+function colour(name: string): string {
+  const value = declarations.get(name);
+  if (value === undefined) throw new Error(`${name} is not in tokens.css`);
+  const ref = value.match(/^var\((--[\w-]+)\)$/);
+  if (ref) return colour(ref[1]!);
+  if (!/^#[0-9a-f]{6}$/i.test(value))
+    throw new Error(`${name} is not a plain hex colour: ${value}`);
+  return value;
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+const PAIRINGS = [
+  ...DESIGN.matchAll(/^\|\s*`(--[\w-]+)`\s*\|\s*`(--[\w-]+)`\s*\|\s*(4\.5|3)\s*\|\s*$/gm),
+].map((m) => ({ fg: m[1]!, bg: m[2]!, min: Number(m[3]) }));
+
+describe('docs/DESIGN.md colour pairings', () => {
+  it('lists the pairings the app relies on', () => {
+    expect(PAIRINGS.length).toBeGreaterThanOrEqual(60);
+  });
+
+  it.each(PAIRINGS.map((p) => [`${p.fg} on ${p.bg} is ${p.min}:1 or more`, p] as const))(
+    '%s',
+    (_name, p) => {
+      expect(contrast(colour(p.fg), colour(p.bg))).toBeGreaterThanOrEqual(p.min);
+    },
+  );
+
+  it('names only tokens that exist', () => {
+    for (const p of PAIRINGS) {
+      expect(declarations.has(p.fg), p.fg).toBe(true);
+      expect(declarations.has(p.bg), p.bg).toBe(true);
+    }
+  });
+});
+
+describe('control edges', () => {
+  it('the field edge reaches 3:1 on every home page ground a control sits on', () => {
+    for (const ground of ['--hm-bg', '--hm-surface', '--hm-bg-2', '--hm-accent-soft']) {
+      expect(contrast(colour('--hm-line-field'), colour(ground)), ground).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('the home page amount field and outline pills use the field edge, not the rule colour', () => {
+    const bare = HOME.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const selector of ['.hm-calc-input', '.hm-menu-btn', '.hm-free li', '.hm-faq-plus']) {
+      const rule = bare.match(
+        new RegExp(`(?:^|\\n)${selector.replace('.', '\\.')} \\{([^}]*)\\}`),
+      )!;
+      expect(rule[1], selector).toMatch(/border:[^;]*var\(--hm-line-field\)/);
+    }
+  });
+
+  it('danger is not the accent: they differ, and danger never shares the accent soft ground', () => {
+    expect(colour('--danger')).not.toBe(colour('--accent'));
+    expect(colour('--danger-soft')).not.toBe(colour('--accent-soft'));
+  });
+});

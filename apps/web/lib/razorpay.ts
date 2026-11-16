@@ -87,7 +87,7 @@ export function openCheckout(input: {
       description: input.description,
       order_id: input.orderId,
       prefill: input.prefill,
-      theme: { color: '#D2340C' },
+      theme: { color: '#d6195f' },
       handler: (response) => {
         settled = true;
         resolve({ kind: 'paid', response });

@@ -1,5 +1,7 @@
 /*
- * Shared components (components/ui, components/lists, components/deal/StatusBadge and DealSteps).
+ * Shared components (components/ui, components/lists, components/deal/StatusBadge and DealSteps),
+ * in the look described in docs/DESIGN.md: pills for anything pressed, 32px containers, 16px
+ * inside them, rani pink for every action, lime only on the creator's money.
  * States: hover, focus-visible, active (pressed), loading and disabled. The .is-hover, .is-focus and
  * .is-press classes draw the same states statically, for the component sheet at /dev/components.
  */
@@ -30,6 +32,22 @@
 .money .paise {
   color: var(--ink-subtle);
 }
+/* The creator's money, and only it, is a lime fill under ink text: the 30% advance (soft), the 70%
+ * final and the creator's total. Never lime text, an icon or a border. */
+.money-creator {
+  display: inline-block;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+.money-creator-soft {
+  background: var(--lime-soft);
+  box-shadow: inset 0 0 0 1px var(--lime-edge);
+}
+.money-creator .paise {
+  color: var(--hm-ink-2);
+}
 .money-l {
   font-size: var(--text-2xl);
   line-height: 32px;
@@ -47,7 +65,8 @@
   font-weight: 500;
 }
 
-/* Buttons: pills, 44px tall, a small press, the accent only on the primary action */
+/* Buttons: pills, 44px tall, a small press. Pink is the primary action; the secondary action is an
+ * outline pill in ink; a destructive one is the danger red, never pink. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -59,7 +78,7 @@
   border: 1px solid transparent;
   background: none;
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 20px;
   font-weight: 600;
   white-space: nowrap;
@@ -81,7 +100,7 @@
 }
 .btn:active:not(:disabled),
 .btn.is-press {
-  transform: scale(0.97);
+  transform: scale(0.96);
   transition-duration: 60ms;
 }
 .btn-primary {
@@ -100,15 +119,14 @@
   box-shadow: none;
 }
 .btn-secondary {
-  background: var(--surface);
+  background: transparent;
   color: var(--ink);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--border-field);
 }
 :where(body) .btn-secondary:hover,
 .btn-secondary.is-hover {
   background: var(--sunken);
-  border-color: var(--border-field);
+  border-color: var(--ink);
   color: var(--ink);
 }
 .btn-text {
@@ -144,9 +162,9 @@
   color: var(--on-accent);
 }
 .btn-danger-outline {
-  background: var(--surface);
+  background: transparent;
   color: var(--danger);
-  border-color: var(--border-strong);
+  border-color: var(--danger);
 }
 :where(body) .btn-danger-outline:hover,
 .btn-danger-outline.is-hover {
@@ -178,7 +196,7 @@
 }
 .btn-sm {
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 16px;
   font-size: var(--text-sm);
 }
 .btn-block {
@@ -273,11 +291,11 @@
 
 .input {
   width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
+  min-height: 56px;
+  padding: 0 16px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-field);
-  background: var(--surface);
+  border: 2px solid var(--border-field);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -294,25 +312,26 @@
 }
 .input:hover,
 .input.is-hover {
-  border-color: var(--ink-muted);
+  border-color: var(--ink);
 }
+/* One ring, the amount field's: an accent edge and a soft halo */
 .input:focus,
 .input.is-focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(194 65 12 / 0.22);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 .input.is-error {
   border-color: var(--danger);
 }
 .input.is-error:focus {
-  box-shadow: 0 0 0 3px rgb(180 35 24 / 0.2);
+  box-shadow: 0 0 0 4px var(--danger-soft);
 }
 .input:disabled,
 .input.is-disabled {
   background: var(--sunken);
   color: var(--ink-muted);
-  border-color: var(--border);
+  border-color: var(--border-strong);
   cursor: not-allowed;
 }
 .input.mono {
@@ -322,7 +341,7 @@
 textarea.input {
   height: auto;
   min-height: 128px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   resize: vertical;
 }
 select.input {
@@ -338,8 +357,8 @@ select.input {
 }
 .input-adorn {
   position: absolute;
-  right: 14px;
-  top: 14px;
+  right: 16px;
+  top: 18px;
   width: 20px;
   height: 20px;
   color: var(--ink-muted);
@@ -361,8 +380,8 @@ select.input {
 /* Money input with a rupee prefix */
 .input-pre {
   position: absolute;
-  left: 16px;
-  top: 12px;
+  left: 18px;
+  top: 16px;
   font-size: var(--text-base);
   line-height: 24px;
   font-weight: 600;
@@ -370,7 +389,7 @@ select.input {
   pointer-events: none;
 }
 .input.has-pre {
-  padding-left: 34px;
+  padding-left: 36px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -399,8 +418,8 @@ select.input {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-xs);
-  border: 1.5px solid var(--border-field);
-  background: var(--surface);
+  border: 2px solid var(--border-field);
+  background: var(--bg);
   display: grid;
   place-content: center;
   cursor: inherit;
@@ -427,7 +446,7 @@ select.input {
 }
 .check-box:hover,
 .check-box.is-hover {
-  border-color: var(--ink-muted);
+  border-color: var(--ink);
 }
 .check-box:checked:hover {
   background: var(--accent-hover);
@@ -469,7 +488,7 @@ select.input {
   left: 0;
   width: 320px;
   max-width: calc(100vw - 32px);
-  padding: 12px;
+  padding: 16px;
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -554,6 +573,7 @@ select.input {
 .err-summary {
   padding: 16px 20px;
   border-radius: var(--radius-md);
+  border: 1px solid var(--danger);
   background: var(--danger-soft);
   color: var(--danger);
   animation: vs-rise var(--dur) var(--ease);
@@ -581,7 +601,7 @@ select.input {
   box-shadow: var(--shadow-sm);
 }
 .card-pad {
-  padding: 20px 24px;
+  padding: 24px 28px;
 }
 a.card,
 .card-link {
@@ -595,7 +615,7 @@ a.card,
 }
 :where(body) a.card:hover,
 .card-link.is-hover {
-  border-color: var(--border-strong);
+  border-color: var(--border-field);
   box-shadow: var(--shadow);
   transform: translateY(-1px);
   color: inherit;
@@ -682,6 +702,7 @@ a.card:focus-visible,
 .badge-error {
   background: var(--danger-soft);
   color: var(--danger);
+  border-color: var(--danger);
 }
 /* A status that just changed, live: a short pop so the eye catches it */
 .badge.is-changed {
@@ -721,6 +742,7 @@ a.card:focus-visible,
 .callout-error {
   background: var(--danger-soft);
   color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
 }
 .callout-title {
   font-weight: 650;
@@ -765,10 +787,10 @@ a.card:focus-visible,
   align-items: flex-start;
   width: 380px;
   max-width: 100%;
-  padding: 14px 8px 14px 16px;
+  padding: 16px 12px 16px 24px;
   background: var(--raised);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-overlay);
   animation: vs-rise var(--dur) var(--ease);
 }
@@ -899,7 +921,7 @@ a.card:focus-visible,
   z-index: 30;
   background: var(--raised);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: 0 -16px 40px rgb(26 22 18 / 0.18);
+  box-shadow: 0 -16px 40px rgb(17 17 20 / 0.18);
   max-height: 88%;
   overflow-y: auto;
   padding-bottom: env(safe-area-inset-bottom);
@@ -920,7 +942,7 @@ a.card:focus-visible,
 
 /* Skeletons: shaped like what they stand for, with a soft sweep */
 .skel {
-  background: var(--track);
+  background: var(--sunken);
   border-radius: var(--radius-sm);
   position: relative;
   overflow: hidden;
@@ -930,7 +952,7 @@ a.card:focus-visible,
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent);
+  background: linear-gradient(90deg, transparent, rgb(252 252 250 / 0.7), transparent);
   animation: vs-shimmer 1400ms var(--ease) infinite;
 }
 .skel-card {
@@ -959,25 +981,25 @@ a.chip:hover .chip-name {
 .avatar {
   flex: none;
   border-radius: 50%;
-  background: var(--tone-saffron);
-  color: var(--tone-saffron-ink);
+  background: var(--tone-pink);
+  color: var(--tone-pink-ink);
   display: grid;
   place-items: center;
   font-weight: 700;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgb(26 22 18 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(17 17 20 / 0.06);
 }
-.avatar.tone-rose {
-  background: var(--tone-rose);
-  color: var(--tone-rose-ink);
+.avatar.tone-grey {
+  background: var(--tone-grey);
+  color: var(--tone-grey-ink);
 }
-.avatar.tone-sand {
-  background: var(--tone-sand);
-  color: var(--tone-sand-ink);
+.avatar.tone-ink {
+  background: var(--tone-ink);
+  color: var(--tone-ink-ink);
 }
-.avatar.tone-green {
-  background: var(--tone-green);
-  color: var(--tone-green-ink);
+.avatar.tone-blue {
+  background: var(--tone-blue);
+  color: var(--tone-blue-ink);
 }
 .avatar.tone-plum {
   background: var(--tone-plum);
@@ -1054,13 +1076,14 @@ a.chip:hover .chip-name {
   color: var(--ink-muted);
 }
 
-/* Tabs: an underline that slides in under the active tab */
+/* Tabs: pills, ink when selected, like the filter chips */
 .tabs {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
+  padding: 2px;
+  margin: -2px;
 }
 .tab {
   position: relative;
@@ -1068,9 +1091,10 @@ a.chip:hover .chip-name {
   align-items: center;
   gap: 8px;
   min-height: var(--tap);
-  padding: 0 14px;
-  border: 0;
-  background: none;
+  padding: 0 18px;
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-pill);
+  background: transparent;
   cursor: pointer;
   font-family: var(--font-sans);
   font-size: 15px;
@@ -1078,33 +1102,23 @@ a.chip:hover .chip-name {
   font-weight: 600;
   color: var(--ink-muted);
   white-space: nowrap;
-  transition: color var(--dur-fast) var(--ease);
-}
-.tab::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--ink);
-  transform: scaleX(0);
-  transition: transform var(--dur) var(--ease);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .tab:hover {
   color: var(--ink);
+  border-color: var(--ink);
 }
 .tab.is-active {
-  color: var(--ink);
-}
-.tab.is-active::after {
-  transform: scaleX(1);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
 }
 .tab:focus-visible {
   outline: 3px solid var(--accent);
-  outline-offset: -4px;
-  border-radius: var(--radius-sm);
+  outline-offset: 2px;
 }
 .tab .count,
 .fchip .count,
@@ -1113,6 +1127,9 @@ a.chip:hover .chip-name {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--ink-subtle);
+}
+.tab.is-active .count {
+  color: var(--border-strong);
 }
 
 /* Filter chips */
@@ -1128,8 +1145,8 @@ a.chip:hover .chip-name {
   min-height: 36px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
+  border: 1px solid var(--border-field);
+  background: transparent;
   color: var(--ink-muted);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -1144,7 +1161,7 @@ a.chip:hover .chip-name {
     transform var(--dur-fast) var(--ease);
 }
 .fchip:hover {
-  border-color: var(--border-field);
+  border-color: var(--ink);
   color: var(--ink);
 }
 .fchip:active {
@@ -1153,7 +1170,7 @@ a.chip:hover .chip-name {
 .fchip.is-active {
   background: var(--ink);
   border-color: var(--ink);
-  color: var(--on-accent);
+  color: var(--bg);
 }
 .fchip.is-active .count {
   color: var(--border-strong);
@@ -1183,7 +1200,7 @@ a.chip:hover .chip-name {
   align-items: center;
   min-height: var(--tap);
   padding: 8px 12px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   font-size: 15px;
   line-height: 20px;
@@ -1194,7 +1211,7 @@ a.chip:hover .chip-name {
   height: 26px;
   flex: none;
   border-radius: 50%;
-  border: 1.5px solid var(--border-strong);
+  border: 1.5px solid var(--border-field);
   background: var(--surface);
   display: grid;
   place-items: center;
@@ -1215,16 +1232,15 @@ a.chip:hover .chip-name {
   color: var(--ink);
 }
 .stepper li.is-done .mark {
-  background: var(--success);
-  border-color: var(--success);
-  color: var(--on-accent);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
 }
 .stepper li.is-current {
   color: var(--ink);
   font-weight: 650;
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  background: var(--sunken);
+  border-color: var(--sunken);
 }
 .stepper li.is-current .mark {
   border-color: var(--accent);
@@ -1341,7 +1357,7 @@ a.chip:hover .chip-name {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-overlay);
-  padding: 6px;
+  padding: 8px;
   animation: vs-rise var(--dur) var(--ease);
   transform-origin: top right;
 }
@@ -1355,9 +1371,9 @@ a.chip:hover .chip-name {
   align-items: center;
   gap: 10px;
   min-height: var(--tap);
-  padding: 0 12px;
+  padding: 0 16px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: none;
   font-family: var(--font-sans);
   font-size: var(--text-sm);

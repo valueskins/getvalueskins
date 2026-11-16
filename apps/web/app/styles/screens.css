@@ -1026,7 +1026,7 @@ a.stretched:hover {
   overflow: hidden;
 }
 .sheet-static {
-  position: static;
+  position: relative;
 }
 .sheet-phone {
   display: flex;
@@ -1469,7 +1469,7 @@ a.stretched:hover {
     gap: 8px;
     margin: 0 -16px;
     padding: 12px 16px;
-    background: rgb(251 248 244 / 0.92);
+    background: rgb(243 243 240 / 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
