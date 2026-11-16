@@ -20,7 +20,7 @@ These are older looks and are not the reference, even where a comment calls them
 
 ## 2. Tokens
 
-All values are in `apps/web/app/home.css`, in the `.hm` block (lines 14 to 63). Contrast ratios are WCAG relative luminance, computed from the hex values.
+All values are in `apps/web/app/styles/tokens.css`, the one token source (`apps/web/app/home.css` reads them). Contrast ratios are WCAG relative luminance, computed from the hex values.
 
 ### 2.1 Colour
 
@@ -153,8 +153,8 @@ Non-text pairings (need 3:1):
 ### 2.3 Type
 
 - Body and UI: Bricolage Grotesque (`--font-sans`, from `--font-bricolage`), 17px with a line height of 1.55 and `font-optical-sizing: auto` inside `.hm`.
-- Display cut: Bricolage Grotesque with the `opsz` and `wdth` axes, loaded for the home page only in `components/landing/fonts.ts` as `--font-hm-display`, exposed as `--hm-display`. Weight 800, `font-stretch: 76%`. Use it for headlines and numerals on the marketing page. Condensed numerals use a stretch of 78% to 80%.
-- Wordmark: Instrument Serif italic for "Skins" (`.wordmark em` in `apps/web/app/styles/shell.css`), recoloured by the token mapping in `.hm`.
+- Display cut: Bricolage Grotesque with the `opsz` and `wdth` axes, loaded in `components/landing/fonts.ts` and put on the root element by `lib/fonts.ts` as `--font-hm-display`, exposed as `--hm-display`. Weight 800, `font-stretch: 76%`. Use it for headlines and numerals on the marketing page. Condensed numerals use a stretch of 78% to 80%.
+- Wordmark: Instrument Serif italic for "Skins" (`.wordmark em` in `apps/web/app/styles/shell.css`), coloured with `--accent`.
 - Tabular figures for amounts: `.hm-num`. Weights: regular body, 600 for emphasis (`.hm-strong`), 650 for small headings, 700 for kickers and tags, 800 for the display cut.
 
 | Class                                                  | Size                                     | Line height | Letter spacing | Notes                             |
@@ -195,14 +195,14 @@ Non-text pairings (need 3:1):
 
 ### 2.6 Shadows
 
-- `--hm-shadow`: `0 1px 2px rgb(17 17 20 / 0.06), 0 24px 48px -24px rgb(17 17 20 / 0.28)`. Raised nav, mini cards.
+- `--hm-shadow`: `0 1px 2px rgb(17 17 20 / 0.06), 0 24px 48px -24px rgb(17 17 20 / 0.28)`. Raised navigation bar, mini cards.
 - `--hm-shadow-lg`: `0 2px 6px rgb(17 17 20 / 0.08), 0 40px 80px -32px rgb(17 17 20 / 0.42)`.
 - Primary button glow: `0 12px 24px -14px var(--hm-accent)`. Ink button: `0 16px 32px -18px rgb(17 17 20 / 0.7)`.
 - Ticket: a pair of `drop-shadow` filters (needed for the notch cut-outs).
 
 ### 2.7 Borders
 
-- 1px `--hm-line`: raised nav, `.hm-side-brand`, `.hm-costs-card`, `.hm-tile`, `.hm-rules` top and bottom, footer top.
+- 1px `--hm-line`: raised navigation bar, `.hm-side-brand`, `.hm-costs-card`, `.hm-tile`, `.hm-rules` top and bottom, footer top.
 - 1px `--hm-line-strong`: `.hm-menu-btn`, `.hm-free li`, `.hm-how-steps li` top, `.hm-faq-item` top.
 - 1.5px `--hm-line-strong`: `.hm-faq-plus`. 2px `--hm-line-strong`: `.hm-calc-input`.
 
@@ -221,7 +221,7 @@ Easings: `--hm-ease` is `cubic-bezier(0.16, 1, 0.3, 1)`. `--hm-spring` is `cubic
 | Hero depth shift                                | 0.9s `--hm-ease`                              | `.hm-depth-*`, fine pointer only               |
 | Bar segments                                    | 0.6s to 0.8s `--hm-ease`                      | `.hm-split-seg`, `.hm-calc-seg`                |
 | Figures count up                                | 600ms cubic ease-out                          | `useCountUp` in `components/landing/motion.ts` |
-| Nav glass                                       | 0.3s ease                                     | `.hm-nav-in`                                   |
+| Navigation glass                                | 0.3s ease                                     | `.hm-nav-in`                                   |
 | Menu drop                                       | 0.35s `--hm-ease`                             | `.hm-links.is-open`                            |
 | FAQ plus rotation and answer fade               | 0.4s spring, 0.45s `--hm-ease`                | `.hm-faq-plus`, `.hm-faq-item[open] p`         |
 
@@ -243,16 +243,16 @@ Under `prefers-reduced-motion: reduce` every animation and transition is off, th
 ### 4.1 Buttons (`.hm-btn`, mapped in `components/landing/HomeSignIn.tsx`)
 
 - Base: pill, 44px high, 20px padding, weight 600, 16px, accent fill, `--hm-on-accent` text, glow shadow.
-- `hm-btn hm-btn-sm`: the nav sign-in, 14px padding, icon hidden at 420px and under.
+- `hm-btn hm-btn-sm`: the navigation bar sign-in, 14px padding, icon hidden at 420px and under.
 - `hm-btn hm-btn-lg`: hero action, 60px high, 30px padding, 18px type.
 - `hm-btn hm-btn-lg hm-btn-ink`: the closing action on the accent block. Ink ground, `--hm-bg` text, `--hm-ink-2` on hover.
-- States: hover goes to `--hm-accent-hover`. Pressed sets `--press: 0.96`. Disabled shows `cursor: progress`. Focus shows the 3px ring (ink on the accent block). Magnet shift (`useMagnet.ts`, 10px reach, 4px in the nav) on a fine pointer without reduced motion only.
+- States: hover goes to `--hm-accent-hover`. Pressed sets `--press: 0.96`. Disabled shows `cursor: progress`. Focus shows the 3px ring (ink on the accent block). Magnet shift (`useMagnet.ts`, 10px reach, 4px in the navigation bar) on a fine pointer without reduced motion only.
 - Other pressables: `.hm-menu-btn` (pill, 1px `--hm-line-strong`, below 960px), `.hm-pause` (underlined text button, 14px), `.hm-skip` (ink pill that drops in on focus).
 
 ### 4.2 Links
 
 - `.hm a` inherits colour. `.hm-text-link`: weight 600, underline offset 4px, 44px target.
-- `.hm-links a` (nav): pill, `--hm-ink-2`, hover to `--hm-bg-2` ground and `--hm-ink` text.
+- `.hm-links a` (navigation): pill, `--hm-ink-2`, hover to `--hm-bg-2` ground and `--hm-ink` text.
 
 ### 4.3 Navigation bar (`components/landing/HomeNav.tsx`, `.hm-nav`)
 
@@ -292,7 +292,7 @@ Under `prefers-reduced-motion: reduce` every animation and transition is off, th
 
 ### 4.8 Footer
 
-The shared `.site-footer` (`components/shell/SiteChrome.tsx`), restyled under `.hm` (`home.css` lines 1685 to 1710): `--hm-bg-2` ground, `--hm-ink` text, 1px `--hm-line` top, wordmark and mail link in `--hm-accent-ink`, legal text `--hm-ink-3`, accent focus ring.
+The shared `.site-footer` (`components/shell/SiteChrome.tsx`), restyled under `.hm` (the `.site-footer` rules in `home.css`): `--hm-bg-2` ground, `--hm-ink` text, 1px `--hm-line` top, wordmark and mail link in `--hm-accent-ink`, legal text `--hm-ink-3`, accent focus ring.
 
 ### 4.9 Section bands
 
@@ -377,7 +377,7 @@ All of this uses the home page's tokens. Where the home page has no example it i
 
 ## 6. Route map
 
-Current look: `.hm` (the home page look), `.v3` (the older saffron look from `landing.css`), or "app" (saffron app styles in `apps/web/app/styles/`). Every page inherits `app/layout.tsx`, which loads `globals.css` and the five style files.
+Current look: `.hm` (the home page look), `.v3` (the older look from `landing.css`, now on the new tokens), or "app" (the app styles in `apps/web/app/styles/`, restyled in Part 2). Every page inherits `app/layout.tsx`, which loads `globals.css` and the five style files.
 
 | Route                                                                          | File under `apps/web/app`                   | Current look                                              | Shell and main components                                                                                                  | Redesign             |
 | ------------------------------------------------------------------------------ | ------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------- |
@@ -389,7 +389,7 @@ Current look: `.hm` (the home page look), `.v3` (the older saffron look from `la
 | `/signin/email`                                                                | `(public)/signin/email/page.tsx`            | app, with the `.v3` header                                | `public/EmailSignIn`                                                                                                       | Part 3               |
 | `/verify-email`                                                                | `verify-email/page.tsx`                     | app, no layout                                            | `onboarding/VerifyEmail`                                                                                                   | Part 3               |
 | 404, errors                                                                    | `not-found.tsx`, `error.tsx`                | app, with the `.v3` header                                | `SiteHeader`, `SiteFooter`, `status-*` classes                                                                             | Part 3               |
-| Fatal error                                                                    | `global-error.tsx`                          | inline styles, hard-coded saffron                         | none                                                                                                                       | Part 3               |
+| Fatal error                                                                    | `global-error.tsx`                          | inline styles, hard-coded saffron (Part 3)                | none                                                                                                                       | Part 3               |
 | `/home`                                                                        | `home/page.tsx`                             | redirect and skeleton only                                | `PageSkeleton`                                                                                                             | Part 2 (skeleton)    |
 | `/onboarding`                                                                  | `(setup)/onboarding/page.tsx`               | app                                                       | `(setup)/layout.tsx`, `SetupTopbar`, `onboarding/OnboardingFlow`, `Stepper`, `forms/*`                                     | Part 4               |
 | `/settings`                                                                    | `(app)/settings/page.tsx`                   | app                                                       | `AppShell`, `settings/SettingsPage`, `forms/*`                                                                             | Part 4               |
@@ -421,24 +421,24 @@ The ten open questions of the first version of this file, answered by the founde
 
 ## 8. Conflicts
 
-Where other files disagree with the home page, or with each other. Nothing here has been changed.
+Where other files disagreed with the home page, or with each other, when this file was written. Items marked **Resolved** were fixed by the design foundation (Part 2); the rest are fixed by the part named.
 
-- **SPEC section 18, opening paragraph.** Says the app uses one system "taken from the home page, the approved look". The tokens it names are saffron in `tokens.css`. The home page is rani pink and lime with its own tokens.
+- **SPEC section 18, opening paragraph.** Says the app uses one system "taken from the home page, the approved look". The tokens it named were saffron in `tokens.css` (now rani pink, **resolved** in Part 2 and described in SPEC section 18). The home page is rani pink and lime with its own tokens.
 - **SPEC section 18, "Look" bullet.** Warm ground `#FBF8F4`, saffron `#C2410C`, near-black contrast sections, `#FF7A3D` on dark, radii 14, 18 and 24. The home page has a cool ground `#F3F3F0`, rani pink, no dark sections, and radii 32, 16 and pill.
 - **SPEC section 18, sentence about `landing.css`.** Says the home page's styles are `landing.css` under `.v3`. The home page's styles are `home.css` under `.hm`. Only How it works and the public header still use `.v3`.
 - **SPEC section 18, "Public pages".** Says How it works uses the home page's look and has a dark band. It uses `.v3` saffron.
 - **SPEC section 18, focus ring.** The Look bullet says 3px. The Accessibility bullet says 2px. The code uses 3px.
 - **SPEC section 18, header.** Says the home page has its own navigation and every other public page has `SiteHeader`. `SiteHeader` is the old `.v3` `Nav`, so public pages look unlike the home page.
 - **`docs/DESIGN_HANDOFF.md`.** Marked superseded but describes a third look: vermilion `#D2340C`, cool grey ground, Geist and Geist Mono, 6px radii, no shadows, a 2px focus ring.
-- **`apps/web/app/styles/tokens.css`, lines 3 to 5.** Says its values come from the home page, the approved look. They are saffron.
+- **Resolved. `apps/web/app/styles/tokens.css`, lines 3 to 5.** Says its values come from the home page, the approved look. They are saffron.
 - **`apps/web/app/landing.css`.** Its header calls the saffron `.v3` look the approved home look. It also sets `html, body { overflow-x: clip }` globally, and its `.v3` rules may reach content inside `.hm` through the `(landing)/layout.tsx` wrapper.
 - **`apps/web/app/(landing)/layout.tsx`.** Wraps the home page in `.v3` and says the tokens are the app's. The home page uses its own `--hm-*` tokens.
 - **`apps/web/app/styles/shell.css`, lines 56 to 64.** Says the public header is the home page's own navigation. It is the old `Nav`.
 - **`apps/web/components/landing/`.** `Nav.tsx`, `SignIn.tsx` and `screens/Screens.tsx` live here but use `.v3` classes and are used only by public pages.
-- **`apps/web/lib/razorpay.ts`, line 90.** Checkout colour `#D2340C`, the old vermilion, matching neither saffron nor rani pink.
+- **Resolved. `apps/web/lib/razorpay.ts`, line 90.** Checkout colour `#D2340C`, the old vermilion, matching neither saffron nor rani pink.
 - **`apps/web/app/layout.tsx`.** `themeColor` is `#fbf8f4`. The home page paints `#f3f3f0`, so the browser chrome colour differs on `/`.
 - **`apps/web/app/global-error.tsx`.** Hard-coded saffron and warm grounds.
-- **Input edge contrast.** `.hm-calc-input`, `.hm-menu-btn` and `.hm-free li` use `--hm-line-strong`, 2.13:1 on `--hm-bg`, below the 3:1 SPEC asks for on input edges.
+- **Resolved. Input edge contrast.** `.hm-calc-input`, `.hm-menu-btn` and `.hm-free li` use `--hm-line-strong`, 2.13:1 on `--hm-bg`, below the 3:1 SPEC asks for on input edges.
 - **Not verified.** The home page's lighter radial highlights on `.hm-tile-money` and `.hm-cta-block` give about 2.8:1 to 2.9:1 against `--hm-on-accent`. The text sits in the darker part of the block, but this was read from the CSS and not checked in a rendered page.
 - **Unused token.** `--hm-accent-mid` is declared and not used by any `.hm` rule.
-- **Tests.** `homeStyles.test.ts` checks only `home.css`. Nothing checks `tokens.css`, `landing.css` or the documents against it.
+- **Tests (resolved for `tokens.css`).** `homeStyles.test.ts` checks only `home.css`; `designTokens.test.ts` now checks `tokens.css`. Nothing checks `landing.css` or the documents against it.

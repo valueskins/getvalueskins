@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -89,5 +89,43 @@ describe('control edges', () => {
   it('danger is not the accent: they differ, and danger never shares the accent soft ground', () => {
     expect(colour('--danger')).not.toBe(colour('--accent'));
     expect(colour('--danger-soft')).not.toBe(colour('--accent-soft'));
+  });
+});
+
+describe('lime in the app styles', () => {
+  const dir = fileURLToPath(new URL('../app/styles/', import.meta.url));
+  const rules = readdirSync(dir)
+    .filter((f) => f.endsWith('.css') && f !== 'tokens.css')
+    .flatMap((f) =>
+      [
+        ...read(`../app/styles/${f}`)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .matchAll(/([^{}]+)\{([^{}]*)\}/g),
+      ].map((m) => ({ file: f, selector: m[1]!.trim(), body: m[2]! })),
+    );
+  const declarations = (body: string) =>
+    body
+      .split(';')
+      .map((d) => d.split(/:(.*)/s))
+      .filter(([prop]) => prop?.trim())
+      .map(([prop, value]) => [prop!.trim(), (value ?? '').trim()] as const);
+
+  it('is used only on the creator money classes', () => {
+    const used = rules.filter((r) => /var\(--(?:hm-)?lime/.test(r.body)).map((r) => r.selector);
+    expect(new Set(used)).toEqual(new Set(['.money-creator', '.money-creator-soft']));
+  });
+
+  it('is only ever a fill, with the ink on it, and the soft swatch edge', () => {
+    for (const rule of rules) {
+      for (const [prop, value] of declarations(rule.body)) {
+        if (/var\(--(?:hm-)?lime(?:-soft)?\)/.test(value)) expect(prop).toBe('background');
+        if (/var\(--(?:hm-)?lime-edge\)/.test(value)) {
+          expect(rule.selector).toBe('.money-creator-soft');
+          expect(prop).toBe('box-shadow');
+        }
+      }
+    }
+    const fill = rules.find((r) => r.selector === '.money-creator')!;
+    expect(fill.body).toMatch(/color:\s*var\(--lime-ink\)/);
   });
 });
