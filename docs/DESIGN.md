@@ -6,7 +6,7 @@ Status: written from the home page, with the founder's decisions in section 7. A
 
 `apps/web/app/styles/tokens.css` is the one token source: the `--hm-*` values below, plus the shorter names the components read (`--bg`, `--ink`, `--accent`, `--border-field` and so on), each pointing at a `--hm-*` value. `/dev/components` (non-production builds) shows every shared component in every state, including pink and danger side by side.
 
-These are older looks and are not the reference, even where a comment calls them "the approved look": `apps/web/app/landing.css` (`.v3`, no longer imported by any page), the rest of `apps/web/app/styles/`, and `docs/DESIGN_HANDOFF.md`.
+These are older looks and are not the reference, even where a comment calls them "the approved look": `apps/web/app/landing.css` (`.v3`, removed in Part 3), the rest of `apps/web/app/styles/`, and `docs/DESIGN_HANDOFF.md`.
 
 ## 1. Principles
 
@@ -377,7 +377,7 @@ All of this uses the home page's tokens. Where the home page has no example it i
 
 ## 6. Route map
 
-Current look: `.hm` (the home page look), `.v3` (the older look from `landing.css`, now on the new tokens), or "app" (the app styles in `apps/web/app/styles/`, restyled in Part 2). Every page inherits `app/layout.tsx`, which loads `globals.css` and the five style files.
+Current look: `.hm` (the home page look), `.v3` (the older look from `landing.css`, removed in Part 3), or "app" (the app styles in `apps/web/app/styles/`, restyled in Part 2). Every page inherits `app/layout.tsx`, which loads `globals.css` and the five style files.
 
 | Route                                                                          | File under `apps/web/app`                   | Current look                                                              | Shell and main components                                                                                            | Redesign             |
 | ------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------- |
@@ -431,10 +431,10 @@ Where other files disagreed with the home page, or with each other, when this fi
 - **Resolved in Part 3. SPEC section 18, header.** `SiteHeader` was the old `.v3` `Nav`. It is now the home page's navigation bar.
 - **`docs/DESIGN_HANDOFF.md`.** Marked superseded but describes a third look: vermilion `#D2340C`, cool grey ground, Geist and Geist Mono, 6px radii, no shadows, a 2px focus ring.
 - **Resolved. `apps/web/app/styles/tokens.css`, lines 3 to 5.** Says its values come from the home page, the approved look. They are saffron.
-- **`apps/web/app/landing.css`.** Imported by no page since Part 3. Its header calls the saffron `.v3` look the approved home look. It is listed for removal.
+- **`apps/web/app/landing.css`.** Its header called the saffron `.v3` look the approved home look. Removed in Part 3.
 - **Resolved in Part 3. `apps/web/app/(landing)/layout.tsx`.** Wrapped the home page in `.v3`. It now passes its children through.
-- **Resolved in Part 3. `apps/web/app/styles/shell.css`, lines 56 to 64.** Said the public header is the home page's own navigation. It now is; the old wrapper rule is listed for removal.
-- **`apps/web/components/landing/`.** `Nav.tsx` and `SignIn.tsx` still use `.v3` classes and are now used by nothing (listed for removal). `screens/Screens.tsx` now uses `pic-*` classes from `app/public.css`.
+- **Resolved in Part 3. `apps/web/app/styles/shell.css`, lines 56 to 64.** Said the public header is the home page's own navigation. It now is; the old wrapper rule is removed.
+- **`apps/web/components/landing/`.** `Nav.tsx` and `SignIn.tsx` used `.v3` classes; both are removed in Part 3. `screens/Screens.tsx` now uses `pic-*` classes from `app/public.css`.
 - **Resolved. `apps/web/lib/razorpay.ts`, line 90.** Checkout colour `#D2340C`, the old vermilion, matching neither saffron nor rani pink.
 - **`apps/web/app/layout.tsx`.** `themeColor` is `#fbf8f4`. The home page paints `#f3f3f0`, so the browser chrome colour differs on `/`.
 - **Resolved in Part 3. `apps/web/app/global-error.tsx`.** Hard-coded saffron and warm grounds; now the new colours, still inline.
