@@ -116,8 +116,8 @@
   color: var(--accent-ink);
 }
 .pic-tone-sand {
-  background: var(--tone-sand);
-  color: var(--tone-sand-ink);
+  background: var(--tone-grey);
+  color: var(--tone-grey-ink);
 }
 .pic-tone-ink {
   background: var(--ink);
