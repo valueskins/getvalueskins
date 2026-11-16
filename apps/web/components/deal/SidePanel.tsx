@@ -56,12 +56,15 @@ function Row({
   sub,
   mark,
   strong,
+  creator,
 }: {
   label: string;
   paise: number | null;
   sub: string;
   mark?: Mark;
   strong?: boolean;
+  /** The creator's money gets the lime fill: the 30%, the 70% or the creator's total. */
+  creator?: 'advance' | 'final' | 'total';
 }) {
   return (
     <div className="amt">
@@ -70,7 +73,10 @@ function Row({
         <Money
           paise={paise}
           size="s"
-          className={strong ? 'text-right font-semibold' : 'text-right'}
+          creator={creator}
+          className={
+            strong ? 'justify-self-end text-right font-semibold' : 'justify-self-end text-right'
+          }
         />
       ) : (
         <span />
@@ -103,7 +109,7 @@ export function Amounts({ deal, viewer }: { deal: DealDetail; viewer: PanelViewe
       {isCreator && deal.creatorAmountPaise !== null ? (
         <div className="px-5 pt-3.5">
           <p className="t-small c-ink-2">You receive</p>
-          <Money paise={deal.creatorAmountPaise} size="l" />
+          <Money paise={deal.creatorAmountPaise} size="l" creator="total" />
         </div>
       ) : null}
       <div className="px-5 pb-2 pt-1">
@@ -124,12 +130,14 @@ export function Amounts({ deal, viewer }: { deal: DealDetail; viewer: PanelViewe
             <Row
               label={`30% to ${U}`}
               paise={deal.advancePaise}
+              creator="advance"
               sub="By UPI, before work starts"
               mark={stageMark(deal, viewer, 'ADVANCE')}
             />
             <Row
               label={`70% to ${U}`}
               paise={deal.finalPaise}
+              creator="final"
               sub={viewer === 'admin' ? 'By UPI, after approval' : 'By UPI, after you approve'}
               mark={stageMark(deal, viewer, 'FINAL')}
             />
@@ -139,12 +147,14 @@ export function Amounts({ deal, viewer }: { deal: DealDetail; viewer: PanelViewe
             <Row
               label="30% before work starts"
               paise={deal.advancePaise}
+              creator="advance"
               sub={`From ${BU} by UPI`}
               mark={live ? stageMark(deal, viewer, 'ADVANCE') : null}
             />
             <Row
               label="70% after approval"
               paise={deal.finalPaise}
+              creator="final"
               sub={`From ${BU} by UPI`}
               mark={live ? stageMark(deal, viewer, 'FINAL') : null}
             />

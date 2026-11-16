@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { formatInr, type DealDetail } from '@valueskins/shared';
+import { type DealDetail } from '@valueskins/shared';
+import { Money } from '@/components/ui/Money';
 import { useConfirmPayment, useNotReceived } from '@/lib/api/deals';
 import { actionOf, pendingRecord, reasonOf } from '@/lib/dealView';
 import { formatDayTime } from '@/lib/dealFormat';
@@ -59,8 +60,12 @@ export function ConfirmReceivedPanel({ deal }: { deal: DealDetail }) {
     <>
       <div className="quote">
         The brand says it paid{' '}
-        <span className="money font-medium">{formatInr(record.amountPaise)}</span> to{' '}
-        <span className="t-mono">{record.maskedVpa}</span>. Reference{' '}
+        <Money
+          paise={record.amountPaise}
+          creator={record.stage === 'ADVANCE' ? 'advance' : 'final'}
+          className="font-medium"
+        />{' '}
+        to <span className="t-mono">{record.maskedVpa}</span>. Reference{' '}
         <span className="t-mono">{record.reference}</span>. Check your UPI app.
       </div>
       <p className="t-small c-ink-2">
