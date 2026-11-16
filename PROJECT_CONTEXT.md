@@ -1135,6 +1135,7 @@ Prioritized by actual impact. None of these are “the app is broken”; they ar
 - `docs/CUTOVER.md` — exact production switch, checks, rollback.
 - `docs/DEPLOYMENT.md` — environments, Meta/Razorpay/Resend/Sentry/Neon/Render/Netlify setup.
 - `docs/RUNBOOK.md` — operations, logs, DB queries, deploys, backups, accepted advisories.
+- `docs/LEGAL_REQUESTS_POLICY.md` — the policy for requests from public authorities.
 - `docs/WEB_API_GAPS.md` — closed gaps and deliberate exclusions.
 
 ### Shared domain
