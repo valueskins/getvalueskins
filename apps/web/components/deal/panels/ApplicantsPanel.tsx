@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatInr, type DealApplicationItem, type DealDetail } from '@valueskins/shared';
+import { Money } from '@/components/ui/Money';
 import { useConfirmApplicant, useDealApplications } from '@/lib/api/deals';
 import { at } from '@/lib/dealView';
 import { formatDayTime } from '@/lib/dealFormat';
@@ -38,7 +39,7 @@ function Row({
   const c = item.creator;
   return (
     <li className="border-t border-border first:border-t-0">
-      <div className="grid items-center gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,2fr)_96px_96px_minmax(0,1.2fr)] md:gap-5 md:px-6">
+      <div className="grid items-center gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,2fr)_80px_80px_auto] md:gap-5 md:px-6">
         <button
           type="button"
           className="flex min-w-0 items-center gap-2.5 border-0 bg-transparent p-0 text-left"
@@ -122,7 +123,7 @@ export function ApplicantsPanel({ deal }: { deal: DealDetail }) {
     <>
       <div className="card overflow-hidden">
         <div
-          className="hidden gap-5 border-b border-border bg-sunken px-6 py-2 md:grid md:grid-cols-[minmax(0,2fr)_96px_96px_minmax(0,1.2fr)]"
+          className="hidden gap-5 border-b border-border bg-sunken px-6 py-2 md:grid md:grid-cols-[minmax(0,2fr)_80px_80px_auto]"
           aria-hidden="true"
         >
           <p className="t-label c-ink-2">Creator</p>
@@ -177,13 +178,17 @@ export function ApplicantsPanel({ deal }: { deal: DealDetail }) {
           {deal.advancePaise !== null ? (
             <div className="bd-row">
               <p className="t-small">Then to the creator by UPI, before work starts</p>
-              <p className="money money-s">{formatInr(deal.advancePaise)}</p>
+              <p>
+                <Money paise={deal.advancePaise} size="s" creator="advance" />
+              </p>
             </div>
           ) : null}
           {deal.finalPaise !== null ? (
             <div className="bd-row">
               <p className="t-small">And by UPI, after you approve</p>
-              <p className="money money-s">{formatInr(deal.finalPaise)}</p>
+              <p>
+                <Money paise={deal.finalPaise} size="s" creator="final" />
+              </p>
             </div>
           ) : null}
         </div>

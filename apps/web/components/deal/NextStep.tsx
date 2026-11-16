@@ -14,6 +14,8 @@ import { formatFullDayTime } from '@/lib/dealFormat';
 import { Button } from '@/components/ui/Button';
 import { Badge, type BadgeKind } from '@/components/ui/Callout';
 import { cx } from '@/components/ui/cx';
+import { Money } from '@/components/ui/Money';
+import { CreatorAmounts } from './CreatorAmounts';
 import { DeadlineBadge } from './DeadlineBadge';
 import { DocumentLink } from './DocumentLink';
 import { PaymentRecord } from './PaymentRecord';
@@ -234,7 +236,9 @@ function CompletedBody({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
         {deal.advancePaise !== null ? (
           <div className="bd-row">
             <p className="t-small">Advance, 30%, by UPI</p>
-            <p className="money money-s">{formatInr(deal.advancePaise)}</p>
+            <p>
+              <Money paise={deal.advancePaise} size="s" creator="advance" />
+            </p>
             {adv?.confirmedAt ? (
               <p className="t-small c-ink-2">
                 Confirmed by {U} on {formatFullDayTime(adv.confirmedAt)}
@@ -245,7 +249,9 @@ function CompletedBody({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
         {deal.finalPaise !== null ? (
           <div className="bd-row">
             <p className="t-small">Final, 70%, by UPI</p>
-            <p className="money money-s">{formatInr(deal.finalPaise)}</p>
+            <p>
+              <Money paise={deal.finalPaise} size="s" creator="final" />
+            </p>
             {fin?.confirmedAt ? (
               <p className="t-small c-ink-2">
                 Confirmed by {U} on {formatFullDayTime(fin.confirmedAt)}
@@ -255,8 +261,17 @@ function CompletedBody({ deal, viewer }: { deal: DealDetail; viewer: Viewer }) {
         ) : null}
         <div className="bd-row bd-total">
           <p className="t-body font-semibold">{brand ? 'Total paid' : 'You received'}</p>
-          <p className="money money-m font-semibold">
-            {formatInr((brand ? deal.budgetPaise : deal.creatorAmountPaise) ?? 0)}
+          <p>
+            {brand ? (
+              <Money paise={deal.budgetPaise ?? 0} size="m" className="font-semibold" />
+            ) : (
+              <Money
+                paise={deal.creatorAmountPaise ?? 0}
+                size="m"
+                creator="total"
+                className="font-semibold"
+              />
+            )}
           </p>
         </div>
       </div>
@@ -402,9 +417,11 @@ export function NextStep({
           <Badge kind={badge[1]}>{badge[0]}</Badge>
         </p>
         <h2 id="np-title" className="t-h2">
-          {title}
+          <CreatorAmounts text={title} deal={deal} />
         </h2>
-        <p className="t-body c-ink-2 max-w-[72ch]">{text}</p>
+        <p className="t-body c-ink-2 max-w-[72ch]">
+          <CreatorAmounts text={text} deal={deal} />
+        </p>
       </div>
       {selfWrapped ? body : body ? <div className="np-body">{body}</div> : <div className="pb-6" />}
     </section>

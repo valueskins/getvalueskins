@@ -38,7 +38,11 @@ export function PaymentRecord({
     <div className={cx('rec', struck && 'is-struck')}>
       <p className="rec-k">{stageLabel(record.stage)}</p>
       <div className="min-w-0">
-        <Money paise={record.amountPaise} size="s" />
+        <Money
+          paise={record.amountPaise}
+          size="s"
+          creator={record.stage === 'ADVANCE' ? 'advance' : 'final'}
+        />
         <p className="rec-sub">
           UPI reference <span className="rec-ref">{record.reference}</span>. To{' '}
           <span className="t-mono">{record.maskedVpa}</span>.

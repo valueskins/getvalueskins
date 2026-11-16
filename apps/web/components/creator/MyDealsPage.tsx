@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { formatInr, type DealMineItem } from '@valueskins/shared';
+import { type DealMineItem } from '@valueskins/shared';
 import { useMyDeals } from '@/lib/api/deals';
 import { errorText } from '@/lib/api/errors';
 import { countdown, shortDate } from '@/lib/deadlines';

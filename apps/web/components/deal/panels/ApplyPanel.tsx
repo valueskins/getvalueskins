@@ -49,7 +49,7 @@ export function ApplyPanel({ deal }: { deal: DealDetail }) {
       <div>
         <p className="t-small c-ink-2">You receive</p>
         {deal.creatorAmountPaise !== null ? (
-          <Money paise={deal.creatorAmountPaise} size="l" />
+          <Money paise={deal.creatorAmountPaise} size="l" creator="total" />
         ) : null}
       </div>
       {button}
