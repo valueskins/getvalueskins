@@ -144,7 +144,7 @@ export function ApplicationsPage() {
                     </p>
                     <p>
                       {a.deal.creatorAmountPaise !== null ? (
-                        <Money paise={a.deal.creatorAmountPaise} size="s" />
+                        <Money paise={a.deal.creatorAmountPaise} size="s" creator="total" />
                       ) : null}
                     </p>
                     <div className="flex flex-col items-start gap-1">

@@ -90,7 +90,7 @@ function ActiveCard({ deal }: { deal: DealMineItem }) {
         ) : null}
         {deal.creatorAmountPaise !== null ? (
           <p>
-            You receive <Money paise={deal.creatorAmountPaise} size="s" />
+            You receive <Money paise={deal.creatorAmountPaise} size="s" creator="total" />
           </p>
         ) : null}
       </div>
@@ -111,7 +111,7 @@ function DoneRow({ deal }: { deal: DealMineItem }) {
       </div>
       <p className="t-small c-ink-2">{when ? formatFullDayTime(when).split(',')[0] : ''}</p>
       <p>
-        <Money paise={deal.receivedPaise ?? 0} size="s" />
+        <Money paise={deal.receivedPaise ?? 0} size="s" creator="total" />
       </p>
       <div className="flex flex-col items-start gap-1">
         <StatusBadge status={deal.status} />

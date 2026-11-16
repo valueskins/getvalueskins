@@ -75,6 +75,13 @@ describe('the deals feed', () => {
     expect(card).toHaveTextContent('₹9,115.00');
     expect(card).toHaveTextContent('(₹2,734.50 + ₹6,380.50)');
     expect(card).toHaveTextContent('Apply by 10 Jan');
+    // The creator's money, and only it, is the lime fill: the total and its two parts, not the budget.
+    expect([...card.querySelectorAll('.money-creator')].map((e) => e.textContent)).toEqual([
+      '₹9,115.00',
+      '₹2,734.50',
+      '₹6,380.50',
+    ]);
+    expect(card.querySelector('.money-creator-soft')).toHaveTextContent('₹2,734.50');
     const second = screen.getByRole('link', { name: 'Second deal' }).closest('article')!;
     expect(within(second).queryByText('New')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show more deals' })).toBeInTheDocument();

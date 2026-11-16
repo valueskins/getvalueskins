@@ -146,6 +146,9 @@ describe('post a deal', () => {
     const breakdown = screen.getByLabelText('Payment breakdown');
     expect(breakdown).toHaveTextContent('₹885.00');
     expect(breakdown).toHaveTextContent('Creators see: You receive ₹9,99,115.00');
+    // Only the creator's amounts are lime: the 30%, the 70% and what the creator receives.
+    expect([...breakdown.querySelectorAll('.money-creator')]).toHaveLength(3);
+    expect(breakdown.querySelectorAll('.money-creator-soft')).toHaveLength(1);
   });
 
   it('shows the whole breakdown at the ₹2,000 minimum: ₹885.00 fee, ₹334.50 then ₹780.50 to the creator', async () => {
