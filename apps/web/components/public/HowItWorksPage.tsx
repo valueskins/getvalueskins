@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { ContentSection } from '@/lib/content';
 import { nth, useRiseIn } from '@/components/landing/motion';
-import { SignIn } from '@/components/landing/SignIn';
+import { HomeSignIn } from '@/components/landing/HomeSignIn';
 import {
   BrandApplicants,
   CreatorApplications,
@@ -19,6 +19,7 @@ import {
   SignInScreen,
 } from '@/components/landing/screens/Screens';
 import { SiteFooter, SiteHeader } from '@/components/shell/SiteChrome';
+import '@/app/public.css';
 
 interface Doc {
   title: string;
@@ -89,31 +90,28 @@ function Steps({ section }: { section: ContentSection }) {
   return (
     <section className="hiw-steps" aria-labelledby={section.id}>
       <div className="hiw-head">
-        <p className="v3-pill" data-rise>
+        <p className="hm-example hiw-pill" data-rise>
           {section.parts.length} steps
         </p>
-        <h2 id={section.id} className="v3-h2" data-rise style={nth(1)}>
+        <h2 id={section.id} className="hm-h2" data-rise style={nth(1)}>
           {section.title}
         </h2>
       </div>
       <ol className="hiw-step-list">
         {section.parts.map((part, i) => (
-          <li
-            key={part.id}
-            className={i % 2 ? 'v3-side v3-side-flip hiw-step' : 'v3-side hiw-step'}
-          >
-            <div className="v3-side-copy">
+          <li key={part.id} className="hiw-step">
+            <div className="hiw-step-copy">
               <p className="hiw-n" data-rise>
                 Step {i + 1}
               </p>
-              <h3 id={part.id} className="v3-h3 hiw-step-title" data-rise style={nth(1)}>
+              <h3 id={part.id} className="hm-h3 hiw-step-title" data-rise style={nth(1)}>
                 {part.title}
               </h3>
               <div data-rise style={nth(2)}>
                 <Markdown>{part.body}</Markdown>
               </div>
             </div>
-            <div className="v3-side-show hiw-show" data-rise style={nth(1)}>
+            <div className="hiw-show" data-rise style={nth(1)}>
               {STEP_SCREENS[i] ?? null}
             </div>
           </li>
@@ -127,7 +125,7 @@ function Example({ section }: { section: ContentSection }) {
   return (
     <section className="hiw-band" aria-labelledby={section.id}>
       <div className="hiw-example" data-rise>
-        <h2 id={section.id} className="v3-h2">
+        <h2 id={section.id} className="hm-h2">
           {section.title}
         </h2>
         <Markdown>{section.intro}</Markdown>
@@ -139,7 +137,7 @@ function Example({ section }: { section: ContentSection }) {
 function Rules({ section }: { section: ContentSection }) {
   return (
     <section className="hiw-band" aria-labelledby={section.id}>
-      <h2 id={section.id} className="v3-h2" data-rise>
+      <h2 id={section.id} className="hm-h2" data-rise>
         {section.title}
       </h2>
       <div className="hiw-rules" data-rise style={nth(1)}>
@@ -153,17 +151,17 @@ function NotYet({ section }: { section: ContentSection }) {
   return (
     <section className="hiw-band" aria-labelledby={section.id}>
       <div className="hiw-intro">
-        <h2 id={section.id} className="v3-h2" data-rise>
+        <h2 id={section.id} className="hm-h2" data-rise>
           {section.title}
         </h2>
-        <div className="v3-lede hiw-lede" data-rise style={nth(1)}>
+        <div className="hm-lede hiw-lede" data-rise style={nth(1)}>
           <Markdown>{section.intro}</Markdown>
         </div>
       </div>
       <div className="hiw-notyet">
         {section.parts.map((part, i) => (
           <div key={part.id} className="hiw-card" data-rise style={nth(i)}>
-            <h3 id={part.id} className="v3-h3">
+            <h3 id={part.id} className="hm-h3">
               {part.title}
             </h3>
             <Markdown>{part.body}</Markdown>
@@ -176,16 +174,16 @@ function NotYet({ section }: { section: ContentSection }) {
 
 function WhenWrong({ section }: { section: ContentSection }) {
   return (
-    <section className="v3-cta hiw-wrong" aria-labelledby={section.id}>
+    <section className="hiw-wrong" aria-labelledby={section.id}>
       <div className="hiw-wrong-in">
-        <h2 id={section.id} className="v3-h2" data-rise>
+        <h2 id={section.id} className="hm-h2" data-rise>
           {section.title}
         </h2>
         <div data-rise style={nth(1)}>
           <Markdown>{section.intro}</Markdown>
         </div>
         <div data-rise style={nth(2)}>
-          <SignIn onDark />
+          <HomeSignIn variant="ink" />
         </div>
       </div>
     </section>
@@ -202,18 +200,18 @@ export function HowItWorksPage({ doc }: { doc: Doc }) {
   useRiseIn(root);
   const [steps, example, rules, notYet, wrong, ...rest] = doc.sections;
   return (
-    <div ref={root} className="v3-root">
+    <div ref={root} className="hm flex min-h-screen flex-col">
       <SiteHeader />
       <main id="main">
         <header className="hiw-hero">
-          <p className="v3-pill" data-rise>
+          <p className="hm-example hiw-pill" data-rise>
             One brand, one creator, one fixed amount
           </p>
-          <h1 className="v3-h1" data-rise style={nth(1)}>
+          <h1 className="hm-h1 hiw-h1" data-rise style={nth(1)}>
             How it <em>works</em>
           </h1>
           {doc.lede ? (
-            <p className="v3-lede hiw-hero-lede" data-rise style={nth(2)}>
+            <p className="hm-lede hiw-hero-lede" data-rise style={nth(2)}>
               {doc.lede}
             </p>
           ) : null}
@@ -224,7 +222,7 @@ export function HowItWorksPage({ doc }: { doc: Doc }) {
         {notYet ? <NotYet section={notYet} /> : null}
         {rest.map((section) => (
           <section key={section.id} className="hiw-band" aria-labelledby={section.id}>
-            <h2 id={section.id} className="v3-h2">
+            <h2 id={section.id} className="hm-h2">
               {section.title}
             </h2>
             <Markdown>{section.intro}</Markdown>

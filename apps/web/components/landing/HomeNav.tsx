@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Wordmark } from '@/components/shell/Wordmark';
 import { HomeSignIn } from './HomeSignIn';
@@ -15,9 +16,15 @@ const LINKS = [
 /**
  * The home page's top bar: a floating pill with the wordmark, the four section links (a menu on
  * narrow screens) and sign-in. It lifts onto glass once the page has scrolled, which a sentinel
- * at the top of the page reports, so nothing listens to scroll.
+ * at the top of the page reports, so nothing listens to scroll. Other public pages pass their own
+ * links (SiteHeader) and put it inside the same `.hm` frame.
  */
-export function HomeNav() {
+export function HomeNav({
+  links = LINKS,
+}: {
+  links?: ReadonlyArray<{ href: string; label: string }>;
+}) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [raised, setRaised] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -54,8 +61,13 @@ export function HomeNav() {
             <Wordmark />
           </Link>
           <nav aria-label="Site" id="hm-links" className={open ? 'hm-links is-open' : 'hm-links'}>
-            {LINKS.map((l) => (
-              <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
+            {links.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                aria-current={pathname === l.href ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
                 {l.label}
               </a>
             ))}

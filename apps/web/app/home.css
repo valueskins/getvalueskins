@@ -1,6 +1,7 @@
 /*
- * The home page (components/landing), and only the home page: app/(landing)/page.tsx imports it.
- * Everything is scoped under .hm, so every other route is untouched.
+ * The home page (components/landing), its navigation bar on the other public pages
+ * (components/shell/SiteChrome.tsx puts the bar inside a `.hm-chrome` wrapper), and How it works.
+ * Everything is scoped under .hm, so the content of every other page is untouched.
  *
  * The look: a cool off-white ground, ink type, rani pink for the brand and every action, and lime
  * for one thing only, the creator's money (the two UPI payments and what the creator receives).
@@ -12,6 +13,12 @@
  */
 
 /* Tokens: the --hm-* values are in app/styles/tokens.css, the one token source (docs/DESIGN.md). */
+
+/* The navigation bar on the other public pages: the wrapper makes no box of its own, so the bar
+ * sticks within the page frame, and the home styles reach only the bar. */
+.hm-chrome {
+  display: contents;
+}
 
 /* The page behind the page, so overscroll matches. */
 body:has(.hm) {

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { isDevLoginEnabled } from '@/lib/env';
 import { DevLoginForm } from '@/components/dev/DevLoginForm';
-import { SiteHeader } from '@/components/shell/SiteChrome';
+import { PublicFrame } from '@/components/shell/SiteChrome';
 
 /**
  * Dev login (SPEC 6.2). A 404 unless NEXT_PUBLIC_ENABLE_DEV_LOGIN is "true",
@@ -10,8 +10,7 @@ import { SiteHeader } from '@/components/shell/SiteChrome';
 export default function DevLoginPage() {
   if (!isDevLoginEnabled()) notFound();
   return (
-    <div className="min-h-screen">
-      <SiteHeader />
+    <PublicFrame footer={false}>
       <main
         id="main"
         className="mx-auto flex max-w-[520px] flex-col gap-6 px-4 pb-20 pt-10 md:pt-16"
@@ -26,6 +25,6 @@ export default function DevLoginPage() {
         </div>
         <DevLoginForm />
       </main>
-    </div>
+    </PublicFrame>
   );
 }

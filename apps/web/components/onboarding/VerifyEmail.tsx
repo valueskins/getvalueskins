@@ -9,7 +9,7 @@ import { useMe, useVerifyEmail, type VerifyEmailResult } from '@/lib/api/queries
 import { Callout } from '@/components/ui/Callout';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { cx } from '@/components/ui/cx';
-import { SiteFooter, SiteHeader } from '@/components/shell/SiteChrome';
+import { PublicFrame } from '@/components/shell/SiteChrome';
 import { SetupTopbar } from '@/components/shell/SetupTopbar';
 import { InstagramButton } from '@/components/public/InstagramButton';
 
@@ -150,13 +150,16 @@ export function VerifyEmail() {
     );
   }
 
+  const page = (
+    <main id="main" className="status-page">
+      {body}
+    </main>
+  );
+  if (!signedIn) return <PublicFrame>{page}</PublicFrame>;
   return (
     <div className="flex min-h-screen flex-col">
-      {signedIn ? <SetupTopbar me={signedIn} /> : <SiteHeader />}
-      <main id="main" className="status-page">
-        {body}
-      </main>
-      {signedIn ? null : <SiteFooter />}
+      <SetupTopbar me={signedIn} />
+      {page}
     </div>
   );
 }

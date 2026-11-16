@@ -94,15 +94,22 @@ describe('control edges', () => {
 
 describe('lime in the app styles', () => {
   const dir = fileURLToPath(new URL('../app/styles/', import.meta.url));
-  const rules = readdirSync(dir)
-    .filter((f) => f.endsWith('.css') && f !== 'tokens.css')
-    .flatMap((f) =>
-      [
-        ...read(`../app/styles/${f}`)
-          .replace(/\/\*[\s\S]*?\*\//g, '')
-          .matchAll(/([^{}]+)\{([^{}]*)\}/g),
-      ].map((m) => ({ file: f, selector: m[1]!.trim(), body: m[2]! })),
-    );
+  const files = [
+    ...readdirSync(dir)
+      .filter((f) => f.endsWith('.css') && f !== 'tokens.css')
+      .map((f) => `../app/styles/${f}`),
+    '../app/public.css',
+  ];
+  const rules = files.flatMap((f) =>
+    [
+      ...read(f)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .matchAll(/([^{}]+)\{([^{}]*)\}/g),
+    ].map((m) => ({
+      selectors: m[1]!.split(',').map((x) => x.trim()),
+      body: m[2]!,
+    })),
+  );
   const declarations = (body: string) =>
     body
       .split(';')
@@ -110,9 +117,20 @@ describe('lime in the app styles', () => {
       .filter(([prop]) => prop?.trim())
       .map(([prop, value]) => [prop!.trim(), (value ?? '').trim()] as const);
 
+  const MONEY = new Set([
+    '.money-creator',
+    '.money-creator-soft',
+    '.pic-lime',
+    '.pic-lime-soft',
+    '.pic-received .pic-received-amount',
+  ]);
+  const SOFT = new Set(['.money-creator-soft', '.pic-lime-soft']);
+
   it('is used only on the creator money classes', () => {
-    const used = rules.filter((r) => /var\(--(?:hm-)?lime/.test(r.body)).map((r) => r.selector);
-    expect(new Set(used)).toEqual(new Set(['.money-creator', '.money-creator-soft']));
+    const used = rules
+      .filter((r) => /var\(--(?:hm-)?lime/.test(r.body))
+      .flatMap((r) => r.selectors);
+    expect(new Set(used)).toEqual(MONEY);
   });
 
   it('is only ever a fill, with the ink on it, and the soft swatch edge', () => {
@@ -120,12 +138,14 @@ describe('lime in the app styles', () => {
       for (const [prop, value] of declarations(rule.body)) {
         if (/var\(--(?:hm-)?lime(?:-soft)?\)/.test(value)) expect(prop).toBe('background');
         if (/var\(--(?:hm-)?lime-edge\)/.test(value)) {
-          expect(rule.selector).toBe('.money-creator-soft');
+          for (const selector of rule.selectors) expect(SOFT.has(selector), selector).toBe(true);
           expect(prop).toBe('box-shadow');
         }
       }
     }
-    const fill = rules.find((r) => r.selector === '.money-creator')!;
-    expect(fill.body).toMatch(/color:\s*var\(--lime-ink\)/);
+    for (const selector of ['.money-creator', '.pic-lime', '.pic-received .pic-received-amount']) {
+      const rule = rules.find((r) => r.selectors.includes(selector))!;
+      expect(rule.body, selector).toMatch(/color:\s*var\(--lime-ink\)/);
+    }
   });
 });
