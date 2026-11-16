@@ -124,31 +124,12 @@
   --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 16px;
-  --text-md: 17px;
   --text-lg: 18px;
   --text-xl: 22px;
   --text-2xl: 28px;
-  --text-3xl: 34px;
-  --text-display: 44px;
-  --text-h1-fluid: clamp(2.5rem, 1.4rem + 3.8vw, 4.25rem);
-  --text-h2-fluid: clamp(2rem, 1.3rem + 2.6vw, 3.25rem);
   --text-title: clamp(2.25rem, 1.6rem + 2.2vw, 3.25rem); /* the page title in the display cut */
-  --leading-tight: 1.1;
-  --leading-snug: 1.3;
-  --leading-normal: 1.5;
   --tracking-tight: -0.025em;
 
-  /* Spacing, on a 4px base */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
   --wrap: 1200px; /* working screens are narrower than the marketing page's --hm-wrap */
   --gutter: clamp(20px, 4vw, 40px);
   --tap: 44px; /* the smallest touch target */
@@ -172,7 +153,6 @@
   --dur-fast: 160ms;
   --dur: 240ms;
   --dur-slow: 400ms;
-  --dur-reveal: 600ms;
   --ease: var(--hm-ease);
   --ease-spring: var(--hm-spring);
 

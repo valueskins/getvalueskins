@@ -1,6 +1,6 @@
 # Design handoff
 
-> **Superseded by `docs/DESIGN.md`.** The "Receipt" look below is no longer used. Every screen of the web app now follows the home page's look, written down in `docs/DESIGN.md`, with its tokens in `apps/web/app/styles/tokens.css` and the components shown at `/dev/components` (non-production builds); `docs/SPEC.md` section 18 describes the screens. This file and `docs/design/receipt.css` stay as a record of the first handoff. Do not take colours, type, radii or components from them.
+> **Superseded by `docs/DESIGN.md`.** The "Receipt" look below is no longer used. Every screen of the web app now follows the home page's look, written down in `docs/DESIGN.md`, with its tokens in `apps/web/app/styles/tokens.css` and the components shown at `/dev/components` (non-production builds); `docs/SPEC.md` section 18 describes the screens. This file stays as a record of the first handoff; its stylesheet, `receipt.css`, has been removed. Do not take colours, type, radii or components from them.
 
 The design for the web rebuild (W1 to W3 in `docs/REPLACEMENT_PLAN.md` section 7). It is the visual source of truth. The data source of truth stays `apps/api` and the schemas in `packages/shared`. Anything a screen needs that the API does not give is listed in `docs/WEB_API_GAPS.md`.
 
