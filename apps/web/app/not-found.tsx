@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import { SiteFooter, SiteHeader } from '@/components/shell/SiteChrome';
+import { PublicFrame } from '@/components/shell/SiteChrome';
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader />
+    <PublicFrame>
       <main id="main" className="status-page">
         <section className="status-card" aria-labelledby="nf-title">
           <span className="status-icon status-icon-wait" aria-hidden="true">
@@ -29,7 +28,6 @@ export default function NotFound() {
           </div>
         </section>
       </main>
-      <SiteFooter />
-    </div>
+    </PublicFrame>
   );
 }

@@ -53,7 +53,8 @@
   backdrop-filter: blur(18px) saturate(1.6);
   -webkit-backdrop-filter: blur(18px) saturate(1.6);
 }
-/* The public pages' header is the home page's own navigation (landing.css); the wrapper keeps it
+/* No longer used: the public pages' header is the home page's navigation bar (components/landing/HomeNav, inside
+ * the .hm frame). This wrapper kept the older header at the top; it is listed for removal. It kept it
  * at the top while the page scrolls. */
 .v3.site-header-v3 {
   position: sticky;

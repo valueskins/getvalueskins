@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { reportError } from '@/lib/sentryInit';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { SiteFooter, SiteHeader } from '@/components/shell/SiteChrome';
+import { PublicFrame } from '@/components/shell/SiteChrome';
 import { useSupportAddress } from '@/components/shell/SupportEmail';
 
 /** A page that failed to render, inside the app's frame: try again, or go home. */
@@ -22,8 +22,7 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader />
+    <PublicFrame>
       <main id="main" className="status-page">
         <section className="status-card" role="alert" aria-labelledby="error-title">
           <span className="status-icon status-icon-error" aria-hidden="true">
@@ -45,7 +44,6 @@ export default function ErrorPage({
           {error.digest ? <p className="t-small c-ink-3">Reference {error.digest}</p> : null}
         </section>
       </main>
-      <SiteFooter />
-    </div>
+    </PublicFrame>
   );
 }
