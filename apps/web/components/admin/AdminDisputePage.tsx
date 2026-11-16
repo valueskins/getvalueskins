@@ -24,6 +24,7 @@ import { Button, LinkButton } from '@/components/ui/Button';
 import { Badge, Callout } from '@/components/ui/Callout';
 import { describedBy, Field, Input, Textarea } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
+import { cx } from '@/components/ui/cx';
 import { LoadError } from '@/components/ui/LoadError';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
@@ -178,6 +179,7 @@ function DealCard({ deal }: { deal: DisputeDeal }) {
   const rows = [
     {
       label: 'Fee',
+      lime: '',
       ...moneyRow(
         deal.commissionTotalPaise,
         deal.commissionPaidAt,
@@ -185,8 +187,16 @@ function DealCard({ deal }: { deal: DisputeDeal }) {
         cancelled ? 'not charged' : 'not paid',
       ),
     },
-    { label: 'Advance', ...moneyRow(deal.advancePaise, deal.advancePaidAt, 'confirmed', later) },
-    { label: 'Final', ...moneyRow(deal.finalPaise, deal.completedAt, 'confirmed', later) },
+    {
+      label: 'Advance',
+      lime: 'money-creator money-creator-soft',
+      ...moneyRow(deal.advancePaise, deal.advancePaidAt, 'confirmed', later),
+    },
+    {
+      label: 'Final',
+      lime: 'money-creator',
+      ...moneyRow(deal.finalPaise, deal.completedAt, 'confirmed', later),
+    },
   ];
   return (
     <section className="card" aria-labelledby="deal-h">
@@ -215,11 +225,11 @@ function DealCard({ deal }: { deal: DisputeDeal }) {
               'Not set'
             )}
           </dd>
-          {rows.map(({ label, amount, tail }) => (
+          {rows.map(({ label, amount, tail, lime }) => (
             <div key={label} className="contents">
               <dt>{label}</dt>
               <dd>
-                {amount ? <span className="money">{amount}</span> : null}
+                {amount ? <span className={cx('money', lime)}>{amount}</span> : null}
                 {amount ? ', ' : ''}
                 {tail}
               </dd>

@@ -161,6 +161,11 @@ describe('the dense admin variant', () => {
     expect(title).toMatch(/font-weight:\s*700/);
   });
 
+  it('keeps card padding tight', () => {
+    const pad = shell.match(/\.admin-frame \.card-pad \{([^}]*)\}/)![1]!;
+    expect(pad).toMatch(/padding:\s*16px 20px/);
+  });
+
   it('draws flat 16px cards on a solid bar', () => {
     const card = shell.match(/\.admin-frame \.card \{([^}]*)\}/)![1]!;
     expect(card).toMatch(/box-shadow:\s*none/);

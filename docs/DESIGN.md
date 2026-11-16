@@ -327,7 +327,7 @@ All of this uses the home page's tokens. Where the home page has no example it i
 
 - Ground `--hm-bg`, flat `--hm-surface` cards with a 1px `--hm-line` border and no shadow, 16px radius, and card padding of 16px by 20px. The page title is the regular cut (`.admin-frame h1.t-h1` in `base.css`), never the display cut (decision 2).
 - Solid top bar (no glass) with an "Admin" tag in ink, not pink.
-- Tables: 14px text, 40px rows, `--hm-line` row rules, tabular figures, monospace identifiers. Wide tables scroll inside their card. On phones rows stack as cards. The creator's money is lime wherever it shows (the deal's Amounts and UPI records), as it is everywhere else.
+- Tables: 14px text, 40px rows, `--hm-line` row rules, tabular figures, monospace identifiers. Wide tables scroll inside their card. On phones rows stack as cards. The creator's money is lime wherever it shows (the deal's Amounts and UPI records, and the advance and final on a dispute's deal card), as it is everywhere else.
 - Actions stay pills and stay pink. Pink stays the primary action in admin (decision 10). Secondary actions are ink outline pills, destructive ones the danger red.
 
 ### 5.3 Forms (**Proposed**, based on the amount field)
