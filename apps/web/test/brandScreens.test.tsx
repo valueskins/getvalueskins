@@ -146,6 +146,9 @@ describe('post a deal', () => {
     const breakdown = screen.getByLabelText('Payment breakdown');
     expect(breakdown).toHaveTextContent('₹885.00');
     expect(breakdown).toHaveTextContent('Creators see: You receive ₹9,99,115.00');
+    // Only the creator's amounts are lime: the 30%, the 70% and what the creator receives.
+    expect([...breakdown.querySelectorAll('.money-creator')]).toHaveLength(3);
+    expect(breakdown.querySelectorAll('.money-creator-soft')).toHaveLength(1);
   });
 
   it('shows the whole breakdown at the ₹2,000 minimum: ₹885.00 fee, ₹334.50 then ₹780.50 to the creator', async () => {
@@ -210,6 +213,8 @@ describe('post a deal', () => {
     const dialog = screen.getByRole('dialog', { name: 'Publish Test kurta reel?' });
     expect(dialog).toHaveTextContent('You cannot edit a deal once it is published.');
     expect(dialog).toHaveTextContent('₹10,000.00');
+    // In the confirm only the creator's amount is lime, not the budget or the fee.
+    expect([...dialog.querySelectorAll('.money-creator')]).toHaveLength(1);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/deals/${DEAL_ID}`));
     expect(api.called('POST /deals')[0]!.body).toMatchObject({

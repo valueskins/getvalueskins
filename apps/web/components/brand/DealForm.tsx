@@ -41,6 +41,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Badge, Callout, ErrorSummary } from '@/components/ui/Callout';
 import { describedBy, Field, Input, MoneyInput, Textarea } from '@/components/ui/Field';
+import { Money } from '@/components/ui/Money';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { DateField } from './DateField';
@@ -139,14 +140,18 @@ function Breakdown({ paise, gst, min }: { paise: number | null; gst: number; min
       {feeRow}
       <div className="bd-row">
         <p className="t-small font-medium">To the creator by UPI, before work starts</p>
-        <p className="money money-s">{formatInr(b.advancePaise)}</p>
+        <p>
+          <Money paise={b.advancePaise} size="s" creator="advance" />
+        </p>
         <p className="t-small c-ink-2">
           30% of the creator&apos;s {formatInr(b.creatorAmountPaise)}
         </p>
       </div>
       <div className="bd-row">
         <p className="t-small font-medium">To the creator by UPI, after you approve</p>
-        <p className="money money-s">{formatInr(b.finalPaise)}</p>
+        <p>
+          <Money paise={b.finalPaise} size="s" creator="final" />
+        </p>
         <p className="t-small c-ink-2">The other 70%</p>
       </div>
       <div className="bd-row bd-total">
@@ -155,8 +160,7 @@ function Breakdown({ paise, gst, min }: { paise: number | null; gst: number; min
         <p className="t-small c-ink-2">Your budget. Nothing is added on top.</p>
       </div>
       <p className="bd-note">
-        Creators see: You receive{' '}
-        <span className="money text-ink">{formatInr(b.creatorAmountPaise)}</span>
+        Creators see: You receive <Money paise={b.creatorAmountPaise} creator="total" />
       </p>
     </div>
   );
@@ -201,10 +205,13 @@ function Preview({
             </div>
             <div className="flex justify-between">
               <p className="t-small font-medium">You receive</p>
-              <p className="money money-m">{formatInr(b.creatorAmountPaise)}</p>
+              <p>
+                <Money paise={b.creatorAmountPaise} size="m" creator="total" />
+              </p>
             </div>
-            <p className="money money-s c-ink-3 text-right">
-              ({formatInr(b.advancePaise)} + {formatInr(b.finalPaise)})
+            <p className="t-small c-ink-3 flex flex-wrap items-baseline justify-end gap-x-1 text-right">
+              (<Money paise={b.advancePaise} size="s" creator="advance" /> +{' '}
+              <Money paise={b.finalPaise} size="s" creator="final" />)
             </p>
           </div>
         ) : (
@@ -674,7 +681,9 @@ export function DealForm({ draft }: { draft: DealDetail | null }) {
             </div>
             <div className="bd-row">
               <p className="t-small">To the creator by UPI</p>
-              <p className="money money-s">{formatInr(breakdown.creatorAmountPaise)}</p>
+              <p>
+                <Money paise={breakdown.creatorAmountPaise} size="s" creator="total" />
+              </p>
             </div>
             {DATE_FIELDS.map((d) =>
               f[d.key] ? (

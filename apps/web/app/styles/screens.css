@@ -178,7 +178,7 @@
 }
 .deal-card:hover,
 .deal-card.is-hover {
-  border-color: var(--border-strong);
+  border-color: var(--border-field);
   box-shadow: var(--shadow);
   transform: translateY(-2px);
 }
@@ -410,9 +410,9 @@ a.stretched:hover {
   position: sticky;
   bottom: 0;
   z-index: 20;
-  background: rgb(255 255 255 / 0.9);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  background: rgb(252 252 250 / 0.92);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
   border-top: 1px solid var(--border);
 }
 .form-bar-in {

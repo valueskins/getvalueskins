@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import type { DealFeedItem } from '@valueskins/shared';
-import { formatInr } from '@valueskins/shared';
 import { closingToday, isNew, shortDate } from '@/lib/deadlines';
 import { Badge } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
@@ -15,8 +14,8 @@ export function DealCard({ deal, href }: { deal: DealFeedItem; href: string }) {
   const now = useNow();
   const closing = deal.applicationDeadline ? closingToday(deal.applicationDeadline, now) : null;
   return (
-    <article className="card deal-card flex flex-col gap-3.5 px-4 py-4 md:px-6 md:py-5">
-      <div className="above flex items-center justify-between gap-2">
+    <article className="card deal-card flex min-w-0 flex-col gap-3.5 px-4 py-4 md:px-6 md:py-5">
+      <div className="above flex flex-wrap items-center justify-between gap-2">
         <ResumeCard
           userId={deal.brand.id}
           username={deal.brand.username}
@@ -49,12 +48,13 @@ export function DealCard({ deal, href }: { deal: DealFeedItem; href: string }) {
         {deal.creatorAmountPaise !== null ? (
           <div className="flex items-baseline justify-between gap-3">
             <p className="t-small font-medium">You receive</p>
-            <Money paise={deal.creatorAmountPaise} size="m" />
+            <Money paise={deal.creatorAmountPaise} size="m" creator="total" />
           </div>
         ) : null}
         {deal.advancePaise !== null && deal.finalPaise !== null ? (
-          <p className="money money-s c-ink-3 text-right">
-            ({formatInr(deal.advancePaise)} + {formatInr(deal.finalPaise)})
+          <p className="t-small c-ink-3 flex flex-wrap items-baseline justify-end gap-x-1 text-right">
+            (<Money paise={deal.advancePaise} size="s" creator="advance" /> +{' '}
+            <Money paise={deal.finalPaise} size="s" creator="final" />)
           </p>
         ) : null}
       </div>
