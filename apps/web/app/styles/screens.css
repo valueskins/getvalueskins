@@ -1443,7 +1443,7 @@ a.stretched:hover {
     top: calc(var(--topbar-h) + 32px);
   }
 }
-/* The profile preview gets a column of its own only when there is room for one (at least 320px) */
+/* The profile preview gets a column of its own only on wide screens; below that it folds under the fields */
 @media (min-width: 1280px) {
   .onb {
     grid-template-columns: 220px minmax(0, 560px) minmax(0, 1fr);
