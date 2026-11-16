@@ -2,7 +2,7 @@
 
 This file describes the look every ValueSkins screen will follow. The only source is the home page: `apps/web/app/(landing)/page.tsx`, `apps/web/components/landing/`, the `.hm` rules and tokens in `apps/web/app/home.css`, and `docs/SPEC.md` section 18 (the "Homepage" and "Deal calculator" bullets).
 
-Status: written from the home page, with the founder's decisions in section 7. Anything marked **Proposed** has no example on the home page.
+Status: written from the home page, with the founder's decisions in section 7. Every screen follows it as of Part 8 of the design work. Anything marked **Proposed** has no example on the home page.
 
 `apps/web/app/styles/tokens.css` is the one token source: the `--hm-*` values below, plus the shorter names the components read (`--bg`, `--ink`, `--accent`, `--border-field` and so on), each pointing at a `--hm-*` value. `/dev/components` (non-production builds) shows every shared component in every state, including pink and danger side by side.
 

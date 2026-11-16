@@ -53,8 +53,6 @@
   --sunken: var(--hm-bg-2); /* quiet fills: hover, notes, table heads */
   --track: var(--hm-line); /* progress tracks and skeletons */
   --sand: var(--hm-bg-2);
-  --rose: var(--hm-accent-mid);
-  --rose-soft: var(--hm-accent-soft);
 
   /* Ink */
   --ink: var(--hm-ink);
@@ -117,15 +115,6 @@
   --tone-plum-ink: #6b21a8;
   --tone-blue: var(--info-soft);
   --tone-blue-ink: var(--info);
-  /* Names the older public pages' styles read, on the new palette */
-  --tone-saffron: var(--tone-pink);
-  --tone-saffron-ink: var(--tone-pink-ink);
-  --tone-rose: var(--tone-pink);
-  --tone-rose-ink: var(--tone-pink-ink);
-  --tone-sand: var(--tone-grey);
-  --tone-sand-ink: var(--tone-grey-ink);
-  --tone-green: var(--hm-ok-soft);
-  --tone-green-ink: var(--hm-ok);
 
   /* Type */
   --font-sans: var(--font-bricolage), 'Bricolage Grotesque', system-ui, sans-serif;
