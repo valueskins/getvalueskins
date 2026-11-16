@@ -15,9 +15,9 @@ function initial(name: string): string {
   return (clean[0] ?? '?').toUpperCase();
 }
 
-const TONES = ['tone-saffron', 'tone-rose', 'tone-sand', 'tone-green', 'tone-plum'] as const;
+const TONES = ['tone-pink', 'tone-grey', 'tone-blue', 'tone-plum', 'tone-ink'] as const;
 
-/** A warm tint for the letter, the same for a name every time. */
+/** A tint for the letter, the same for a name every time. */
 export function toneFor(name: string): (typeof TONES)[number] {
   let sum = 0;
   for (const ch of name.replace(/^@/, '').toLowerCase()) sum = (sum * 31 + ch.charCodeAt(0)) >>> 0;

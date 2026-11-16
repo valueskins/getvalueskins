@@ -49,7 +49,8 @@ body {
   border: 0;
 }
 
-/* Type scale. Headings are Bricolage bold with tight tracking, like the home page, one size calmer. */
+/* Type scale. Headings are Bricolage bold with tight tracking, like the home page, one size calmer.
+ * The page title (the one h1 of a page) is the display cut; the admin area keeps the regular cut. */
 .t-display {
   font-size: 40px;
   line-height: 44px;
@@ -75,6 +76,24 @@ body {
   line-height: 24px;
   font-weight: 650;
   letter-spacing: -0.01em;
+}
+h1.t-h1,
+h1.t-display,
+.t-title {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: 0.98;
+  font-weight: 800;
+  font-stretch: 76%;
+  letter-spacing: -0.012em;
+}
+.admin-frame h1.t-h1 {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xl);
+  line-height: 34px;
+  font-weight: 700;
+  font-stretch: 100%;
+  letter-spacing: var(--tracking-tight);
 }
 .t-body {
   font-size: var(--text-base);

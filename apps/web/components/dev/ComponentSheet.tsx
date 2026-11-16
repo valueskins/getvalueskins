@@ -26,11 +26,19 @@ import { cx } from '@/components/ui/cx';
 import { ApiError } from '@/lib/api/client';
 
 const SWATCHES: Array<[string, string[]]> = [
-  ['Grounds', ['bg', 'surface', 'sunken', 'track', 'sand']],
-  ['Ink and lines', ['ink', 'ink-muted', 'ink-subtle', 'border', 'border-strong', 'border-field']],
-  ['Accent', ['accent', 'accent-hover', 'accent-press', 'accent-ink', 'accent-soft']],
+  ['Grounds', ['bg', 'surface', 'sunken', 'track']],
+  ['Ink', ['ink', 'ink-muted', 'ink-subtle']],
+  ['Lines and control edges', ['border', 'border-strong', 'border-field']],
   [
-    'Status',
+    'Accent: rani pink, the brand and every action',
+    ['accent', 'accent-hover', 'accent-press', 'accent-ink', 'accent-soft'],
+  ],
+  [
+    'Creator money: lime, a fill under ink text, nowhere else',
+    ['lime', 'lime-soft', 'lime-ink', 'lime-edge'],
+  ],
+  [
+    'Status: success is green, never lime',
     [
       'success',
       'success-soft',
@@ -42,8 +50,14 @@ const SWATCHES: Array<[string, string[]]> = [
       'info-soft',
     ],
   ],
-  ['Contrast sections', ['dark', 'dark-raised', 'on-dark', 'on-dark-muted', 'accent-on-dark']],
+  [
+    'Tints for avatars and monograms',
+    ['tone-pink', 'tone-grey', 'tone-blue', 'tone-plum', 'tone-ink'],
+  ],
+  ['Ink sections', ['dark', 'dark-raised', 'on-dark', 'on-dark-muted', 'accent-on-dark']],
 ];
+
+const TONES = ['pink', 'grey', 'blue', 'plum', 'ink'] as const;
 
 const VARIANTS = ['primary', 'secondary', 'text', 'ghost', 'danger', 'danger-outline'] as const;
 const STATES: Array<[string, string | undefined]> = [
@@ -141,7 +155,8 @@ export function ComponentSheet() {
 
         <Section id="type" title="Type">
           <div className="flex flex-col gap-4">
-            <p className="t-display">Display 40, the deal is set</p>
+            <p className="t-title">Page title, the display cut</p>
+            <p className="t-display">Display 40, regular cut</p>
             <p className="t-h1">Heading 1, Campaigns</p>
             <p className="t-h2">Heading 2, Next step</p>
             <p className="t-h3">Heading 3, Payments</p>
@@ -156,6 +171,86 @@ export function ComponentSheet() {
               <Money paise={1_000_000} size="l" />
               <Money paise={273_450} size="m" />
               <Money paise={88_500} size="s" />
+            </div>
+          </div>
+        </Section>
+
+        <Section id="money" title="Creator money">
+          <p className="t-small c-ink-2 max-w-[60ch]">
+            Lime marks the creator&apos;s money and nothing else: the 30% advance (soft), the 70%
+            final and what the creator receives. It is always a fill under ink text. The fee and
+            every other amount stay ink.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <Money paise={300_000} size="l" creator="advance" />
+            <Money paise={700_000} size="l" creator="final" />
+            <Money paise={911_500} size="l" creator="total" />
+            <Money paise={88_500} size="l" />
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <Money paise={300_000} size="m" creator="advance" />
+            <Money paise={700_000} size="m" creator="final" />
+            <Money paise={911_500} size="m" creator="total" />
+            <Money paise={88_500} size="m" />
+          </div>
+        </Section>
+
+        <Section id="pink-danger" title="Pink and danger, side by side">
+          <p className="t-small c-ink-2 max-w-[60ch]">
+            Pink is the brand and every action. Danger is a red that is never an action: it always
+            comes with an icon and words, and a destructive button is red, never pink.
+          </p>
+          <div className="sheet-grid">
+            <div className="flex flex-col items-start gap-3">
+              <Label>Pink: actions</Label>
+              <Button>Post a deal</Button>
+              <Badge kind="open">Open</Badge>
+              <span className="t-small text-accent-ink font-semibold">Accent text</span>
+            </div>
+            <div className="flex flex-col items-start gap-3">
+              <Label>Danger: destructive and errors</Label>
+              <Button variant="danger">Cancel the deal</Button>
+              <Badge kind="error">
+                <Icon name="warningCircle" size={16} />
+                Payment failed
+              </Badge>
+              <span className="t-small text-danger font-semibold">Danger text</span>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="cards" title="Cards">
+          <div className="sheet-grid">
+            <div className="card card-pad">
+              <p className="t-h3">A card</p>
+              <p className="t-small c-ink-2">A container: 32px outside, 16px inside.</p>
+            </div>
+            <a href="/dev/components" className="card card-pad is-hover">
+              <p className="t-h3">A card that is a link, hovered</p>
+              <p className="t-small c-ink-2">Border and shadow lift a little.</p>
+            </a>
+            <div className="admin-frame">
+              <div className="card">
+                <table className="dt">
+                  <thead>
+                    <tr>
+                      <th>Deal</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Festive kurta try-on reel</td>
+                      <td>Open</td>
+                    </tr>
+                    <tr>
+                      <td>Street food city guide</td>
+                      <td>Completed</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="t-label c-ink-3 mt-2">The dense admin variant: 16px cards, no shadow</p>
             </div>
           </div>
         </Section>
@@ -332,6 +427,13 @@ export function ComponentSheet() {
         </Section>
 
         <Section id="people" title="People">
+          <div className="flex flex-wrap items-center gap-4">
+            {TONES.map((t) => (
+              <span key={t} className={`avatar av-40 tone-${t}`} aria-hidden="true">
+                E
+              </span>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-4">
             {(
               [
@@ -524,6 +626,38 @@ export function ComponentSheet() {
           >
             <p>The creator is told by email. This cannot be undone.</p>
           </Modal>
+        </Section>
+
+        <Section id="menus" title="Menu, popover and sheet">
+          <div className="flex flex-wrap gap-6">
+            <div className="relative" style={{ minHeight: 190, width: 280 }}>
+              <div className="menu" style={{ right: 'auto', left: 0, top: 0 }}>
+                <div className="menu-head">
+                  <p className="chip-name">@example.brand</p>
+                  <p className="chip-sub">Brand</p>
+                </div>
+                <span className="menu-item">Contact us</span>
+                <span className="menu-item">Sign out</span>
+              </div>
+            </div>
+            <div className="relative" style={{ minHeight: 190, width: 380 }}>
+              <div className="popover card-pad" style={{ position: 'static' }}>
+                <p className="t-h3">A popover</p>
+                <p className="t-small c-ink-2">The resume card opens like this on a laptop.</p>
+              </div>
+            </div>
+            <div className="relative" style={{ height: 190, width: 320, overflow: 'hidden' }}>
+              <div className="sheet-bottom" style={{ animation: 'none' }}>
+                <div className="sheet-grip" />
+                <div className="card-pad">
+                  <p className="t-h3">A bottom sheet</p>
+                  <p className="t-small c-ink-2">
+                    On phones, modals and the resume card open like this.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </Section>
 
         <Section id="frame" title="Frame pieces">
